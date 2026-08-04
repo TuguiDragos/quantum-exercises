@@ -22,77 +22,89 @@ def _watched_files(exercise: Exercise) -> set[str]:
     return {str(exercise.exercise_file.resolve()), str(exercise.check_file.resolve())}
 
 
-def watch_exercise(exercise: Exercise, *, root: Path, exercises: list[Exercise]) -> None:
-    """Block until interrupted, re-running the exercise whenever its file changes."""
-    current = exercise
-
-    def announce() -> None:
-        ui.console.print()
-        ui.console.print(
-            Text("  watching  ", style="bold blue")
-            + Text(str(current.exercise_file.relative_to(root)), style="cyan")
-            + Text("   save to re-run, Ctrl-C to stop", style="dim")
-        )
-
-    def check_once() -> bool:
-        result = run_exercise(current, root=root)
-        ui.render_run(current, result, root=root)
-        if not result.passed:
-            return False
-
-        state = load(root)
-        ran_on = next(
-            (
-                a.get("meta", {}).get("ran_on")
-                for a in result.artifacts
-                if a.get("meta", {}).get("ran_on")
-            ),
-            None,
-        )
-        state.mark_done(current.slug, ran_on=ran_on)
-        save(root, state)
-        return True
-
-    try:
-        if check_once():
-            advanced = _advance(current, root, exercises)
-            if advanced is None:
-                ui.success("Every exercise is complete.")
-                return
-            current = advanced
-        announce()
-
-        # Watch the whole directory: many editors replace the file on save, which
-        # would break a watch registered on the inode of the original file.
-        for changes in watch(current.path, debounce=DEBOUNCE_MS, step=STEP_MS):
-            touched = {str(Path(path).resolve()) for _, path in changes}
-            if not touched & _watched_files(current):
-                continue
-
-            if check_once():
-                advanced = _advance(current, root, exercises)
-                if advanced is None:
-                    ui.success("Every exercise is complete.")
-                    return
-                if advanced is not current:
-                    current = advanced
-                    ui.info(f"Moving on to {current.number:02d} {current.title}")
-                    # Re-enter watch() so it follows the new exercise directory.
-                    return watch_exercise(current, root=root, exercises=exercises)
-            announce()
-
-    except KeyboardInterrupt:
-        ui.console.print()
-        ui.info("Stopped watching.")
+def _announce(exercise: Exercise, root: Path) -> None:
+    ui.console.print()
+    ui.console.print(
+        Text("  watching  ", style="bold blue")
+        + Text(str(exercise.exercise_file.relative_to(root)), style="cyan")
+        + Text("   save to re-run, Ctrl-C to stop", style="dim")
+    )
 
 
-def _advance(current: Exercise, root: Path, exercises: list[Exercise]) -> Exercise | None:
-    """First unfinished exercise after the current one, or None when all are done."""
+def _run_and_record(exercise: Exercise, root: Path) -> bool:
+    """Check the exercise, show the result, and save progress when it passes."""
+    result = run_exercise(exercise, root=root)
+    ui.render_run(exercise, result, root=root)
+    if not result.passed:
+        return False
+
+    state = load(root)
+    ran_on = next(
+        (
+            artifact.get("meta", {}).get("ran_on")
+            for artifact in result.artifacts
+            if artifact.get("meta", {}).get("ran_on")
+        ),
+        None,
+    )
+    state.mark_done(exercise.slug, ran_on=ran_on)
+    save(root, state)
+    return True
+
+
+def _next_unfinished(root: Path, exercises: list[Exercise]) -> Exercise | None:
     state = load(root)
     for exercise in exercises:
         if not state.is_complete(exercise.slug):
             return exercise
     return None
+
+
+def watch_exercise(exercise: Exercise, *, root: Path, exercises: list[Exercise]) -> None:
+    """Block until interrupted, re-running the current exercise whenever it changes."""
+    current = exercise
+
+    try:
+        # One pass before watching, so a file that already passes moves on at once.
+        if _run_and_record(current, root):
+            following = _next_unfinished(root, exercises)
+            if following is None:
+                ui.success("Every exercise is complete.")
+                return
+            current = following
+
+        # watch() is bound to one directory, so advancing needs a fresh watcher.
+        # The outer loop is that re-registration, not recursion.
+        while True:
+            _announce(current, root)
+            advanced_to: Exercise | None = None
+
+            for changes in watch(current.path, debounce=DEBOUNCE_MS, step=STEP_MS):
+                touched = {str(Path(path).resolve()) for _, path in changes}
+                if not touched & _watched_files(current):
+                    continue
+
+                if _run_and_record(current, root):
+                    following = _next_unfinished(root, exercises)
+                    if following is None:
+                        ui.success("Every exercise is complete.")
+                        return
+                    if following is not current:
+                        advanced_to = following
+                        break
+
+                _announce(current, root)
+
+            if advanced_to is None:
+                # The watcher stopped on its own, for example the directory vanished.
+                return
+
+            current = advanced_to
+            ui.info(f"Moving on to {current.number:02d} {current.title}")
+
+    except KeyboardInterrupt:
+        ui.console.print()
+        ui.info("Stopped watching.")
 
 
 __all__ = ["watch_exercise"]

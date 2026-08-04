@@ -39,7 +39,7 @@ the rightmost character is qubit 0.
 
 So `|01>` means qubit 1 is in state 0 and qubit 0 is in state 1. This is the
 opposite of most textbooks, and it is the single most common source of "my matrix
-looks transposed" confusion. Exercise 09 makes you use it for real.
+looks transposed" confusion. Exercise 11 makes you use it for real.
 
 For controlled-Z it happens not to matter, since CZ is symmetric in its two
 qubits. That is a small mercy, and it will not last.

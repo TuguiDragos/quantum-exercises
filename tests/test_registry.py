@@ -32,10 +32,12 @@ def _write_exercise(base: Path, name: str, *, meta: str | None = None) -> Path:
 
 
 class TestDiscovery:
-    def test_finds_every_exercise(self, exercises: list[Exercise]) -> None:
-        assert len(exercises) == 12
+    def test_finds_every_exercise(self, exercises: list[Exercise], root: Path) -> None:
+        # Derived from disk, so adding an exercise does not fail this test.
+        on_disk = [p for p in (root / "exercises").iterdir() if p.is_dir()]
+        assert len(exercises) == len(on_disk)
         assert exercises[0].slug == "01_environment"
-        assert exercises[-1].number == 12
+        assert exercises[-1].number == len(exercises)
 
     def test_ordered_by_number(self, exercises: list[Exercise]) -> None:
         assert [e.number for e in exercises] == sorted(e.number for e in exercises)
@@ -95,7 +97,8 @@ class TestResolve:
         assert resolve("03_first_circuit", exercises).number == 3
 
     def test_by_unique_fragment(self, exercises: list[Exercise]) -> None:
-        assert resolve("bell", exercises).slug == "09_bell_entanglement"
+        expected = next(e for e in exercises if "bell" in e.slug)
+        assert resolve("bell", exercises) is expected
 
     def test_ambiguous_fragment(self, exercises: list[Exercise]) -> None:
         with pytest.raises(RegistryError, match="matches several"):

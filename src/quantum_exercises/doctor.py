@@ -78,6 +78,40 @@ def check_qiskit() -> Check:
     return Check("Qiskit SDK", "ok", f"version {qiskit.__version__}")
 
 
+def check_smoke() -> Check:
+    """Build and run a real circuit.
+
+    Importing a package proves the files are on disk. It does not prove the
+    compiled extensions underneath actually work, which is the failure mode of a
+    half-finished install or a mismatched architecture.
+    """
+    try:
+        from qiskit import QuantumCircuit
+        from qiskit.primitives import StatevectorSampler
+
+        qc = QuantumCircuit(1)
+        qc.h(0)
+        qc.measure_all()
+        result = StatevectorSampler(seed=1).run([qc], shots=64).result()
+        counts = dict(result[0].data.meas.get_counts())
+    except Exception as exc:  # noqa: BLE001 - any failure is the answer
+        return Check(
+            "Circuit smoke test",
+            "fail",
+            f"{type(exc).__name__}: {exc}",
+            "The packages import but cannot run. Try `uv sync --reinstall`.",
+        )
+
+    if sum(counts.values()) != 64 or set(counts) - {"0", "1"}:
+        return Check(
+            "Circuit smoke test",
+            "fail",
+            f"a Hadamard produced {counts}, which is not what it should",
+            "This environment is inconsistent. Try `uv sync --reinstall`.",
+        )
+    return Check("Circuit smoke test", "ok", f"ran a Hadamard on 64 shots: {counts}")
+
+
 def check_visualization() -> Check:
     """qiskit[visualization] is a separate extra; without it draw('mpl') fails."""
     missing = []
@@ -204,6 +238,7 @@ def run_checks(root: Path | None, *, online: bool = False) -> list[Check]:
         check_qiskit(),
         _package("qiskit-aer", "Aer simulator", "Run `uv sync`."),
         _package("qiskit-ibm-runtime", "IBM Runtime client", "Run `uv sync`."),
+        check_smoke(),
         check_visualization(),
         check_exercises(root),
         check_credentials(),
@@ -218,5 +253,6 @@ __all__ = [
     "Check",
     "RETIRED_CHANNELS",
     "VALID_CHANNELS",
+    "check_smoke",
     "run_checks",
 ]

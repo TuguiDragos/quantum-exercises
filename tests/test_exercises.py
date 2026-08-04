@@ -54,34 +54,43 @@ def test_template_is_valid_python(exercise: Exercise) -> None:
     compile(source, str(exercise.template_file), "exec")
 
 
-def test_template_matches_the_committed_exercise(exercise: Exercise, root: Path) -> None:
-    """template.py must stay a pristine copy of exercise.py as shipped.
-
-    Compared against git rather than the working tree, so a learner's own edits to
-    exercise.py never fail this. It exists because `ruff check --fix` once stripped
-    the deliberately unused imports out of template.py, which would have made
-    `qx reset` hand back a file missing the imports the exercise needs.
-    """
-    relative = exercise.exercise_file.relative_to(root).as_posix()
+def _committed(root: Path, path: Path) -> str | None:
+    """Content of a file as committed at HEAD, or None if git cannot say."""
+    relative = path.relative_to(root).as_posix()
     try:
-        committed = subprocess.run(  # noqa: S603 - fixed argv, no shell
+        shown = subprocess.run(  # noqa: S603 - fixed argv, no shell
             ["git", "-C", str(root), "show", f"HEAD:{relative}"],
             capture_output=True,
             text=True,
             check=False,
         )
     except (FileNotFoundError, OSError):  # pragma: no cover - git-less environment
-        pytest.skip("git is not available")
-
-    if committed.returncode != 0:
-        pytest.skip(f"{relative} is not committed yet")
-
+        return None
+    if shown.returncode != 0:
+        return None
     # Normalise line endings: git stores LF, a Windows checkout may hold CRLF.
-    expected = committed.stdout.replace("\r\n", "\n")
-    actual = exercise.template_file.read_text(encoding="utf-8").replace("\r\n", "\n")
-    assert actual == expected, (
-        f"{exercise.slug}/template.py has drifted from the committed exercise.py. "
-        f"Refresh it with: cp {relative} {exercise.template_file.relative_to(root).as_posix()}"
+    return shown.stdout.replace("\r\n", "\n")
+
+
+def test_template_matches_the_committed_exercise(exercise: Exercise, root: Path) -> None:
+    """template.py and exercise.py must be identical in the shipped repository.
+
+    Both sides are read from git rather than the working tree, so neither a
+    learner solving an exercise nor a maintainer editing one can trip this. It
+    exists because `ruff check --fix` once stripped the deliberately unused
+    imports out of template.py, which would have made `qx reset` hand back a file
+    missing the imports the exercise needs.
+    """
+    template = _committed(root, exercise.template_file)
+    original = _committed(root, exercise.exercise_file)
+
+    if template is None or original is None:
+        pytest.skip(f"{exercise.slug} is not committed yet")
+
+    assert template == original, (
+        f"{exercise.slug}/template.py has drifted from exercise.py in the commit. "
+        f"Refresh it with: cp {exercise.exercise_file.relative_to(root).as_posix()} "
+        f"{exercise.template_file.relative_to(root).as_posix()}"
     )
 
 

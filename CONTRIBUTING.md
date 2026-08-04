@@ -77,6 +77,19 @@ New translations go in `errors.py`. **Trigger the real exception first and paste
 its actual message** - never write a pattern from memory. `tests/test_errors.py`
 raises each error for real, so a guessed pattern fails immediately.
 
+## The notebook
+
+`notebooks/playground.ipynb` is executed cell by cell in CI, so treat it as code:
+if you change an API it uses, the suite tells you. Outputs are stripped on commit
+by nbstripout, which matters because notebook output can carry IBM job ids and
+account details.
+
+## Releasing
+
+The version appears in three files and a test enforces that they agree:
+`pyproject.toml`, `src/quantum_exercises/__init__.py`, and `CITATION.cff`. Add
+the change to `CHANGELOG.md` in the same commit.
+
 ## What CI checks
 
 For every exercise:

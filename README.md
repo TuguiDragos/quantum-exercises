@@ -4,16 +4,17 @@
 [![weekly-verify](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/weekly-verify.yml/badge.svg)](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/weekly-verify.yml)
 [![verified against qiskit](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTuguiDragos%2Fquantum-exercises%2Fbadges%2Fbadges%2Fqiskit.json)](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/weekly-verify.yml)
 
-Twelve hands-on exercises that take you from an empty laptop to a quantum circuit
-running on real IBM hardware. In the style of [rustlings](https://github.com/rust-lang/rustlings):
-you edit a file, you run a command, you get told exactly what is wrong.
+Fourteen hands-on exercises that take you from an empty laptop to a quantum
+circuit running on real IBM hardware. In the style of
+[rustlings](https://github.com/rust-lang/rustlings): you edit a file, you run a
+command, you get told exactly what is wrong.
 
 ## What it looks like
 
 You get an answer wrong:
 
 ```
-09 Bell state, and which bit is which ────────────────────────────────────────
+11 Bell state, and which bit is which ────────────────────────────────────────
 ╭───────────────────────────────── NOT YET ──────────────────────────────────╮
 │ `label_q0_only` is '10', but the answer is "01".                           │
 │                                                                            │
@@ -22,13 +23,13 @@ You get an answer wrong:
 │ 0 on the left, giving "01". Writing "10" is reading it the textbook way.   │
 ╰────────────────────────────────────────────────────────────────────────────╯
 
-  next  qx hint 9 for a nudge, or edit exercise.py and run again
+  next  qx hint 11 for a nudge, or edit exercise.py and run again
 ```
 
 You fix it, and the exercise ends in something that actually ran:
 
 ```
-09 Bell state, and which bit is which ────────────────────────────────────────
+11 Bell state, and which bit is which ────────────────────────────────────────
 ╭─────── Your Bell state ───────╮
 │ basis  amplitude  probability │
 │ |00>       0.707       0.5000 │
@@ -52,10 +53,10 @@ You fix it, and the exercise ends in something that actually ran:
 │ keeps reminding you about it.                                       │
 ╰─────────────────────────────────────────────────────────────────────╯
 
-  PASS  09_bell_entanglement
+  PASS  11_bell_entanglement
         finished in 0.61s
 
-  Next up: 10 Code from 2021 that no longer runs  (qx next)
+  Next up: 12 Code from 2021 that no longer runs  (qx next)
 ```
 
 No exercise ends on a green tick alone. Every one finishes with a histogram, a
@@ -117,8 +118,8 @@ cd quantum-exercises
 uv run qx doctor
 ```
 
-`qx doctor` checks every step and tells you what is missing and how to fix it.
-When it is happy:
+`qx doctor` checks every step, right down to building and running a real circuit,
+and tells you what is missing and how to fix it. When it is happy:
 
 ```bash
 uv run qx next
@@ -147,8 +148,8 @@ type `qx`, install it once with `uv tool install --editable .`.
 | `qx version` | versions of the tool and the quantum stack |
 
 Leave the number off and the command picks the first exercise you have not
-finished. Numbers, slugs and fragments all work, so `qx run 9`, `qx run bell` and
-`qx run 09_bell_entanglement` are the same thing.
+finished. Numbers, slugs and fragments all work, so `qx run 11`, `qx run bell`
+and `qx run 11_bell_entanglement` are the same thing.
 
 ```
   quantum-exercises
@@ -164,20 +165,22 @@ finished. Numbers, slugs and fragments all work, so `qx run 9`, `qx run bell` an
   Act II - Understanding what you see
  #  exercise              title                                 status
 06  06_born_rule          The Born rule, on paper first         done
-07  07_statevector        States, amplitudes, and global phase  todo
-08  08_gates_as_matrices  Gates are matrices                    todo
-09  09_bell_entanglement  Bell state, and which bit is which    solved
+07  07_statevector        States, amplitudes, and global phase  done
+08  08_gates_as_matrices  Gates are matrices                    done
+09  09_interference       Interference: amplitudes that cancel  todo
+10  10_deutsch            Deutsch's algorithm in one query      todo
+11  11_bell_entanglement  Bell state, and which bit is which    solved
 
   Act III - The real world
  #  exercise              title                                 status
-10  10_migration          Code from 2021 that no longer runs    todo
-11  11_real_hardware      A Bell state on a real machine        done (noisy)
-12  12_honest_reading     Reading a noisy result honestly       todo
+12  12_migration          Code from 2021 that no longer runs    todo
+13  13_real_hardware      A Bell state on a real machine        done (noisy)
+14  14_honest_reading     Reading a noisy result honestly       todo
 
-  progress  ██████████████████▋░░░░░░░░░  8/12
+  progress  ████████████████████░░░░░░░░  10/14
 ```
 
-## The twelve exercises
+## The fourteen exercises
 
 **Act I - reaching a first result**
 
@@ -196,15 +199,17 @@ finished. Numbers, slugs and fragments all work, so `qx run 9`, `qx run bell` an
 | 06 | The Born rule, on paper first | Predict the probabilities before running anything, checked against 4096 real shots |
 | 07 | States, amplitudes, and global phase | Prepare two target states, and find out why the runner compares with `equiv` rather than `==` |
 | 08 | Gates are matrices | Build a controlled-Z out of nothing but Hadamards and a CNOT |
-| 09 | Bell state, and which bit is which | The state that started the argument, plus which character of the bitstring is qubit 0 |
+| 09 | Interference: amplitudes that cancel | Two Hadamards undo each other, which no coin can do. This is where the power comes from |
+| 10 | Deutsch's algorithm in one query | Turn that cancellation into the first algorithm that provably beats every classical one |
+| 11 | Bell state, and which bit is which | The state that started the argument, plus which character of the bitstring is qubit 0 |
 
 **Act III - the real world**
 
 | # | Exercise | What you come away with |
 |---|---|---|
-| 10 | Code from 2021 that no longer runs | Migrate real 0.x code to 2.x. This is the skill that unblocks every old tutorial you will ever find |
-| 11 | A Bell state on a real machine | Transpile to the backend's instruction set and run, on a QPU if you have one |
-| 12 | Reading a noisy result honestly | Hardware gives outcomes the theory forbids. Quantify that instead of assuming your circuit is broken |
+| 12 | Code from 2021 that no longer runs | Migrate real 0.x code to 2.x. This is the skill that unblocks every old tutorial you will ever find |
+| 13 | A Bell state on a real machine | Transpile to the backend's instruction set and run, on a QPU if you have one |
+| 14 | Reading a noisy result honestly | Hardware gives outcomes the theory forbids. Quantify that instead of assuming your circuit is broken |
 
 ## How answers are checked
 
@@ -225,9 +230,20 @@ passes, and an answer that only looks right does not.
 Your file runs in a separate process with a time limit, so an infinite loop or a
 crash costs you one run rather than your terminal session.
 
+## The playground notebook
+
+`notebooks/playground.ipynb` is the other half of learning: nothing there is
+graded, and you are meant to change numbers and see what moves. CI executes every
+cell, so it cannot quietly rot.
+
+In VS Code the notebook kernel is a **separate** setting from the Python
+interpreter. If `uv run qx doctor` passes but the notebook cannot import qiskit,
+that is the cause: pick the kernel inside `.venv` from the picker in the top
+right.
+
 ## Running on real hardware
 
-Exercise 11 is the only one that can reach out to IBM, and it degrades
+Exercise 13 is the only one that can reach out to IBM, and it degrades
 gracefully:
 
 1. a real QPU, if you have an account and one is reachable
@@ -247,11 +263,16 @@ repository, so it cannot be committed by accident. To force the offline path eve
 when you do have an account:
 
 ```bash
-QX_OFFLINE=1 uv run qx run 11
+QX_OFFLINE=1 uv run qx run 13
 ```
 
 CI always sets `QX_OFFLINE`, so no automated run can ever spend your free QPU
 minutes.
+
+The numbers exercise 14 asks you to interpret are not invented. They come from a
+real run of this exercise on `ibm_fez`, a 156-qubit IBM Heron processor, on
+4 August 2026: 955 of 1024 shots agreed, and 69 came back in states the theory
+forbids.
 
 ## Contributing
 

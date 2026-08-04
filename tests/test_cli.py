@@ -29,12 +29,12 @@ def _invoke(*args: str):
 
 
 class TestListing:
-    def test_list_shows_every_exercise(self, sandbox: Path) -> None:
+    def test_list_shows_every_exercise(self, sandbox: Path, exercises: list) -> None:
         result = _invoke("list")
         assert result.exit_code == 0
-        assert "01_environment" in result.stdout
-        assert "12_honest_reading" in result.stdout
-        assert "0/12" in result.stdout
+        assert exercises[0].slug in result.stdout
+        assert exercises[-1].slug in result.stdout
+        assert f"0/{len(exercises)}" in result.stdout
 
     def test_next_points_at_the_first_unfinished(self, sandbox: Path) -> None:
         result = _invoke("next")
@@ -53,7 +53,7 @@ class TestRunning:
         result = _invoke("run", "1")
         assert result.exit_code == 1
 
-    def test_solved_exercise_passes_and_is_recorded(self, sandbox: Path) -> None:
+    def test_solved_exercise_passes_and_is_recorded(self, sandbox: Path, exercises: list) -> None:
         exercise = sandbox / "exercises" / "01_environment"
         shutil.copyfile(exercise / "solution.py", exercise / "exercise.py")
 
@@ -62,11 +62,11 @@ class TestRunning:
         assert "PASS" in result.stdout
 
         listing = _invoke("list")
-        assert "1/12" in listing.stdout
+        assert f"1/{len(exercises)}" in listing.stdout
 
-    def test_solution_flag_does_not_record_progress(self, sandbox: Path) -> None:
+    def test_solution_flag_does_not_record_progress(self, sandbox: Path, exercises: list) -> None:
         assert _invoke("run", "1", "--solution").exit_code == 0
-        assert "0/12" in _invoke("list").stdout
+        assert f"0/{len(exercises)}" in _invoke("list").stdout
 
     def test_next_advances_after_a_pass(self, sandbox: Path) -> None:
         exercise = sandbox / "exercises" / "01_environment"
@@ -112,10 +112,10 @@ class TestSolutionAndReset:
             "template.py"
         ).read_text(encoding="utf-8")
 
-    def test_reset_clears_progress(self, sandbox: Path) -> None:
+    def test_reset_clears_progress(self, sandbox: Path, exercises: list) -> None:
         _invoke("solution", "1", "--yes")
         _invoke("reset", "1", "--yes")
-        assert "0/12" in _invoke("list").stdout
+        assert f"0/{len(exercises)}" in _invoke("list").stdout
 
 
 class TestDoctor:

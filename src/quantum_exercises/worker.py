@@ -23,7 +23,7 @@ from types import ModuleType
 from typing import Any
 
 from quantum_exercises.checks import Artifact, CheckFailed
-from quantum_exercises.errors import translate
+from quantum_exercises.errors import UNTRANSLATED_HINT, translate
 
 # Sentinel exit codes so the parent can tell a clean verdict from a hard crash.
 EXIT_OK = 0
@@ -148,7 +148,9 @@ def _failure_payload(exc: BaseException, target: Path, caught: list, *, stage: s
         message, hint = translation.message, translation.hint
         detail = f"Python reported: {raw}"
     else:
-        message, hint = raw, None
+        # No rule matched, so the learner gets the raw error. Tell them that is a
+        # gap in this tool rather than in their understanding.
+        message, hint = raw, UNTRANSLATED_HINT
         detail = None
 
     return {

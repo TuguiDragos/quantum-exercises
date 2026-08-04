@@ -10,6 +10,16 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+ISSUES_URL = "https://github.com/TuguiDragos/quantum-exercises/issues"
+
+# Shown whenever no rule matched. The rules below only cover mistakes that could
+# be anticipated, and the long tail is exactly the part that cannot be. Asking
+# for the ones we missed is the only way this file improves.
+UNTRANSLATED_HINT = (
+    "This error does not have a plain-language explanation yet. If it left you stuck, "
+    f"paste it into an issue at {ISSUES_URL} and it will get one."
+)
+
 
 @dataclass
 class Translation:

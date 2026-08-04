@@ -18,8 +18,17 @@ from quantum_exercises.state import State
 console = Console()
 
 BAR_WIDTH = 34
+
 # Eight-step block ramp, so a bar can render fractions of a cell.
 _BLOCKS = " ▏▎▍▌▋▊▉█"
+_FULL = "█"
+_TRACK = "░"
+
+# Plain replacements for terminals whose encoding cannot carry the blocks above,
+# which is still the default on some Windows consoles.
+_ASCII_BLOCKS = "        #"
+_ASCII_FULL = "#"
+_ASCII_TRACK = "."
 
 STATUS_STYLE = {
     "todo": ("todo", "dim"),
@@ -28,14 +37,41 @@ STATUS_STYLE = {
 }
 
 
+def _supports_blocks() -> bool:
+    """Can the current output encoding actually carry the block characters?
+
+    Checked per call rather than at import: the stream is swapped out under tests
+    and when output is piped.
+    """
+    encoding = getattr(console.file, "encoding", None)
+    if not encoding:
+        return True  # no encoding to fail against, for example an in-memory buffer
+    try:
+        (_BLOCKS + _TRACK).encode(encoding)
+    except (UnicodeEncodeError, LookupError):
+        return False
+    return True
+
+
 def _bar(fraction: float, width: int = BAR_WIDTH, track: str = " ") -> str:
-    """Render a proportion as a block bar with sub-character resolution."""
+    """Render a proportion as a bar with sub-character resolution where possible."""
     fraction = max(0.0, min(1.0, fraction))
+    unicode_ok = _supports_blocks()
+    ramp = _BLOCKS if unicode_ok else _ASCII_BLOCKS
+    full = _FULL if unicode_ok else _ASCII_FULL
+    if track == _TRACK and not unicode_ok:
+        track = _ASCII_TRACK
+
     exact = fraction * width
-    full = int(exact)
-    remainder = exact - full
-    partial = _BLOCKS[round(remainder * 8)] if full < width else ""
-    filled = "█" * full + partial
+    filled_cells = int(exact)
+    remainder = exact - filled_cells
+
+    # A rounded-to-zero remainder must add nothing. Emitting ramp[0], which is a
+    # space, would punch a hole between the filled part and the track.
+    step = round(remainder * 8)
+    partial = ramp[step] if step > 0 and filled_cells < width else ""
+
+    filled = full * filled_cells + partial
     return filled + track * (width - len(filled))
 
 
@@ -250,7 +286,7 @@ def render_list(exercises: list[Exercise], state: State) -> None:
 
     done = sum(1 for e in exercises if state.is_complete(e.slug))
     total = len(exercises)
-    bar = _bar(done / total if total else 0.0, width=28, track="░")
+    bar = _bar(done / total if total else 0.0, width=28, track=_TRACK)
     console.print(
         Text("\n  progress  ", style="dim")
         + Text(bar, style="green")

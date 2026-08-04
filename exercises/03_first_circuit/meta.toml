@@ -1,0 +1,4 @@
+title = "Your first circuit"
+act = "Act I - Reaching a first result"
+summary = "Build a one-qubit circuit with a Hadamard gate and see the matrix it represents."
+hardware = false

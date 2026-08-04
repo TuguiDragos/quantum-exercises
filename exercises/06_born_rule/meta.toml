@@ -1,0 +1,4 @@
+title = "The Born rule, on paper first"
+act = "Act II - Understanding what you see"
+summary = "Predict the probabilities before you run anything. The runner checks your prediction against 4096 real shots."
+hardware = false

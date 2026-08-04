@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- quantum-exercises ---
+
+# Local progress, per learner
+.qx-state.json
+
+# IBM credentials live in ~/.qiskit/qiskit-ibm.json, outside this repository.
+# Never add a copy here.
+qiskit-ibm.json

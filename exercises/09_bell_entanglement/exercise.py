@@ -1,0 +1,21 @@
+"""Exercise 09 - Bell state, and which bit is which.
+
+Fill in the TODOs, then run:  uv run qx run 9
+"""
+
+from qiskit import QuantumCircuit
+
+# TODO: add two gates so that qc prepares (|00> + |11>) / sqrt(2).
+#       Put one qubit into superposition, then make the second copy it.
+#       Do not add measurements; the runner adds them itself.
+qc = QuantumCircuit(2)
+
+
+# TODO: which counts bitstring means "qubit 0 was measured as 1, qubit 1 as 0"?
+#       Remember which end of the string qubit 0 lives at.
+label_q0_only = None
+
+
+# TODO: which outcomes can an ideal Bell state never produce?
+#       Give a set of strings, for example {"00", "11"}.
+impossible_outcomes = None

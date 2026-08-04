@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this project, please cite it as below."
+title: "quantum-exercises: hands-on Qiskit exercises, from an empty laptop to real IBM hardware"
+abstract: >-
+  A rustlings-style command line course of twelve exercises for learning quantum
+  computing with Qiskit. Answers are verified by inspecting the Qiskit objects a
+  learner's code produces, comparing states and operators up to global phase and
+  measurement counts against statistical tolerances, rather than by comparing
+  source text or program output.
+type: software
+authors:
+  - family-names: "Țugui"
+    given-names: "Dragoș"
+    email: contact@tuguidragos.com
+version: 0.1.0
+date-released: "2026-08-04"
+license: MIT
+repository-code: "https://github.com/TuguiDragos/quantum-exercises"
+keywords:
+  - quantum computing
+  - qiskit
+  - education
+  - exercises
+  - command line

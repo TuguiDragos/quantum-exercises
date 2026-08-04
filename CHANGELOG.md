@@ -4,6 +4,41 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-08-04
+
+Documentation and metadata only. No behaviour changed.
+
+### Changed
+
+- **The project is described on its own terms.** It had been introduced as a
+  variant of another project in three places: the README tagline, the package
+  docstring and the citation abstract. Standing on someone else's description is
+  a poor way to explain what this actually does, so all three now say what the
+  tool is: you edit a file, you run one command, and it tells you what is wrong
+  in the language of the problem rather than as a traceback. A test keeps the
+  comparison from creeping back.
+- The README gained a full dependency inventory: every runtime and development
+  dependency with its declared range, the version the lockfile resolves to, and
+  why it is there. Tests check that inventory against `pyproject.toml`, the
+  installed environment and `uv.lock`, so it cannot quietly go stale, and the
+  wording avoids naming a release number for the same reason.
+- The README and `CITATION.cff` now carry the author's website.
+
+### Fixed
+
+- **`CITATION.cff` said the course has twelve exercises.** It has had fourteen
+  since the renumbering in 0.2.0. A citation file is exactly the wrong place for
+  a stale number, since it is what ends up quoted in someone else's bibliography.
+  The abstract has been rewritten to describe the verification approach and the
+  weekly re-run as well.
+- `CITATION.cff` gained `contact`, `url` and `license-url`, and the author's
+  website; validated against the Citation File Format 1.2.0 schema and checked
+  through its APA and BibTeX renderings.
+- The author's name is now written the same way in the README as in `LICENSE`,
+  `pyproject.toml` and the commit history.
+- A stray reference in the dependency table pointed at hooks that were not listed
+  anywhere in the README.
+
 ## [0.2.1] - 2026-08-04
 
 An adversarial review of the finished repository, one reviewer per dimension,
@@ -172,6 +207,7 @@ empty laptop to a Bell state on IBM hardware, with answers verified by inspectin
 Qiskit objects rather than comparing source text, and measurement counts checked
 against statistical tolerances rather than for equality.
 
+[0.2.2]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.2
 [0.2.1]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.1
 [0.2.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.0
 [0.1.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.1.0

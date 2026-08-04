@@ -2,23 +2,39 @@ cff-version: 1.2.0
 message: "If you use this project, please cite it as below."
 title: "quantum-exercises: hands-on Qiskit exercises, from an empty laptop to real IBM hardware"
 abstract: >-
-  A rustlings-style command line course of twelve exercises for learning quantum
-  computing with Qiskit. Answers are verified by inspecting the Qiskit objects a
-  learner's code produces, comparing states and operators up to global phase and
-  measurement counts against statistical tolerances, rather than by comparing
-  source text or program output.
+  A command line course of fourteen exercises in quantum computing with Qiskit,
+  taking a learner from an unprepared machine to a circuit executed on real IBM
+  hardware. Answers are verified by inspecting the Qiskit objects a learner's
+  code produces rather than by comparing source text or program output: states
+  and operators are compared up to global phase, and measurement counts are
+  tested against statistical tolerances derived from the binomial standard error
+  and a chi-square goodness-of-fit test, never for equality. Each submission runs
+  in an isolated process, and failures are reported in the language of the
+  problem rather than as a Python traceback. Every reference solution is re-run
+  weekly against the current Qiskit release, so the material cannot rot silently
+  as the library changes.
 type: software
 authors:
   - family-names: "Țugui"
     given-names: "Dragoș"
     email: contact@tuguidragos.com
-version: 0.2.1
+    website: "https://tuguidragos.com"
+contact:
+  - family-names: "Țugui"
+    given-names: "Dragoș"
+    email: contact@tuguidragos.com
+    website: "https://tuguidragos.com"
+version: 0.2.2
 date-released: "2026-08-04"
 license: MIT
+license-url: "https://github.com/TuguiDragos/quantum-exercises/blob/main/LICENSE"
+url: "https://github.com/TuguiDragos/quantum-exercises"
 repository-code: "https://github.com/TuguiDragos/quantum-exercises"
 keywords:
   - quantum computing
   - qiskit
+  - quantum programming
+  - IBM Quantum
   - education
   - exercises
   - command line

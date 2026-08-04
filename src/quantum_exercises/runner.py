@@ -92,6 +92,10 @@ def _child_env() -> dict[str, str]:
         "PYTHONSAFEPATH": "1",
         # Pin the child's own streams to UTF-8 so a circuit drawing survives a
         # console whose locale encoding cannot represent box characters.
+        # No .pyc litter: the worker imports exercise.py, check.py and their
+        # neighbours, which would otherwise fill every exercise directory with a
+        # __pycache__ the learner sees in their editor and never asked for.
+        "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONIOENCODING": "utf-8",
         # Python 3.13 and later colour their own tracebacks on a terminal, and
         # anything the exercise itself prints could carry colour too. Both would

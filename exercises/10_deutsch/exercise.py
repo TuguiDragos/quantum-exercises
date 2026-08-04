@@ -1,6 +1,6 @@
 """Exercise 10 - Deutsch's algorithm in one query.
 
-Fill in the TODOs, then run:  uv run qx run 10
+Fill in the TODOs, then run:  qx run 10
 """
 
 import math

@@ -2,7 +2,7 @@
 
 Run it once as-is to see how it fails, then modernise it:
 
-    uv run qx run 12
+    qx run 12
 
 Requirements for your rewrite:
   - same circuit: a Bell state on two qubits, measured into two classical bits

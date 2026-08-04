@@ -28,7 +28,7 @@ Qiskit 1.0 removed a lot of what 0.x code takes for granted.
 anything, just to see how the runner reports the failure:
 
 ```bash
-uv run qx run 12
+qx run 12
 ```
 
 Then modernise it so that it does the same thing on Qiskit 2.x:

@@ -65,5 +65,5 @@ The runner runs both circuits and shows you what actually comes out.
 ## Run it
 
 ```bash
-uv run qx run 9
+qx run 9
 ```

@@ -24,7 +24,7 @@ measurement is not a matrix. Exercise 04 adds the measurement.
 ## Run it
 
 ```bash
-uv run qx run 3
+qx run 3
 ```
 
 ## What you should take away

@@ -1,6 +1,6 @@
 """Exercise 13 - a Bell state on a real machine.
 
-Fill in the TODOs, then run:  uv run qx run 13
+Fill in the TODOs, then run:  qx run 13
 """
 
 from qiskit import QuantumCircuit

@@ -1,6 +1,6 @@
 """Exercise 11 - Bell state, and which bit is which.
 
-Fill in the TODOs, then run:  uv run qx run 11
+Fill in the TODOs, then run:  qx run 11
 """
 
 from qiskit import QuantumCircuit

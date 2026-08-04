@@ -15,12 +15,12 @@ The runner picks the most real backend it can reach, in this order:
 
 Whichever it lands on is printed with your result, and `qx list` records it. You
 can finish this exercise on a plane. To set up an account, see
-`uv run qx doctor --save-account`.
+`qx doctor --save-account`.
 
 To force the offline path even when you do have an account:
 
 ```bash
-QX_OFFLINE=1 uv run qx run 13
+QX_OFFLINE=1 qx run 13
 ```
 
 ## The step that is not optional
@@ -61,11 +61,11 @@ transpiler configured for a specific backend, and then `.run()` on the circuit.
 ## Run it
 
 ```bash
-uv run qx run 13
+qx run 13
 ```
 
 If a real QPU picks up the job, this can sit in a queue for a while. The time
-limit is 15 minutes; raise it with `uv run qx run 13 --timeout 3600`.
+limit is 15 minutes; raise it with `qx run 13 --timeout 3600`.
 
 ## What you should expect to see
 

@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from quantum_exercises import invocation
+
 ISSUES_URL = "https://github.com/TuguiDragos/quantum-exercises/issues"
 
 # Shown whenever no rule matched. The rules below only cover mistakes that could
@@ -280,8 +282,8 @@ def _no_account(exc: BaseException) -> Translation | None:
         return None
     return Translation(
         "No IBM Quantum account is saved on this machine.",
-        "Run `uv run qx doctor` to see the setup steps. This exercise falls back to a local "
-        "simulator, so you can still finish it without an account.",
+        f"Run `{invocation()} doctor` to see the setup steps. This exercise falls back to "
+        "a local simulator, so you can still finish it without an account.",
     )
 
 

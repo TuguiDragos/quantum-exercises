@@ -1,6 +1,6 @@
 """Exercise 04 - measurement, or the result is empty.
 
-Fill in the TODOs, then run:  uv run qx run 4
+Fill in the TODOs, then run:  qx run 4
 """
 
 from qiskit import QuantumCircuit

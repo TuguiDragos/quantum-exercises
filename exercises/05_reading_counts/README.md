@@ -47,7 +47,7 @@ with results from several different circuits, all built with `measure_all()`.
 ## Run it
 
 ```bash
-uv run qx run 5
+qx run 5
 ```
 
 ## What you should take away

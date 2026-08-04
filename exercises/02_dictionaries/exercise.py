@@ -1,6 +1,6 @@
 """Exercise 02 - counts is just a dictionary.
 
-Fill in the TODOs, then run:  uv run qx run 2
+Fill in the TODOs, then run:  qx run 2
 """
 
 

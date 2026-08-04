@@ -47,5 +47,5 @@ qubits. That is a small mercy, and it will not last.
 ## Run it
 
 ```bash
-uv run qx run 8
+qx run 8
 ```

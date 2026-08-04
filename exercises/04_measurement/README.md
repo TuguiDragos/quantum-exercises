@@ -38,7 +38,7 @@ Two details about the V2 API that catch everyone:
 ## Run it
 
 ```bash
-uv run qx run 4
+qx run 4
 ```
 
 ## What you should take away

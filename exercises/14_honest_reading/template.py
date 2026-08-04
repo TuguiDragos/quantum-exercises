@@ -1,6 +1,6 @@
 """Exercise 14 - reading a noisy result honestly.
 
-Fill in the TODOs, then run:  uv run qx run 14
+Fill in the TODOs, then run:  qx run 14
 """
 
 # A real measurement, not an illustration: Bell circuit on ibm_fez, 1024 shots,

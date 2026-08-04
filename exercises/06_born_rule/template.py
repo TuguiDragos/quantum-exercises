@@ -1,6 +1,6 @@
 """Exercise 06 - the Born rule, on paper first.
 
-Fill in the TODOs, then run:  uv run qx run 6
+Fill in the TODOs, then run:  qx run 6
 """
 
 import math

@@ -72,7 +72,7 @@ The runner tries your implementation against all four functions.
 ## Run it
 
 ```bash
-uv run qx run 10
+qx run 10
 ```
 
 ## Honesty about the scale

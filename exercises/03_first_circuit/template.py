@@ -1,6 +1,6 @@
 """Exercise 03 - your first circuit.
 
-Fill in the TODOs, then run:  uv run qx run 3
+Fill in the TODOs, then run:  qx run 3
 """
 
 from qiskit import QuantumCircuit

@@ -53,7 +53,7 @@ of the two groups.
 ## Run it
 
 ```bash
-uv run qx run 14
+qx run 14
 ```
 
 ## Where this goes next

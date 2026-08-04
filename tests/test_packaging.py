@@ -231,3 +231,28 @@ class TestNoDerivativeFraming:
                 if term in text:
                     offenders.append(f"{path.relative_to(root)} mentions {term}")
         assert not offenders, f"derivative framing found: {offenders}"
+
+
+class TestOneSpellingForTheCommand:
+    """Written files and printed output must not disagree about how to run qx."""
+
+    def test_no_written_file_uses_the_other_form(self, root: Path) -> None:
+        """The quickstart installs `qx`, so every written file says plainly `qx`."""
+        other = "uv" + " run qx"
+        offenders: list[str] = []
+        for path in sorted(root.rglob("*")):
+            if path.suffix not in {".md", ".py"} or not path.is_file():
+                continue
+            if any(p in {".venv", ".git", ".ruff_cache", "tests"} for p in path.parts):
+                continue
+            if path.name in {"CHANGELOG.md", "__init__.py"}:
+                continue  # the changelog records history; __init__ documents the helper
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if other in line and "still works as" not in line:
+                    offenders.append(f"{path.relative_to(root)}:{number}")
+        assert not offenders, f"the other spelling appears in: {offenders}"
+
+    def test_the_helper_answers_with_something_runnable(self) -> None:
+        from quantum_exercises import invocation
+
+        assert invocation() in {"qx", "uv run qx"}

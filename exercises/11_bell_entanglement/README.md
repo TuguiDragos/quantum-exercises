@@ -44,7 +44,7 @@ Do not add measurements to `qc`; the runner adds them when it needs them.
 ## Run it
 
 ```bash
-uv run qx run 11
+qx run 11
 ```
 
 ## Looking ahead

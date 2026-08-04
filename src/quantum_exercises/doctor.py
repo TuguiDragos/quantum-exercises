@@ -15,6 +15,8 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Literal
 
+from quantum_exercises import invocation
+
 CREDENTIALS_PATH = Path.home() / ".qiskit" / "qiskit-ibm.json"
 
 # Channels qiskit-ibm-runtime still accepts. `ibm_quantum` was retired with the
@@ -140,7 +142,7 @@ def check_credentials() -> Check:
             "no saved account",
             "Optional. Every exercise runs on a local simulator without one. To use real "
             "hardware, get an API key from https://quantum.cloud.ibm.com and run "
-            "`uv run qx doctor --save-account`.",
+            f"`{invocation()} doctor --save-account`.",
         )
 
     try:
@@ -158,7 +160,7 @@ def check_credentials() -> Check:
             "IBM Quantum account",
             "fail",
             "the credentials file is empty",
-            "Save the account again with `uv run qx doctor --save-account`.",
+            f"Save the account again with `{invocation()} doctor --save-account`.",
         )
 
     accounts: list[str] = []

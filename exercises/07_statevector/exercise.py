@@ -1,6 +1,6 @@
 """Exercise 07 - states, amplitudes, and global phase.
 
-Fill in the TODOs, then run:  uv run qx run 7
+Fill in the TODOs, then run:  qx run 7
 """
 
 from qiskit import QuantumCircuit

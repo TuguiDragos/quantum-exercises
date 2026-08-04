@@ -1,6 +1,6 @@
 """Exercise 01 - your environment works.
 
-Fill in the TODOs, then run:  uv run qx run 1
+Fill in the TODOs, then run:  qx run 1
 """
 
 # TODO: import the qiskit package.

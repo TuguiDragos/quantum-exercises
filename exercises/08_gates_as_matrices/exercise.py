@@ -1,6 +1,6 @@
 """Exercise 08 - gates are matrices.
 
-Fill in the TODOs, then run:  uv run qx run 8
+Fill in the TODOs, then run:  qx run 8
 """
 
 from qiskit import QuantumCircuit

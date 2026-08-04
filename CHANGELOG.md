@@ -4,6 +4,19 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2026-08-04
+
+### Changed
+
+- **One spelling for the command, everywhere.** 0.3.3 made the printed guidance
+  adapt, which fixed correctness but not the contradiction: a screenshot of the
+  editor still showed `uv run qx run 11` in the file while the terminal below it
+  said `qx run`. The quickstart now installs `qx` with `uv tool install
+  --editable .`, which takes about a second, and all 57 written references say
+  plainly `qx`. The adaptive helper stays for anyone who skips that step, and
+  three further messages that had hardcoded the old form now go through it. A
+  test refuses the other spelling in any written file.
+
 ## [0.3.3] - 2026-08-04
 
 ### Fixed
@@ -337,6 +350,7 @@ empty laptop to a Bell state on IBM hardware, with answers verified by inspectin
 Qiskit objects rather than comparing source text, and measurement counts checked
 against statistical tolerances rather than for equality.
 
+[0.3.4]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.4
 [0.3.3]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.3
 [0.3.2]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.2
 [0.3.1]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.1

@@ -30,7 +30,7 @@ one answer will not pass.
 ## Run it
 
 ```bash
-uv run qx run 2
+qx run 2
 ```
 
 ## What you should take away

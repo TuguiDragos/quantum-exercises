@@ -1,6 +1,6 @@
 """Exercise 05 - reading counts out of a V2 result.
 
-Fill in the TODOs, then run:  uv run qx run 5
+Fill in the TODOs, then run:  qx run 5
 """
 
 

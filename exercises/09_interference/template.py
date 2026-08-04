@@ -1,6 +1,6 @@
 """Exercise 09 - interference: amplitudes that cancel.
 
-Fill in the TODOs, then run:  uv run qx run 9
+Fill in the TODOs, then run:  qx run 9
 """
 
 from qiskit import QuantumCircuit

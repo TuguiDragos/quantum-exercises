@@ -57,5 +57,5 @@ a wrong one, like confusing amplitude with probability, is off by far more.
 ## Run it
 
 ```bash
-uv run qx run 6
+qx run 6
 ```

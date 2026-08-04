@@ -124,14 +124,21 @@ PATH takes effect. Then:
 ```bash
 git clone https://github.com/TuguiDragos/quantum-exercises
 cd quantum-exercises
-uv run qx doctor
+uv tool install --editable .
+```
+
+That last line takes about a second and puts `qx` on your PATH, so every command
+below works from any directory. Then:
+
+```bash
+qx doctor
 ```
 
 `qx doctor` checks every step, right down to building and running a real circuit,
 and tells you what is missing and how to fix it. When it is happy:
 
 ```bash
-uv run qx next
+qx next
 ```
 
 The first run takes a minute while uv builds the environment from the committed
@@ -141,8 +148,9 @@ are covered by CI.
 
 ## The commands
 
-Every command below is run as `uv run qx <command>`. If you would rather just
-type `qx`, install it once with `uv tool install --editable .`.
+If you skipped the install above, every command below still works as
+`qx <command>` from inside the repository, and the tool prints whichever
+form applies to you.
 
 | Command | What it does |
 |---|---|
@@ -246,7 +254,7 @@ graded, and you are meant to change numbers and see what moves. CI executes ever
 cell, so it cannot quietly rot.
 
 In VS Code the notebook kernel is a **separate** setting from the Python
-interpreter. If `uv run qx doctor` passes but the notebook cannot import qiskit,
+interpreter. If `qx doctor` passes but the notebook cannot import qiskit,
 that is the cause: pick the kernel inside `.venv` from the picker in the top
 right.
 
@@ -264,7 +272,7 @@ Whichever it used is printed with the result and recorded in `qx list`. To set u
 an account:
 
 ```bash
-uv run qx doctor --save-account
+qx doctor --save-account
 ```
 
 Qiskit stores the key unencrypted at `~/.qiskit/qiskit-ibm.json`, outside this
@@ -272,7 +280,7 @@ repository, so it cannot be committed by accident. To force the offline path eve
 when you do have an account:
 
 ```bash
-QX_OFFLINE=1 uv run qx run 13
+QX_OFFLINE=1 qx run 13
 ```
 
 CI always sets `QX_OFFLINE`, so no automated run can ever spend your free QPU

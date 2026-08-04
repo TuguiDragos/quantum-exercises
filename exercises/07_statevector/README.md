@@ -47,5 +47,5 @@ parts. That is exactly the difference between `qc_a` and `qc_b` here.
 ## Run it
 
 ```bash
-uv run qx run 7
+qx run 7
 ```

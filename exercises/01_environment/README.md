@@ -23,7 +23,7 @@ project's virtual environment. Copying a number from a blog post will not pass.
 ## Run it
 
 ```bash
-uv run qx run 1
+qx run 1
 ```
 
 ## What you should take away

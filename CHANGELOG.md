@@ -4,6 +4,63 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-08-04
+
+### Added
+
+- **A single palette drives every colour the tool emits.** `theme.py` holds six
+  values and the semantic names built from them; nothing else in the source
+  names a colour. The accent appears only as a line, an outline or a run of
+  glyphs, with the histogram and progress bars the one place it fills area.
+- Severity is carried by border weight rather than hue, since the palette holds
+  no error colour: an inactive outline reads as "not yet", an accented one as
+  "this is the result", and a heavier rule marks a genuine error.
+- Two layers of enforcement. A static check parses every source file and refuses
+  any colour literal outside `theme.py`. A rendering check drives the real UI
+  functions through a truecolour console and inspects the escape sequences that
+  come out, which is the only way to catch a colour that rich contributes on the
+  tool's behalf.
+
+### Fixed
+
+Found by that rendering check, after a first version of it reported clean:
+
+- **rich's automatic highlighter was recolouring output.** It repaints numbers,
+  strings and paths in its own named colours, laying them over styles the tool
+  had chosen. Now disabled.
+- **rich's default markdown styles reached the screen through `qx hint`.**
+  `markdown.code` alone is "bold cyan on black". All twenty-seven markdown
+  styles, and the table and rule chrome, are overridden from the palette.
+- **Fenced code in hints and revealed solutions used the Monokai theme**, which
+  emits dozens of hues from outside the palette. Highlighting is now built from
+  the palette itself: structure carries the accent, everything else is body text.
+- The bar track was drawn in the fill colour, so the empty part of every bar was
+  accented. It is muted now, and the fill is the only accented area.
+- **Secondary text was unreadable.** It used the terminal's dim attribute, which
+  halves the intensity of whatever it is applied to; on a real display whole
+  lines faded into the background. The palette as specified has nothing between
+  TEXT at 14.5:1 contrast and OUTLINE at 1.7:1, and its two neutrals are meant
+  for dots and borders rather than words, so one value is derived for prose:
+  TEXT blended 30% toward BACKGROUND, landing at 7.6:1. The dim attribute is now
+  used nowhere.
+- The worker's child process is pinned colourless with `PYTHON_COLORS=0` and
+  `NO_COLOR=1`. Python 3.13 and later colour their own tracebacks, and anything
+  an exercise printed could carry colour of its own; either would arrive inside
+  a panel wearing hues from outside the palette.
+- `SURFACE` was declared and never used. The artifact panels are raised surfaces
+  and now say so.
+
+The first version of the rendering check split SGR parameters naively and read
+the blue channel of `#3d3f60` as the code for bright cyan, reporting leaks that
+were not there. It now walks the parameters properly.
+
+### Changed
+
+- A failing run prints the full path of the file to open, on its own unwrapped
+  line. It printed only the bare filename, which said nothing once `qx` was
+  installed globally and run from another directory. `qx next` had the path but
+  wrapped it across two lines, so it could not be copied.
+
 ## [0.2.3] - 2026-08-04
 
 ### Fixed
@@ -237,6 +294,7 @@ empty laptop to a Bell state on IBM hardware, with answers verified by inspectin
 Qiskit objects rather than comparing source text, and measurement counts checked
 against statistical tolerances rather than for equality.
 
+[0.3.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.0
 [0.2.3]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.3
 [0.2.2]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.2
 [0.2.1]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.1

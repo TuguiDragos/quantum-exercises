@@ -5,17 +5,24 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+from rich import box
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
+from rich.theme import Theme
 
+from quantum_exercises import theme
 from quantum_exercises.registry import Exercise
 from quantum_exercises.runner import RunResult
 from quantum_exercises.state import State
 
-console = Console()
+# highlight=False: rich otherwise recolours numbers, strings and paths with its
+# own default theme, laying colours over the palette that nothing here chose.
+# The theme override replaces rich's built-in markdown and table styles, which
+# are written in named colours and would otherwise surface through `qx hint`.
+console = Console(highlight=False, theme=Theme(theme.RICH_OVERRIDES))
 
 BAR_WIDTH = 34
 
@@ -31,9 +38,9 @@ _ASCII_FULL = "#"
 _ASCII_TRACK = "."
 
 STATUS_STYLE = {
-    "todo": ("todo", "dim"),
-    "done": ("done", "bold green"),
-    "solved": ("solved", "yellow"),
+    "todo": ("todo", theme.STATUS_TODO),
+    "done": ("done", theme.STATUS_DONE),
+    "solved": ("solved", theme.STATUS_SOLVED),
 }
 
 
@@ -78,6 +85,38 @@ def _bar(fraction: float, width: int = BAR_WIDTH, track: str = " ") -> str:
     return filled + track * (width - len(filled))
 
 
+def _panel(*, border: str = theme.BORDER_ACTIVE, heavy: bool = False, raised: bool = False) -> dict:
+    """Panel styling in one place, so no call site ever names a colour."""
+    return {
+        "border_style": border,
+        "style": theme.RAISED if raised else theme.PANEL,
+        "box": box.HEAVY if heavy else box.ROUNDED,
+        "expand": False,
+    }
+
+
+def _display_path(path: Path) -> str:
+    """The shortest way to name a file the reader has to go and open.
+
+    Relative to the working directory when that is shorter, absolute otherwise.
+    `qx` is usually installed globally and run from anywhere, so a bare filename
+    tells the learner nothing about where the file actually is.
+    """
+    absolute = path.resolve()
+    try:
+        relative = absolute.relative_to(Path.cwd())
+    except ValueError:
+        return str(absolute)
+    return str(relative) if len(str(relative)) < len(str(absolute)) else str(absolute)
+
+
+def _bar_text(fraction: float, width: int = BAR_WIDTH, *, track: str = " ") -> Text:
+    """A bar as two spans, so the track keeps its own colour instead of the fill's."""
+    rendered = _bar(fraction, width, track)
+    filled = len(rendered.rstrip(track)) if track.strip() else len(rendered.rstrip(" "))
+    return Text(rendered[:filled], style=theme.BAR) + Text(rendered[filled:], style=theme.BAR_TRACK)
+
+
 def _safe(text: str) -> str:
     """Replace characters the output stream cannot encode, rather than crashing.
 
@@ -120,16 +159,16 @@ def render_counts(payload: dict[str, int], caption: str) -> Panel:
     for outcome in sorted(payload):
         count = payload[outcome]
         share = count / total
-        body.append(f"{outcome:>8} ", style="bold cyan")
-        body.append(_bar(count / peak), style="green")
+        body.append(f"{outcome:>8} ", style=theme.FIGURE)
+        body.append_text(_bar_text(count / peak))
         body.append(f" {count:>6}  {share * 100:5.1f}%\n")
-    body.append(f"\n{'total':>8}   {total} shots", style="dim")
-    return Panel(body, title=caption, border_style="cyan", expand=False)
+    body.append(f"\n{'total':>8}   {total} shots", style=theme.DETAIL)
+    return Panel(body, title=caption, **_panel(raised=True))
 
 
 def render_statevector(payload: list[list[float]], caption: str, num_qubits: int) -> Panel:
-    table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
-    table.add_column("basis", style="cyan")
+    table = Table(show_header=True, header_style=theme.HEADING, box=None, pad_edge=False)
+    table.add_column("basis", style=theme.FIGURE)
     table.add_column("amplitude", justify="right")
     table.add_column("probability", justify="right")
 
@@ -137,10 +176,10 @@ def render_statevector(payload: list[list[float]], caption: str, num_qubits: int
         probability = re * re + im * im
         # Little-endian: qubit 0 is the rightmost character of the label.
         label = f"|{index:0{num_qubits}b}>"
-        style = "dim" if probability < 1e-12 else ""
+        style = theme.DETAIL if probability < 1e-12 else theme.BODY
         table.add_row(label, _fmt_complex(re, im), f"{probability:.4f}", style=style)
 
-    return Panel(table, title=caption, border_style="cyan", expand=False)
+    return Panel(table, title=caption, **_panel(raised=True))
 
 
 def render_matrix(payload: list[list[list[float]]], caption: str) -> Panel:
@@ -149,7 +188,7 @@ def render_matrix(payload: list[list[list[float]]], caption: str) -> Panel:
         table.add_column(justify="right")
     for row in payload:
         table.add_row(*[_fmt_complex(re, im) for re, im in row])
-    return Panel(table, title=caption, border_style="cyan", expand=False)
+    return Panel(table, title=caption, **_panel(raised=True))
 
 
 def render_artifact(artifact: dict):
@@ -166,7 +205,7 @@ def render_artifact(artifact: dict):
         return render_statevector(payload, caption, num_qubits)
     if kind == "matrix" and isinstance(payload, list):
         return render_matrix(payload, caption)
-    return Panel(Text(_safe(str(payload))), title=caption, border_style="cyan", expand=False)
+    return Panel(Text(_safe(str(payload))), title=caption, **_panel(raised=True))
 
 
 # --------------------------------------------------------------------------
@@ -177,27 +216,26 @@ def render_artifact(artifact: dict):
 def render_run(exercise: Exercise, result: RunResult, *, root: Path) -> None:
     console.print()
     console.print(
-        Rule(f"[bold]{exercise.number:02d} {exercise.title}[/bold]", style="blue", align="left")
+        Rule(_safe(f"{exercise.number:02d} {exercise.title}"), style=theme.ACCENT, align="left")
     )
 
     if result.stdout.strip():
         console.print(
             Panel(
-                Text(_safe(result.stdout.rstrip())),
+                Text(_safe(result.stdout.rstrip()), style=theme.BODY),
                 title="output from your program",
-                border_style="dim",
-                expand=False,
+                **_panel(border=theme.BORDER_QUIET),
             )
         )
 
     for warning in result.warnings:
-        console.print(Text(_safe(f"warning  {warning}"), style="yellow"))
+        console.print(Text(_safe(f"warning  {warning}"), style=theme.DETAIL))
 
     if result.passed:
         for artifact in result.artifacts:
             console.print(render_artifact(artifact))
-        console.print(Text(f"\n  PASS  {exercise.slug}", style="bold green"))
-        console.print(Text(f"        finished in {result.duration:.2f}s\n", style="dim"))
+        console.print(Text(f"\n  PASS  {exercise.slug}", style=theme.STATUS_DONE))
+        console.print(Text(f"        finished in {result.duration:.2f}s\n", style=theme.DETAIL))
         return
 
     _render_failure(exercise, result, root=root)
@@ -213,46 +251,58 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
     }
     heading = headings.get(result.outcome, "FAILED")
 
-    parts: list = [Text(_safe(result.message), style="bold")]
+    parts: list = [Text(_safe(result.message), style=theme.STRONG)]
 
     if result.line is not None:
         try:
             where = exercise.exercise_file.relative_to(root)
         except ValueError:
             where = exercise.exercise_file
-        parts.append(Text(f"\nat {where}:{result.line}", style="cyan"))
+        parts.append(Text(f"\nat {where}:{result.line}", style=theme.PATH))
 
     if result.detail:
-        parts.append(Text(_safe("\n" + result.detail), style="dim"))
+        parts.append(Text(_safe("\n" + result.detail), style=theme.DETAIL))
 
     if result.hint:
-        parts.append(Text("\nfix  ", style="bold yellow") + Text(_safe(result.hint)))
+        parts.append(
+            Text("\nfix  ", style=theme.HEADING) + Text(_safe(result.hint), style=theme.BODY)
+        )
 
     console.print(
         Panel(
             Group(*parts),
             title=heading,
-            border_style="red" if result.outcome != "fail" else "yellow",
-            expand=False,
+            # "not yet" is an inactive outline; anything louder gets the accent
+            # and a heavier rule, since the palette carries no error hue.
+            **_panel(
+                border=theme.BORDER if result.outcome == "fail" else theme.BORDER_ACTIVE,
+                heavy=result.outcome != "fail",
+            ),
         )
     )
 
     if result.stderr.strip() and result.outcome in ("crash", "internal_error"):
         console.print(
             Panel(
-                Text(_safe(result.stderr.rstrip())),
+                Text(_safe(result.stderr.rstrip()), style=theme.BODY),
                 title="stderr",
-                border_style="dim",
-                expand=False,
+                **_panel(border=theme.BORDER_QUIET),
             )
         )
 
     console.print(
-        Text("\n  next  ", style="dim")
-        + Text(f"qx hint {exercise.number}", style="bold")
-        + Text(" for a nudge, or edit ", style="dim")
-        + Text(str(exercise.exercise_file.name), style="cyan")
-        + Text(" and run again\n", style="dim")
+        Text("\n  next  ", style=theme.DETAIL)
+        + Text(f"qx hint {exercise.number}", style=theme.COMMAND)
+        + Text(" for a nudge, or open", style=theme.DETAIL)
+    )
+    # On its own unwrapped line: a path broken across two lines cannot be copied.
+    console.print(
+        Text(f"        {_display_path(exercise.exercise_file)}", style=theme.PATH),
+        no_wrap=True,
+        crop=False,
+    )
+    console.print(
+        Text("        then run ", style=theme.DETAIL) + Text("qx run", style=theme.COMMAND) + "\n"
     )
 
 
@@ -272,9 +322,11 @@ RAN_ON_LABEL = {"hardware": "QPU", "noisy_simulator": "noisy", "simulator": "sim
 
 
 def _act_table() -> Table:
-    table = Table(header_style="bold", box=None, pad_edge=False, expand=False)
-    table.add_column(LIST_COLUMNS[0][0], width=LIST_COLUMNS[0][1], justify="right", style="dim")
-    table.add_column(LIST_COLUMNS[1][0], width=LIST_COLUMNS[1][1], style="cyan")
+    table = Table(header_style=theme.HEADING, box=None, pad_edge=False, expand=False)
+    table.add_column(
+        LIST_COLUMNS[0][0], width=LIST_COLUMNS[0][1], justify="right", style=theme.DETAIL
+    )
+    table.add_column(LIST_COLUMNS[1][0], width=LIST_COLUMNS[1][1], style=theme.FIGURE)
     table.add_column(LIST_COLUMNS[2][0], width=LIST_COLUMNS[2][1])
     table.add_column(LIST_COLUMNS[3][0], width=LIST_COLUMNS[3][1])
     return table
@@ -292,14 +344,14 @@ def _by_act(exercises: list[Exercise]) -> list[tuple[str, list[Exercise]]]:
 
 def render_list(exercises: list[Exercise], state: State) -> None:
     console.print()
-    console.print(Text("  quantum-exercises", style="bold"))
+    console.print(Text("  quantum-exercises", style=theme.TITLE))
 
     for act, group in _by_act(exercises):
-        console.print(Text(f"\n  {act}", style="bold blue"))
+        console.print(Text(f"\n  {act}", style=theme.HEADING))
         table = _act_table()
         for exercise in group:
             entry = state.get(exercise.slug)
-            label, style = STATUS_STYLE.get(entry.status, ("todo", "dim"))
+            label, style = STATUS_STYLE.get(entry.status, ("todo", theme.STATUS_TODO))
             if entry.status == "done" and entry.ran_on:
                 label = f"done ({RAN_ON_LABEL.get(entry.ran_on, entry.ran_on)})"
             table.add_row(
@@ -312,44 +364,51 @@ def render_list(exercises: list[Exercise], state: State) -> None:
 
     done = sum(1 for e in exercises if state.is_complete(e.slug))
     total = len(exercises)
-    bar = _bar(done / total if total else 0.0, width=28, track=_TRACK)
     console.print(
-        Text("\n  progress  ", style="dim")
-        + Text(bar, style="green")
-        + Text(f"  {done}/{total}\n", style="bold")
+        Text("\n  progress  ", style=theme.DETAIL)
+        + _bar_text(done / total if total else 0.0, width=28, track=_TRACK)
+        + Text(f"  {done}/{total}\n", style=theme.STRONG)
     )
 
 
 def render_next(exercise: Exercise) -> None:
-    body = Text()
-    body.append(exercise.summary + "\n\n")
-    body.append("file  ", style="dim")
-    body.append(f"{exercise.exercise_file}\n", style="cyan")
-    body.append("run   ", style="dim")
-    body.append(f"uv run qx run {exercise.number}", style="bold")
     console.print()
     console.print(
         Panel(
-            body, title=f"{exercise.number:02d} {exercise.title}", border_style="blue", expand=False
+            Text(exercise.summary, style=theme.BODY),
+            title=f"{exercise.number:02d} {exercise.title}",
+            **_panel(border=theme.BORDER_ACTIVE),
         )
     )
-    console.print()
+    # Outside the panel and unwrapped: a path with a box border through the middle
+    # of it cannot be copied, which is the one thing it is there for.
+    console.print(
+        Text("\n  open  ", style=theme.DETAIL)
+        + Text(_display_path(exercise.exercise_file), style=theme.PATH),
+        no_wrap=True,
+        crop=False,
+    )
+    console.print(
+        Text("  then  ", style=theme.DETAIL)
+        + Text(f"qx run {exercise.number}", style=theme.COMMAND)
+        + "\n"
+    )
 
 
 def success(message: str) -> None:
-    console.print(Text(f"  {message}", style="bold green"))
+    console.print(Text(f"  {message}", style=theme.STATUS_DONE))
 
 
 def info(message: str) -> None:
-    console.print(Text(f"  {message}", style="dim"))
+    console.print(Text(f"  {message}", style=theme.DETAIL))
 
 
 def warn(message: str) -> None:
-    console.print(Text(f"  {message}", style="yellow"))
+    console.print(Text(f"  {message}", style=theme.DETAIL))
 
 
 def error(message: str) -> None:
-    console.print(Text(f"  {message}", style="bold red"))
+    console.print(Text(f"  {message}", style=theme.CHECK_FAIL))
 
 
 __all__ = [

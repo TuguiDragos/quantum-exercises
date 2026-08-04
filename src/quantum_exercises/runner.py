@@ -92,6 +92,11 @@ def _child_env() -> dict[str, str]:
         # Pin the child's own streams to UTF-8 so a circuit drawing survives a
         # console whose locale encoding cannot represent box characters.
         "PYTHONIOENCODING": "utf-8",
+        # Python 3.13 and later colour their own tracebacks on a terminal, and
+        # anything the exercise itself prints could carry colour too. Both would
+        # land inside our panels wearing hues from outside the palette.
+        "PYTHON_COLORS": "0",
+        "NO_COLOR": "1",
         "PYTHONUTF8": "1",
     }
 

@@ -15,7 +15,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
-from quantum_exercises import __version__, ui
+from quantum_exercises import __version__, theme, ui
 from quantum_exercises.registry import (
     Exercise,
     RegistryError,
@@ -35,7 +35,11 @@ app = typer.Typer(
     add_completion=False,
 )
 
-STATUS_ICON = {"ok": ("ok  ", "green"), "warn": ("warn", "yellow"), "fail": ("fail", "red")}
+STATUS_ICON = {
+    "ok": ("ok  ", theme.CHECK_OK),
+    "warn": ("warn", theme.CHECK_WARN),
+    "fail": ("fail", theme.CHECK_FAIL),
+}
 
 
 def _context() -> tuple[Path, list[Exercise], State]:
@@ -91,9 +95,14 @@ def doctor(
 
     checks = run_checks(root, online=online)
 
-    table = Table(title="qx doctor", title_style="bold", header_style="bold", show_lines=False)
+    table = Table(
+        title="qx doctor",
+        title_style=theme.TITLE,
+        header_style=theme.HEADING,
+        show_lines=False,
+    )
     table.add_column("", width=4)
-    table.add_column("check", style="cyan")
+    table.add_column("check", style=theme.FIGURE)
     table.add_column("detail")
 
     for check in checks:
@@ -108,7 +117,8 @@ def doctor(
         ui.console.print()
         for check in fixes:
             ui.console.print(
-                Text(f"  {check.name}: ", style="bold") + Text(check.fix or "", style="dim")
+                Text(f"  {check.name}: ", style=theme.STRONG)
+                + Text(check.fix or "", style=theme.DETAIL)
             )
 
     failed = [c for c in checks if c.status == "fail"]
@@ -142,7 +152,8 @@ def _save_account() -> None:
                 "on a machine you trust.",
             ),
             title="save IBM Quantum account",
-            border_style="blue",
+            border_style=theme.BORDER_ACTIVE,
+            style=theme.PANEL,
             expand=False,
         )
     )
@@ -284,9 +295,10 @@ def hint(
     for index in range(visible):
         ui.console.print(
             Panel(
-                Markdown(hints[index]),
+                Markdown(hints[index], code_theme=theme.SYNTAX_THEME),
                 title=f"hint {index + 1} of {len(hints)}",
-                border_style="yellow",
+                border_style=theme.BORDER,
+                style=theme.PANEL,
                 expand=False,
             )
         )
@@ -322,9 +334,15 @@ def solution(
     ui.console.print()
     ui.console.print(
         Panel(
-            Syntax(code, "python", theme="ansi_dark", line_numbers=False),
+            Syntax(
+                code,
+                "python",
+                theme=theme.SYNTAX_THEME,
+                line_numbers=False,
+            ),
             title=str(exercise.solution_file),
-            border_style="green",
+            border_style=theme.BORDER_ACTIVE,
+            style=theme.PANEL,
             expand=False,
         )
     )
@@ -389,7 +407,9 @@ def version() -> None:
 
     ui.console.print()
     for package, installed in rows:
-        ui.console.print(Text(f"  {package:22}", style="cyan") + Text(installed))
+        ui.console.print(
+            Text(f"  {package:22}", style=theme.FIGURE) + Text(installed, style=theme.BODY)
+        )
     ui.console.print()
 
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from rich.text import Text
 from watchfiles import watch
 
-from quantum_exercises import ui
+from quantum_exercises import theme, ui
 from quantum_exercises.registry import Exercise
 from quantum_exercises.runner import ran_on as run_result_ran_on
 from quantum_exercises.runner import run_exercise
@@ -26,9 +26,9 @@ def _watched_files(exercise: Exercise) -> set[str]:
 def _announce(exercise: Exercise, root: Path) -> None:
     ui.console.print()
     ui.console.print(
-        Text("  watching  ", style="bold blue")
-        + Text(str(exercise.exercise_file.relative_to(root)), style="cyan")
-        + Text("   save to re-run, Ctrl-C to stop", style="dim")
+        Text("  watching  ", style=theme.HEADING)
+        + Text(str(exercise.exercise_file.relative_to(root)), style=theme.PATH)
+        + Text("   save to re-run, Ctrl-C to stop", style=theme.DETAIL)
     )
 
 

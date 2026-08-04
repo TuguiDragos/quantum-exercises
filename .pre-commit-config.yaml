@@ -1,8 +1,5 @@
 # Revisions verified against each repository's tags on 2026-08-04.
 # Note nbstripout tags have no leading "v", unlike the others.
-default_language_version:
-  python: python3.12
-
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

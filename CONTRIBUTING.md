@@ -100,7 +100,7 @@ For every exercise:
 - there are exactly three hints
 - `meta.toml` is complete
 
-Plus lint, format, and the unit tests, on Python 3.10, 3.12 and 3.13.
+Plus lint, format, and the unit tests, on Python 3.10, 3.12, 3.13 and 3.14.
 
 `weekly-verify.yml` additionally resolves to the newest Qiskit the version ranges
 allow and runs everything again. That job is the early warning for a breaking

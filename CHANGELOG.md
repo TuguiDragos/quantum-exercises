@@ -34,6 +34,15 @@ that, and closes the gap where the hardware path had never actually run.
 
 ### Changed
 
+- **The default interpreter moves from 3.12 to 3.13.** The 3.12 choice came from
+  a design note claiming it was the most mature for wheels, which was never
+  rechecked. It is no longer true: the whole suite passes on 3.13 and on 3.14
+  with byte-identical dependency versions. 3.13 is the default rather than 3.14
+  so that a learner who later installs an unrelated package is less likely to
+  meet a missing wheel. The supported floor stays at 3.10, which is where Qiskit
+  2.5.1 puts its own floor, and CI now covers 3.10, 3.12, 3.13 and 3.14.
+- `.pre-commit-config.yaml` no longer pins `python3.12`, which failed outright
+  for a contributor who did not happen to have that exact version installed.
 - **Exercises 09 to 12 are renumbered 11 to 14** to make room in Act II. This
   invalidates any existing `.qx-state.json`, whose entries are keyed by slug;
   progress on those four exercises will read as unfinished. Run

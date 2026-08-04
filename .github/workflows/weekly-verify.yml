@@ -41,9 +41,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    outputs:
-      qiskit-version: ${{ steps.versions.outputs.qiskit }}
-      tested-on: ${{ steps.versions.outputs.date }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
@@ -52,62 +49,13 @@ jobs:
           python-version: "3.13"
       - name: Resolve to the newest allowed versions
         run: uv sync --upgrade --all-extras --dev
-      - id: versions
-        run: |
-          echo "qiskit=$(uv run python -c 'import qiskit; print(qiskit.__version__)')" >> "$GITHUB_OUTPUT"
-          echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
       - run: uv run pytest -q
-
-  # Publishes what the badge in the README reads. Runs even when `latest` fails,
-  # so a red badge is still an honest, dated badge.
-  badge:
-    needs: [latest]
-    if: always()
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Write the shields.io endpoint payload
-        env:
-          VERSION: ${{ needs.latest.outputs.qiskit-version }}
-          TESTED: ${{ needs.latest.outputs.tested-on }}
-          PASSED: ${{ needs.latest.result }}
+      - name: Record what was tested
+        if: always()
         run: |
           set -euo pipefail
-          version="${VERSION:-unknown}"
-          tested="${TESTED:-$(date -u +%Y-%m-%d)}"
-          if [ "$PASSED" = "success" ]; then colour="brightgreen"; else colour="red"; fi
-          mkdir -p badges
-          cat > badges/qiskit.json <<JSON
-          {
-            "schemaVersion": 1,
-            "label": "verified against qiskit",
-            "message": "$version - $tested",
-            "color": "$colour"
-          }
-          JSON
-      - name: Publish to the badges branch
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          # An orphan branch, so `badges` holds the payload and nothing else.
-          # Branching from HEAD would leave a full copy of the repository there,
-          # force-pushed every week and confusing to anyone who checks it out.
-          # RUNNER_TEMP is outside the workspace, which is why git clean cannot
-          # take the file with it.
-          cp badges/qiskit.json "$RUNNER_TEMP/qiskit.json"
-          git checkout --orphan badges
-          git rm -rf --cached . > /dev/null 2>&1 || true
-          git clean -fdxq
-          mkdir -p badges
-          cp "$RUNNER_TEMP/qiskit.json" badges/qiskit.json
-
-          git add badges/qiskit.json
-          # A scheduled workflow is disabled after 60 days without repository
-          # activity. This weekly push is also what keeps it alive, so the commit
-          # is allowed to be empty on a week when nothing changed.
-          git commit -m "weekly verification badge" --allow-empty
-          git push --force origin badges
+          version="$(uv run python -c 'import qiskit; print(qiskit.__version__)')"
+          # Goes on the run summary page rather than into a badge, so nothing has
+          # to be written back to the repository and no workflow needs write access.
+          echo "Verified against qiskit **$version** on $(date -u +%Y-%m-%d)." \
+            >> "$GITHUB_STEP_SUMMARY"

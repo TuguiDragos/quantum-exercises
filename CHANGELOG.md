@@ -4,6 +4,30 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-08-04
+
+### Removed
+
+- **The custom "verified against qiskit" badge.** It displayed the version and
+  date the weekly run tested, which reads well, but it was the only thing in the
+  project that needed anything written back to the repository: a job pushing a
+  `badges` branch, and a repository-wide setting raising the ceiling on what any
+  workflow's token may do. Paying that for a caption, one day after publishing a
+  security policy, was the wrong trade. Every workflow is now read-only.
+- The version it tested goes to the run summary page instead, so the information
+  survives without a branch, a token or a moving part. The `weekly-verify` badge
+  still shows pass or fail, which is the signal that actually matters: if a new
+  Qiskit breaks an exercise, it turns red.
+
+### Changed
+
+- The README no longer claims a badge shows which version was checked, since
+  that badge is gone. It says what is true instead.
+- CONTRIBUTING records that GitHub disables a scheduled workflow in a public
+  repository after 60 days without activity. The badge push had been doubling as
+  the thing that kept the schedule alive, so removing it makes that GitHub
+  behaviour something to know rather than something silently handled.
+
 ## [0.4.0] - 2026-08-04
 
 ### Added
@@ -372,6 +396,7 @@ empty laptop to a Bell state on IBM hardware, with answers verified by inspectin
 Qiskit objects rather than comparing source text, and measurement counts checked
 against statistical tolerances rather than for equality.
 
+[0.4.1]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.4.1
 [0.4.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.4.0
 [0.3.4]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.4
 [0.3.3]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.3

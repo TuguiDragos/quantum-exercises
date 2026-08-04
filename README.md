@@ -2,7 +2,6 @@
 
 [![ci](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/ci.yml/badge.svg)](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/ci.yml)
 [![weekly-verify](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/weekly-verify.yml/badge.svg)](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/weekly-verify.yml)
-[![verified against qiskit](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FTuguiDragos%2Fquantum-exercises%2Fbadges%2Fbadges%2Fqiskit.json)](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/weekly-verify.yml)
 
 [![python](https://img.shields.io/badge/python-3.10%20%7C%203.12%20%7C%203.13%20%7C%203.14-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![qiskit](https://img.shields.io/badge/qiskit-2.5.1-6929C4)](https://pypi.org/project/qiskit/)
@@ -54,8 +53,10 @@ that no longer exists.
 The nearest thing to this project, Microsoft's Quantum Katas, has been archived
 read-only since August 2024, and it teaches Q# rather than Qiskit.
 
-Everything here is verified weekly against the Qiskit that actually ships today.
-The badge above shows which version was last checked, and when.
+Everything here is verified weekly against the Qiskit that actually ships today,
+not against the version this was written for. Every reference solution is re-run,
+and the run reports which version it tested. If a new Qiskit release breaks an
+exercise, the weekly-verify badge above turns red.
 
 ## Who this is for
 

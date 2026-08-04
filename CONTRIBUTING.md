@@ -148,7 +148,13 @@ Plus lint, format, and the unit tests, on Python 3.10, 3.12, 3.13 and 3.14.
 `weekly-verify.yml` additionally resolves to the newest Qiskit the version ranges
 allow and runs everything again. That job is the early warning for a breaking
 release, which is why dependencies are ranges rather than exact pins even though
-`uv.lock` is committed.
+`uv.lock` is committed. It writes the version it tested to the run summary.
+
+One thing to watch: GitHub disables a scheduled workflow in a public repository
+after 60 days with no repository activity, and emails the owner when it does. Any
+commit re-arms it, and the workflow can be re-enabled from the Actions tab. No
+workflow in this project writes anything back to the repository, so none of them
+needs write access and nothing keeps the schedule alive on its own.
 
 ## Never in CI, never in tests
 

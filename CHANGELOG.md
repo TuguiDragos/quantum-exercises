@@ -4,6 +4,36 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-08-04
+
+### Fixed
+
+- **A test introduced in 0.2.2 broke CI on Python 3.10.** It asserted that the
+  documented version of every dependency equals the installed one, which assumed
+  a single resolution across the whole matrix. There is not one: numpy resolves
+  to 2.5.1 on 3.13 but 2.2.6 on 3.10, and scipy to 1.18.0 against 1.15.3, because
+  their newer releases have dropped 3.10. The dependency table now states the
+  interpreter it was resolved on, names the two packages that differ, and the
+  test asserts only on that interpreter. The lesson was procedural: the change
+  was pushed after running one interpreter rather than the matrix that CI runs.
+- The badge check read the Python versions out of a percent-encoded URL without
+  decoding it, so the `%20` of a separator was read as part of the next version.
+- Two class-scoped fixtures were declared as instance methods, which pytest 9
+  deprecates.
+
+### Changed
+
+- **The author's name is written without diacritics in the machine-readable
+  metadata.** BibTeX keys must be ASCII, and the generator strips characters it
+  cannot represent rather than transliterating them, which turned `Țugui` into
+  `ugui` in the citation key. Plain `Tugui Dragos` in `CITATION.cff`,
+  `pyproject.toml` and the README gives a clean `tugui_...` key. `LICENSE` still
+  carries the diacritics.
+- The dependency inventory moved out of the README, which now carries badges for
+  the stack instead. Badges state versions, so tests check the Python badge
+  against the CI matrix and the Qiskit badges against the installed versions.
+- Added `readme-assets/`, for screenshots.
+
 ## [0.2.2] - 2026-08-04
 
 Documentation and metadata only. No behaviour changed.
@@ -207,6 +237,7 @@ empty laptop to a Bell state on IBM hardware, with answers verified by inspectin
 Qiskit objects rather than comparing source text, and measurement counts checked
 against statistical tolerances rather than for equality.
 
+[0.2.3]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.3
 [0.2.2]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.2
 [0.2.1]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.1
 [0.2.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.0

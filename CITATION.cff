@@ -15,16 +15,16 @@ abstract: >-
   as the library changes.
 type: software
 authors:
-  - family-names: "Țugui"
-    given-names: "Dragoș"
+  - family-names: "Tugui"
+    given-names: "Dragos"
     email: contact@tuguidragos.com
     website: "https://tuguidragos.com"
 contact:
-  - family-names: "Țugui"
-    given-names: "Dragoș"
+  - family-names: "Tugui"
+    given-names: "Dragos"
     email: contact@tuguidragos.com
     website: "https://tuguidragos.com"
-version: 0.2.2
+version: 0.2.3
 date-released: "2026-08-04"
 license: MIT
 license-url: "https://github.com/TuguiDragos/quantum-exercises/blob/main/LICENSE"

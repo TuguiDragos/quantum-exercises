@@ -11,6 +11,49 @@ uv run pre-commit install
 
 `uv run pytest` should be green before you start.
 
+## The dependencies
+
+Nine runtime dependencies. `pyproject.toml` declares a tested range for each,
+and the committed `uv.lock` pins exact versions, so `uv sync` reproduces this
+environment byte for byte.
+
+The right-hand column is what the lockfile resolves to **on Python 3.13**, the
+default interpreter. It is not universal: older interpreters resolve some
+packages lower, because newer releases drop support for them. On 3.10 numpy
+resolves to 2.2.6 and scipy to 1.15.3. A test keeps this table in step with a
+3.13 environment and skips elsewhere.
+
+| Dependency | Range | On 3.13 | Why it is here |
+|---|---|---|---|
+| [qiskit](https://pypi.org/project/qiskit/) `[visualization]` | `>=2.5,<3` | 2.5.1 | the SDK itself. The extra adds matplotlib, pydot, Pillow, pylatexenc, seaborn and sympy, which plain `qiskit` does not install and `draw("mpl")` needs |
+| [qiskit-ibm-runtime](https://pypi.org/project/qiskit-ibm-runtime/) | `>=0.48,<1` | 0.48.0 | talks to IBM hardware, and supplies the fake backends the offline noise model is copied from |
+| [qiskit-aer](https://pypi.org/project/qiskit-aer/) | `>=0.17,<1` | 0.17.2 | local simulation, including noise models taken from real devices |
+| [typer](https://pypi.org/project/typer/) | `>=0.27,<1` | 0.27.1 | the `qx` command and its subcommands |
+| [rich](https://pypi.org/project/rich/) | `>=15,<16` | 15.0.0 | histograms, matrices and panels in the terminal |
+| [watchfiles](https://pypi.org/project/watchfiles/) | `>=1.2,<2` | 1.2.0 | `qx watch`, which re-runs an exercise on save |
+| [numpy](https://pypi.org/project/numpy/) | `>=2.0,<3` | 2.5.1 | imported directly by the verification code, so it is declared rather than inherited from Qiskit |
+| [scipy](https://pypi.org/project/scipy/) | `>=1.14` | 1.18.0 | chi-square critical values for the distribution checks |
+| [tomli](https://pypi.org/project/tomli/) | `>=2.0.1` | 3.10 only | reads `meta.toml`. Conditional: `tomllib` is in the standard library from 3.11, so this is installed only on 3.10 |
+
+Development, installed by `uv sync` and not needed to take the course:
+
+| Dependency | Range | On 3.13 | Why it is here |
+|---|---|---|---|
+| [pytest](https://pypi.org/project/pytest/) | `>=9,<10` | 9.1.1 | the test suite |
+| [ruff](https://pypi.org/project/ruff/) | `>=0.16,<0.17` | 0.16.1 | linting and formatting, including the notebook |
+| [pre-commit](https://pypi.org/project/pre-commit/) | `>=4,<5` | 4.6.1 | runs the lint, format, notebook and secret-scan hooks before each commit |
+| [nbstripout](https://pypi.org/project/nbstripout/) | `>=0.9,<1` | 0.9.1 | strips notebook outputs, which can carry IBM job ids |
+| [ipykernel](https://pypi.org/project/ipykernel/) | `>=7,<8` | 7.3.0 | the kernel the playground notebook runs on |
+
+Counting everything those pull in, the locked environment is 122 packages.
+Two more tools are fetched by pre-commit and CI rather than installed into the
+environment: [gitleaks](https://github.com/gitleaks/gitleaks) 8.30.1 for secret
+scanning, and the hooks from
+[pre-commit-hooks](https://github.com/pre-commit/pre-commit-hooks) 6.0.0.
+
+Python 3.10 or newer, which is the same floor Qiskit sets. CI runs the suite on
+3.10, 3.12, 3.13 and 3.14; `uv` installs 3.13 by default.
+
 ## Adding an exercise
 
 Create one directory under `exercises/`. There is no central index to update:

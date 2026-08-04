@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 import pytest
 
@@ -61,10 +62,14 @@ def test_python_floor_matches_the_pinned_interpreter(pyproject: dict, root: Path
     assert chosen >= floor, f".python-version is {pinned}, below requires-python {requires}"
 
 
-def _readme_dependency_rows(readme: str) -> dict[str, tuple[str, str]]:
-    """Parse the dependency tables: name -> (declared range, verified version)."""
-    rows = re.findall(r"^\| \[([a-z0-9-]+)\]\([^)]+\)[^|]*\| `([^`]+)` \| ([^|]+)\|", readme, re.M)
-    return {name: (rng.strip(), verified.strip()) for name, rng, verified in rows}
+# The interpreter the dependency table is written against.
+DOCUMENTED_INTERPRETER = "3.13"
+
+
+def _inventory_rows(text: str) -> dict[str, tuple[str, str]]:
+    """Parse the dependency tables: name -> (declared range, resolved version)."""
+    rows = re.findall(r"^\| \[([a-z0-9-]+)\]\([^)]+\)[^|]*\| `([^`]+)` \| ([^|]+)\|", text, re.M)
+    return {name: (rng.strip(), resolved.strip()) for name, rng, resolved in rows}
 
 
 def _declared_dependencies(pyproject: dict) -> dict[str, str]:
@@ -78,69 +83,128 @@ def _declared_dependencies(pyproject: dict) -> dict[str, str]:
     return declared
 
 
-class TestReadmeDependencyTables:
-    """The README lists every dependency. Lists drift; this stops that silently."""
+@pytest.fixture(scope="module")
+def inventory(root: Path) -> str:
+    return (root / "CONTRIBUTING.md").read_text(encoding="utf-8")
 
-    def test_every_declared_dependency_is_documented(self, pyproject: dict, root: Path) -> None:
-        readme = (root / "README.md").read_text(encoding="utf-8")
-        documented = _readme_dependency_rows(readme)
+
+@pytest.fixture(scope="module")
+def badges(root: Path) -> dict[str, str]:
+    """Every badge in the README: label -> URL."""
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    return dict(re.findall(r"^\[!\[([a-z-]+)\]\((https://[^)]+)\)\]", readme, re.M))
+
+
+def _ci_matrix(root: Path) -> set[str]:
+    workflow = (root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    block = re.search(r"python-version: \[([^\]]+)\]", workflow).group(1)
+    return set(re.findall(r"\d+\.\d+", block))
+
+
+class TestDependencyInventory:
+    """CONTRIBUTING lists every dependency. Lists drift; this stops that silently."""
+
+    def test_every_declared_dependency_is_documented(self, pyproject: dict, inventory: str) -> None:
+        documented = _inventory_rows(inventory)
         for name in _declared_dependencies(pyproject):
-            assert name in documented, f"{name} is declared but missing from the README tables"
+            assert name in documented, f"{name} is declared but missing from CONTRIBUTING.md"
 
-    def test_no_invented_dependencies(self, pyproject: dict, root: Path) -> None:
-        readme = (root / "README.md").read_text(encoding="utf-8")
+    def test_no_invented_dependencies(self, pyproject: dict, inventory: str) -> None:
         declared = _declared_dependencies(pyproject)
-        for name in _readme_dependency_rows(readme):
-            assert name in declared, f"the README lists {name}, which is not a dependency"
+        for name in _inventory_rows(inventory):
+            assert name in declared, f"CONTRIBUTING.md lists {name}, which is not a dependency"
 
-    def test_documented_ranges_match_pyproject(self, pyproject: dict, root: Path) -> None:
-        readme = (root / "README.md").read_text(encoding="utf-8")
+    def test_documented_ranges_match_pyproject(self, pyproject: dict, inventory: str) -> None:
         declared = _declared_dependencies(pyproject)
-        for name, (documented_range, _) in _readme_dependency_rows(readme).items():
-            assert documented_range == declared[name], (
-                f"{name}: README says {documented_range!r}, pyproject says {declared[name]!r}"
+        for name, (documented, _) in _inventory_rows(inventory).items():
+            assert documented == declared[name], (
+                f"{name}: CONTRIBUTING says {documented!r}, pyproject says {declared[name]!r}"
             )
 
-    def test_documented_versions_are_the_installed_ones(self, root: Path) -> None:
+    def test_documented_versions_are_the_installed_ones(self, inventory: str) -> None:
+        """Resolution is per-interpreter, so this only holds on the documented one.
+
+        numpy and scipy resolve lower on 3.10, because their newer releases have
+        dropped it. Asserting a single universal version was wrong and broke CI.
+        """
         from importlib.metadata import PackageNotFoundError
         from importlib.metadata import version as installed_version
 
-        readme = (root / "README.md").read_text(encoding="utf-8")
-        for name, (_, claimed) in _readme_dependency_rows(readme).items():
+        running = f"{sys.version_info.major}.{sys.version_info.minor}"
+        if running != DOCUMENTED_INTERPRETER:
+            pytest.skip(f"the table documents {DOCUMENTED_INTERPRETER}; this is {running}")
+
+        for name, (_, claimed) in _inventory_rows(inventory).items():
             if not re.fullmatch(r"\d+\.\d+\.\d+", claimed):
                 continue  # a note such as "only on 3.10" rather than a version
             try:
                 actual = installed_version(name)
             except PackageNotFoundError:  # pragma: no cover - would mean a broken env
-                pytest.fail(f"the README claims {name} {claimed}, but it is not installed")
-            assert actual == claimed, f"{name}: README says {claimed}, installed is {actual}"
+                pytest.fail(f"CONTRIBUTING claims {name} {claimed}, but it is not installed")
+            assert actual == claimed, f"{name}: documented {claimed}, installed {actual}"
 
-    def test_locked_package_count_is_accurate(self, root: Path) -> None:
-        readme = (root / "README.md").read_text(encoding="utf-8")
+    def test_locked_package_count_is_accurate(self, root: Path, inventory: str) -> None:
         with (root / "uv.lock").open("rb") as handle:
             locked = tomllib.load(handle)
-        claimed = int(re.search(r"is (\d+) packages", readme).group(1))
+        claimed = int(re.search(r"is (\d+) packages", inventory).group(1))
         assert claimed == len(locked["package"])
 
-    def test_ci_matrix_matches_the_prose(self, root: Path) -> None:
-        readme = (root / "README.md").read_text(encoding="utf-8")
-        workflow = (root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        in_workflow = set(
+    def test_ci_matrix_matches_the_prose(self, root: Path, inventory: str) -> None:
+        stated = set(
             re.findall(
-                r'"(\d+\.\d+)"', re.search(r"python-version: \[([^\]]+)\]", workflow).group(1)
+                r"\d+\.\d+", re.search(r"CI runs the suite on\s+([^;]+);", inventory).group(1)
             )
         )
-        in_readme = set(
-            re.findall(r"\d+\.\d+", re.search(r"CI runs the suite on\s+([^;]+);", readme).group(1))
-        )
-        assert in_workflow == in_readme, (
-            f"workflow {sorted(in_workflow)}, README {sorted(in_readme)}"
+        assert stated == _ci_matrix(root)
+
+    def test_default_interpreter_matches_the_prose(self, root: Path, inventory: str) -> None:
+        pinned = (root / ".python-version").read_text(encoding="utf-8").strip()
+        assert f"installs {pinned} by default" in inventory
+
+
+class TestReadmeBadges:
+    """Static badges state versions. A badge that lies is worse than no badge."""
+
+    def test_the_expected_badges_are_present(self, badges: dict[str, str]) -> None:
+        expected = {
+            "ci",
+            "weekly-verify",
+            "verified against qiskit".replace(" ", "-"),
+            "python",
+            "qiskit",
+            "qiskit-ibm-runtime",
+            "qiskit-aer",
+            "uv",
+            "ruff",
+            "license",
+        } - {"verified-against-qiskit"}  # that one has spaces in its label
+        missing = expected - set(badges)
+        assert not missing, f"README is missing badges: {sorted(missing)}"
+
+    def test_python_badge_matches_the_ci_matrix(self, root: Path, badges: dict[str, str]) -> None:
+        # Decode first: the raw URL separates versions with %20%7C%20, and a naive
+        # match reads the "20" of a separator as part of the next version.
+        label = unquote(badges["python"]).split("badge/python-")[1].split("-")[0]
+        shown = set(re.findall(r"\d+\.\d+", label))
+        assert shown == _ci_matrix(root), f"badge {sorted(shown)}, CI {sorted(_ci_matrix(root))}"
+
+    # Verified to resolve identically on 3.10 and 3.13, unlike numpy and scipy,
+    # so these badges can state one number for the whole matrix.
+    @pytest.mark.parametrize("package", ["qiskit", "qiskit-ibm-runtime", "qiskit-aer"])
+    def test_version_badges_match_the_installed_version(
+        self, package: str, badges: dict[str, str]
+    ) -> None:
+        from importlib.metadata import version as installed_version
+
+        shown = re.search(r"-(\d+\.\d+\.\d+)-", badges[package]).group(1)
+        assert shown == installed_version(package), (
+            f"{package}: badge says {shown}, installed is {installed_version(package)}"
         )
 
-    def test_default_interpreter_matches_the_prose(self, root: Path) -> None:
-        readme = (root / "README.md").read_text(encoding="utf-8")
-        pinned = (root / ".python-version").read_text(encoding="utf-8").strip()
-        assert f"installs {pinned} by default" in readme
+    def test_every_badge_url_is_https_and_complete(self, badges: dict[str, str]) -> None:
+        for label, url in badges.items():
+            assert url.startswith("https://"), f"{label} badge is not https"
+            assert " " not in url, f"{label} badge URL contains a raw space"
 
 
 class TestNoDerivativeFraming:

@@ -121,3 +121,13 @@ class TestHints:
     def test_missing_hints_file_is_not_an_error(self, tmp_path: Path) -> None:
         path = _write_exercise(tmp_path / "exercises", "01_demo")
         assert load_hints(load_exercise(path)) == []
+
+
+class TestNumericLookup:
+    def test_superscript_digits_do_not_crash(self, exercises: list[Exercise]) -> None:
+        """'²'.isdigit() is True but int('²') raises, which used to escape as a traceback."""
+        with pytest.raises(RegistryError, match="No exercise matches"):
+            resolve("²", exercises)
+
+    def test_plain_digits_still_work(self, exercises: list[Exercise]) -> None:
+        assert resolve("1", exercises).number == 1

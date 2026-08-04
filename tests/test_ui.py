@@ -85,3 +85,17 @@ class TestArtifactRendering:
         rendered = console.file.buffer.getvalue().decode("utf-8")
         assert "1024 shots" in rendered
         assert "39.1%" in rendered  # 400 / 1024
+
+
+class TestBarHasNoGaps:
+    """A partial cell that renders as blank punches a hole in the bar."""
+
+    @pytest.mark.parametrize("encoding", ["utf-8", "ascii"])
+    def test_no_blank_between_the_fill_and_the_track(
+        self, encoding: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(ui, "console", _console_with_encoding(encoding))
+        for numerator in range(0, 15):
+            bar = ui._bar(numerator / 14, width=28, track=ui._TRACK)
+            assert " " not in bar, f"{encoding} at {numerator}/14: {bar!r}"
+            assert len(bar) == 28

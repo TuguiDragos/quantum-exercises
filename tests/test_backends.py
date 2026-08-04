@@ -234,3 +234,39 @@ class TestIsaTranspilation:
 
         isa = backends.to_isa(circuit, selection.backend)
         assert "h" not in isa.count_ops()
+
+
+class TestNoiseModelIsActuallyUsed:
+    """The offline fallback promises hardware-like noise. It has to deliver it."""
+
+    def test_the_fallback_backend_carries_a_noise_model(self) -> None:
+        selection = backends.get_backend(min_num_qubits=2)
+        assert selection.kind == "noisy_simulator"
+        assert backends.noise_model(selection) is not None
+
+    def test_sampling_shows_that_noise(self) -> None:
+        selection = backends.get_backend(min_num_qubits=2)
+        circuit = QuantumCircuit(2)
+        circuit.h(0)
+        circuit.cx(0, 1)
+        circuit.measure_all()
+        isa = backends.to_isa(circuit, selection.backend)
+
+        # A Bell state forbids 01 and 10. A noise-modelled backend produces them
+        # anyway, which is the entire point of exercises 13 and 14. Sampling with
+        # a default Aer sampler instead would silently give a perfect result.
+        disagreeing = 0
+        for _ in range(3):
+            counts = backends.sample(isa, selection, shots=1024)
+            assert sum(counts.values()) == 1024
+            disagreeing += counts.get("01", 0) + counts.get("10", 0)
+        assert disagreeing > 0, "the noise model was not applied"
+
+    def test_a_noiseless_backend_stays_noiseless(self) -> None:
+        selection = backends.get_backend(prefer_hardware=False)
+        circuit = QuantumCircuit(2)
+        circuit.h(0)
+        circuit.cx(0, 1)
+        circuit.measure_all()
+        counts = backends.sample(circuit, selection, shots=512)
+        assert set(counts) <= {"00", "11"}

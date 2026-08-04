@@ -22,6 +22,7 @@ TARGETS = {
 
 def check(mod):
     artifacts = []
+    artifacts_state = {}
 
     for name, (target, description) in TARGETS.items():
         qc = require_circuit(mod, name)
@@ -40,15 +41,17 @@ def check(mod):
             target,
             message=f"`{name}` does not prepare {description}.",
         )
+        artifacts_state[name] = state
         artifacts.append(statevector_artifact(state, caption=f"{name} = {description}"))
 
-    # Show that global phase really is ignored, using the learner's own circuit.
-    qc_a = require_circuit(mod, "qc_a")
-    rotated = qc_a.copy()
-    rotated.global_phase += math.pi / 2  # multiplies the whole state by i
+    # Show that global phase really is ignored, using the learner's own state.
+    # Built from the Statevector the comparison already produced, so a circuit
+    # that also contains a measurement cannot break the demonstration.
+    state_a = artifacts_state["qc_a"]
+    rotated = Statevector(state_a.data * 1j)  # multiplies the whole state by i
 
-    same = Statevector(rotated).equiv(Statevector(qc_a))
-    identical = Statevector(rotated) == Statevector(qc_a)
+    same = rotated.equiv(state_a)
+    identical = rotated == state_a
     if not same or identical:
         raise CheckFailed(
             "Internal check failed: global phase did not behave as expected.",

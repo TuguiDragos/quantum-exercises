@@ -9,6 +9,7 @@ from watchfiles import watch
 
 from quantum_exercises import ui
 from quantum_exercises.registry import Exercise
+from quantum_exercises.runner import ran_on as run_result_ran_on
 from quantum_exercises.runner import run_exercise
 from quantum_exercises.state import load, save
 
@@ -39,15 +40,7 @@ def _run_and_record(exercise: Exercise, root: Path) -> bool:
         return False
 
     state = load(root)
-    ran_on = next(
-        (
-            artifact.get("meta", {}).get("ran_on")
-            for artifact in result.artifacts
-            if artifact.get("meta", {}).get("ran_on")
-        ),
-        None,
-    )
-    state.mark_done(exercise.slug, ran_on=ran_on)
+    state.mark_done(exercise.slug, ran_on=run_result_ran_on(result.artifacts))
     save(root, state)
     return True
 

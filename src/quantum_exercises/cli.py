@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import shutil
+import warnings
 from pathlib import Path
 from typing import Annotated
 
@@ -22,6 +24,7 @@ from quantum_exercises.registry import (
     load_hints,
     resolve,
 )
+from quantum_exercises.runner import ran_on as run_result_ran_on
 from quantum_exercises.runner import run_exercise
 from quantum_exercises.state import State, load, save
 
@@ -119,7 +122,10 @@ def doctor(
 
 def _save_account() -> None:
     """Interactive credential save. The token is read without echo and never displayed."""
+    import getpass as getpass_module
     from getpass import getpass
+
+    from quantum_exercises import doctor as doctor_module
 
     try:
         from qiskit_ibm_runtime import QiskitRuntimeService
@@ -141,7 +147,19 @@ def _save_account() -> None:
         )
     )
 
-    token = getpass("API key (input hidden): ").strip()
+    # getpass falls back to a plain input() when it cannot turn echo off, and only
+    # says so through a warning. Refuse rather than print someone's key on screen.
+    with warnings.catch_warnings(record=True) as echoed:
+        warnings.simplefilter("always", getpass_module.GetPassWarning)
+        token = getpass("API key (input hidden): ").strip()
+    if any(issubclass(w.category, getpass_module.GetPassWarning) for w in echoed):
+        ui.error(
+            "This terminal cannot hide what you type, so the key would be echoed. "
+            "Nothing was saved. Run this from a normal terminal, or set the "
+            "QISKIT_IBM_TOKEN environment variable instead."
+        )
+        raise typer.Exit(code=1)
+
     if not token:
         ui.warn("No key entered, nothing was saved.")
         raise typer.Exit(code=1)
@@ -160,7 +178,34 @@ def _save_account() -> None:
         ui.error(f"Could not save the account: {type(exc).__name__}: {exc}")
         raise typer.Exit(code=1) from exc
 
+    restricted = _restrict_credentials_permissions()
+
     ui.success("Account saved. Verify it with `qx doctor --online`.")
+    if restricted:
+        ui.info(f"{doctor_module.CREDENTIALS_PATH} is readable only by you.")
+    else:
+        ui.warn(
+            f"Could not restrict permissions on {doctor_module.CREDENTIALS_PATH}. "
+            "On a shared machine, tighten them yourself."
+        )
+
+
+def _restrict_credentials_permissions() -> bool:
+    """Make the saved key owner-only.
+
+    qiskit-ibm-runtime writes it with the process umask, normally 0644, so on a
+    shared machine any other local user could read the key straight off disk.
+    """
+    from quantum_exercises.doctor import CREDENTIALS_PATH
+
+    try:
+        if CREDENTIALS_PATH.parent.is_dir():
+            os.chmod(CREDENTIALS_PATH.parent, 0o700)
+        if CREDENTIALS_PATH.is_file():
+            os.chmod(CREDENTIALS_PATH, 0o600)
+    except OSError:
+        return False
+    return True
 
 
 @app.command("list")
@@ -198,16 +243,11 @@ def run(
     ui.render_run(exercise, result, root=root)
 
     if result.passed and not solution:
-        ran_on = next(
-            (
-                a.get("meta", {}).get("ran_on")
-                for a in result.artifacts
-                if a.get("meta", {}).get("ran_on")
-            ),
-            None,
-        )
+        # Re-read before writing: a run can take minutes, and another qx process
+        # that recorded progress meanwhile would be erased by this stale copy.
+        state = load(root)
         was_complete = state.is_complete(exercise.slug)
-        state.mark_done(exercise.slug, ran_on=ran_on)
+        state.mark_done(exercise.slug, ran_on=run_result_ran_on(result.artifacts))
         save(root, state)
         if not was_complete:
             remaining = [e for e in exercises if not state.is_complete(e.slug)]

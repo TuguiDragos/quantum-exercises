@@ -4,6 +4,94 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-08-04
+
+An adversarial review of the finished repository, one reviewer per dimension,
+each finding then re-tested by hand. Twenty-two defects confirmed by
+reproduction and fixed. The worst of them made the tool lie in ways a learner
+would never have noticed.
+
+### Fixed
+
+**The offline fallback was silently noiseless.** `sample()` built a fresh Aer
+sampler and discarded the backend that had just been selected, so the noise
+model copied from real hardware did nothing. Exercise 13 announced "local
+simulator with a hardware noise model" and returned a flawless Bell state, zero
+disagreeing shots, every time; the same circuit on the selected backend gives
+about 70. Everyone without an IBM account was being shown a result that could not
+happen, right before exercise 14 asked them to reason about noise.
+
+**A check written as a generator marked every answer correct.** A `check()`
+containing `yield` returns a generator and runs none of its body, so the worker
+saw no exception and reported a pass. Now rejected as an authoring error, along
+with async checks and non-Artifact returns.
+
+**Exercise 13 accepted circuits a real QPU would reject.** The ISA validation
+compared gate names only, so a native two-qubit gate between qubits that are not
+physically connected passed. It now validates each instruction against the
+backend target, qubits included. It also required only that the two qubits
+agreed, which a circuit that always answers 11 does perfectly; both outcomes must
+now carry a real share of the shots.
+
+**Runaway output could exhaust memory.** Child output was captured unbounded: a
+print loop reached 5 GB of buffered text and over 7 GB resident, and overshot its
+own 2-second limit by 3.5x. Output is now drained by bounded readers that keep
+64 KB and discard the rest, and the same run finishes inside its limit at 129 MB.
+
+**A timeout threw away a verdict that had already been written.** A learner who
+started any background process kept the pipes open, so a run that had genuinely
+passed was reported as a timeout. The result file is now read even after a
+timeout, the child runs in its own process group, and a timeout kills its
+descendants rather than orphaning them.
+
+**A stray file in the repository root broke every run.** `python -m` puts the
+working directory on `sys.path`, so a scratch `qiskit.py` shadowed the real
+package and the failure was reported as though the learner had killed the
+process. The worker now drops that entry before importing anything.
+
+Smaller, each reproduced first:
+
+- Binary bytes on stdout crashed the whole command with a `UnicodeDecodeError`.
+- An artifact payload that could not be serialized was reported to the learner as
+  "you stopped the process".
+- An artifact with `meta=None` crashed the CLI after printing PASS, losing the
+  progress it was about to record.
+- Exercise code inherited stdin and could swallow what the user typed; it now
+  gets `EOFError` instead.
+- Exercise 09 accepted `h, h, x`, an identity followed by a NOT, which is exactly
+  the shortcut its own error message warned against, and rejected a correct
+  answer that contained a barrier.
+- Exercise 10 never gave `is_balanced` a mixed count dictionary, so an
+  implementation that asked whether an outcome occurred at all passed despite
+  being wrong on every real device.
+- Exercise 07 crashed rather than failed when a correct answer also measured.
+- Exercise 01 passed on a hardcoded version literal, the exact thing its own
+  message told the learner not to do.
+- `qx run '²'` produced a raw traceback: `isdigit()` accepts characters `int()`
+  refuses.
+- Two `qx` processes running at once silently overwrote each other's progress.
+- The ASCII bar fallback emitted a space for partial cells, punching the gap its
+  own comment said it avoided.
+- A circuit drawing crashed the run on a console that could not encode box
+  characters, and the child was not pinned to UTF-8.
+- `.vscode/settings.json` pointed at `.venv/bin/python`, which does not exist on
+  Windows.
+
+### Security
+
+- `qx doctor --save-account` left the plaintext IBM key at 0644, readable by any
+  other local user. It is now 0600 inside a 0700 directory, and the command says
+  which it did.
+- It also continued silently when `getpass` could not turn echo off, which would
+  print the key on screen. It now refuses and explains why.
+- **gitleaks did not catch an IBM key.** Verified: a hardcoded 44-character token
+  passes the default rule set untouched, so calling it "the actual safety net"
+  was wrong. `.gitleaks.toml` adds a rule that does catch it, confirmed against
+  a planted key. The pre-commit hook also only scans staged changes, so a
+  tree-wide scan now runs in CI, where nothing is staged.
+- `worker.py` described the child process as an isolation boundary. It is not a
+  sandbox and the docstring now says so plainly.
+
 ## [0.2.0] - 2026-08-04
 
 The curriculum taught the tool but not the subject: five distinct gates across
@@ -84,5 +172,6 @@ empty laptop to a Bell state on IBM hardware, with answers verified by inspectin
 Qiskit objects rather than comparing source text, and measurement counts checked
 against statistical tolerances rather than for equality.
 
+[0.2.1]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.1
 [0.2.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.0
 [0.1.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.1.0

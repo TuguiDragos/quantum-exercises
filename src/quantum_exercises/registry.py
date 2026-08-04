@@ -184,7 +184,9 @@ def load_hints(exercise: Exercise) -> list[str]:
 
 def resolve(name: str, exercises: list[Exercise]) -> Exercise:
     """Look up an exercise by number, slug, or unique substring."""
-    if name.isdigit():
+    # isdecimal, not isdigit: isdigit accepts characters like the superscript two
+    # that int() then refuses, which would surface as a raw traceback.
+    if name.isdecimal():
         wanted = int(name)
         for exercise in exercises:
             if exercise.number == wanted:

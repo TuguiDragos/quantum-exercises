@@ -63,6 +63,8 @@ def check(mod):
 
         rows.append((name, balanced, counts, verdict))
 
+    _check_majority(is_balanced)
+
     # The classical comparison, stated with the numbers just produced.
     summary = [f"{'function':<20} {'kind':<10} {'measured':<16} {'your verdict'}"]
     for name, balanced, counts, verdict in rows:
@@ -84,6 +86,30 @@ def check(mod):
     ]
 
     return text_artifact("\n".join(summary), caption="One query, four functions")
+
+
+# A simulator answers unanimously, so the four cases above never distinguish a
+# majority vote from "did this outcome occur at all". Hardware always leaks a few
+# shots the other way, and there the difference decides the answer.
+NOISY_CASES = [
+    ({"1": 231, "0": 25}, True),
+    ({"0": 240, "1": 16}, False),
+    ({"1": 130, "0": 126}, True),
+]
+
+
+def _check_majority(is_balanced) -> None:
+    for counts, expected in NOISY_CASES:
+        verdict = is_balanced(counts)
+        if verdict != expected:
+            raise CheckFailed(
+                f"is_balanced({counts}) returned {verdict}, expected {expected}.",
+                detail=(
+                    "These are the counts a real device gives: mostly one answer, with a few "
+                    "shots the other way. Deciding on whether an outcome appears at all gets "
+                    "this wrong. Take the outcome that occurred most often."
+                ),
+            )
 
 
 def _validate_circuit(circuit, name: str) -> None:

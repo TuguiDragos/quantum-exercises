@@ -32,6 +32,10 @@ STRUCTURAL_OPS = {"barrier", "delay"}
 # you would get from an unentangled circuit.
 MIN_AGREEMENT = 0.6
 
+# Each of 00 and 11 should be near half. Loose enough for real readout bias,
+# tight enough to reject a circuit that always answers the same thing.
+MIN_SHARE = 0.25
+
 
 def check(mod):
     build_bell = _callable(mod, "build_bell")
@@ -62,25 +66,13 @@ def check(mod):
     )
 
     selection = get_backend(min_num_qubits=2)
-    native = set(selection.backend.target.operation_names)
+    target = selection.backend.target
 
     isa = to_isa(bell, selection.backend)
     if not isinstance(isa, QuantumCircuit):
         raise CheckFailed(f"to_isa() returned a {type(isa).__name__}, expected a QuantumCircuit.")
 
-    used = set(isa.count_ops()) - STRUCTURAL_OPS
-    foreign = used - native
-    if foreign:
-        raise CheckFailed(
-            f"The circuit still contains instructions {sorted(foreign)}, which "
-            f"{selection.name} cannot execute.",
-            detail=(
-                f"That backend implements only {sorted(native - STRUCTURAL_OPS)}.\n"
-                "A real QPU rejects this outright rather than transpiling it for you. Build a "
-                "pass manager with generate_preset_pass_manager(optimization_level=1, "
-                "backend=backend) and run the circuit through it."
-            ),
-        )
+    _assert_executable(isa, target, selection.name)
 
     counts = sample(isa, selection, shots=SHOTS)
     assert_shots(counts, SHOTS)
@@ -100,12 +92,74 @@ def check(mod):
             ),
         )
 
+    # Agreeing is not enough on its own: a circuit that always answers 11 also
+    # agrees every time. A Bell state has to be genuinely undecided between the
+    # two, so require a real share of each.
+    for outcome in ("00", "11"):
+        share = counts.get(outcome, 0) / SHOTS
+        if share < MIN_SHARE:
+            raise CheckFailed(
+                f"Only {share:.1%} of shots came out as {outcome!r}, expected roughly half.",
+                detail=(
+                    f"Counts: {dict(sorted(counts.items()))}\n"
+                    "A Bell state is an even superposition of |00> and |11>, so both should "
+                    "appear about as often. One outcome dominating means the circuit prepares "
+                    "a definite value rather than an entangled one."
+                ),
+            )
+
     return [
         counts_artifact(counts, caption=f"{SHOTS} shots on {selection.describe()}"),
         text_artifact(_summary(selection, bell, isa, agreed, disagreed), caption="What happened"),
         # Recorded in the state file so `qx list` can show hardware versus simulator.
         Artifact(kind="text", caption="", payload="", meta={"ran_on": selection.kind}),
     ]
+
+
+def _assert_executable(circuit: QuantumCircuit, target, backend_name: str) -> None:
+    """Every instruction must be one this backend can run, on those exact qubits.
+
+    Checking the gate names alone is not enough: a QPU's qubits are not all wired
+    to each other, so a native two-qubit gate on an unconnected pair is rejected
+    just as firmly as a gate the machine does not implement.
+    """
+    unsupported: list[str] = []
+    for instruction in circuit.data:
+        name = instruction.operation.name
+        if name in STRUCTURAL_OPS:
+            continue
+        qargs = tuple(circuit.find_bit(qubit).index for qubit in instruction.qubits)
+        if not target.instruction_supported(name, qargs):
+            rendered = f"{name}({', '.join(str(index) for index in qargs)})"
+            if rendered not in unsupported:
+                unsupported.append(rendered)
+
+    if not unsupported:
+        return
+
+    native = sorted(set(target.operation_names) - STRUCTURAL_OPS)
+    gate_names = {u.split("(")[0] for u in unsupported}
+    foreign_names = sorted(gate_names - set(target.operation_names))
+
+    if foreign_names:
+        detail = (
+            f"{backend_name} implements only {native}.\n"
+            "A real QPU rejects anything else outright rather than transpiling it for you."
+        )
+    else:
+        detail = (
+            f"Those gates exist on {backend_name}, but not between those qubits: its qubits "
+            "are not all connected to each other. A pass manager built for the backend routes "
+            "the circuit onto pairs that are."
+        )
+
+    raise CheckFailed(
+        f"{backend_name} cannot execute {unsupported[:6]} as written.",
+        detail=(
+            f"{detail}\nBuild a pass manager with generate_preset_pass_manager("
+            "optimization_level=1, backend=backend) and run the circuit through it."
+        ),
+    )
 
 
 def _summary(selection, bell, isa, agreed, disagreed) -> str:

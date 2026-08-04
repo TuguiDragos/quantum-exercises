@@ -1,33 +1,46 @@
 """Child process that imports a learner's file and runs its check.
 
-Isolation matters here. Exercise code is unfinished by definition: it can raise,
-loop forever, or call sys.exit. Running it in a child process means the worst it
-can do is fail this one run.
+What the child process buys: a crash, a `sys.exit`, an `os._exit` or an endless
+loop in exercise.py costs one run instead of the whole CLI session, and the
+verdict travels back over a file so nothing the learner prints can corrupt it.
 
-The verdict is written to a file whose path is given on the command line, not to
-stdout, so that anything the learner prints stays readable and cannot corrupt
-the result.
+What it does not buy: this is not a sandbox. The worker inherits the environment,
+the filesystem and the network. exercise.py is written by the person running it,
+and check.py is repository code reviewed like any other source file.
 """
 
 from __future__ import annotations
 
-import argparse
-import dataclasses
-import importlib.util
-import json
+import os
 import sys
-import traceback
-import warnings
-from pathlib import Path
-from types import ModuleType
-from typing import Any
 
-from quantum_exercises.checks import Artifact, CheckFailed
-from quantum_exercises.errors import UNTRANSLATED_HINT, translate
+# Drop the working directory from sys.path before importing anything else.
+# `python -m` puts it at the front, so a scratch file named qiskit.py or json.py
+# in the repository root would shadow the real module and break every run, with
+# the failure landing on the learner. PYTHONSAFEPATH handles this on 3.11 and up;
+# doing it here covers 3.10 as well.
+_CWD = os.getcwd()
+sys.path[:] = [entry for entry in sys.path if entry not in ("", ".", _CWD)]
 
-# Sentinel exit codes so the parent can tell a clean verdict from a hard crash.
+import argparse  # noqa: E402
+import dataclasses  # noqa: E402
+import importlib.util  # noqa: E402
+import inspect  # noqa: E402
+import json  # noqa: E402
+import traceback  # noqa: E402
+import warnings  # noqa: E402
+from pathlib import Path  # noqa: E402
+from types import ModuleType  # noqa: E402
+from typing import Any  # noqa: E402
+
+from quantum_exercises.checks import Artifact, CheckFailed  # noqa: E402
+from quantum_exercises.errors import UNTRANSLATED_HINT, translate  # noqa: E402
+
 EXIT_OK = 0
-EXIT_NO_RESULT = 3
+
+
+class AuthoringError(Exception):
+    """The exercise's own check.py is wrong, which is never the learner's fault."""
 
 
 def _load_module(path: Path, name: str) -> ModuleType:
@@ -43,13 +56,10 @@ def _load_module(path: Path, name: str) -> ModuleType:
 
 def _user_line(exc: BaseException, target: Path) -> int | None:
     """Find the last line inside the learner's own file, skipping library frames."""
-    target_str = str(target.resolve())
+    wanted = Path(target).resolve(strict=False).as_posix()
     line: int | None = None
     for frame in traceback.extract_tb(exc.__traceback__):
-        if (
-            frame.filename
-            and Path(frame.filename).resolve(strict=False).as_posix() == Path(target_str).as_posix()
-        ):
+        if frame.filename and Path(frame.filename).resolve(strict=False).as_posix() == wanted:
             line = frame.lineno
     if line is None and isinstance(exc, SyntaxError) and exc.lineno:
         line = exc.lineno
@@ -57,8 +67,18 @@ def _user_line(exc: BaseException, target: Path) -> int | None:
 
 
 def _normalize_artifacts(value: Any) -> list[dict]:
+    """Turn whatever check() returned into JSON-ready dicts, or say why it cannot."""
     if value is None:
         return []
+
+    if inspect.isgenerator(value) or inspect.isasyncgen(value):
+        raise AuthoringError(
+            "check() is a generator function: its body contains `yield`, so calling it "
+            "returns a generator and runs none of the checks. Remove the yield."
+        )
+    if inspect.iscoroutine(value):
+        raise AuthoringError("check() is async, but the runner calls it synchronously.")
+
     items = value if isinstance(value, (list, tuple)) else [value]
     out: list[dict] = []
     for item in items:
@@ -66,7 +86,25 @@ def _normalize_artifacts(value: Any) -> list[dict]:
             out.append(dataclasses.asdict(item))
         elif isinstance(item, dict):
             out.append(item)
+        else:
+            raise AuthoringError(
+                f"check() returned a {type(item).__name__}. It must return None, an "
+                "Artifact, or a list of Artifacts."
+            )
     return out
+
+
+def _internal_error(message: str, detail: str | None, caught: list) -> dict:
+    return {
+        "outcome": "internal_error",
+        "message": message,
+        "detail": detail,
+        "hint": None,
+        "artifacts": [],
+        "warnings": _format_warnings(caught),
+        "line": None,
+        "error_type": None,
+    }
 
 
 def run(exercise_dir: Path, target: Path) -> dict:
@@ -85,32 +123,20 @@ def run(exercise_dir: Path, target: Path) -> dict:
             check_module = _load_module(exercise_dir / "check.py", "qx_exercise_check")
         except BaseException as exc:  # noqa: BLE001
             caught.extend(recorded)
-            return {
-                "outcome": "internal_error",
-                "message": f"The exercise's own check.py failed to load: {exc}",
-                "detail": traceback.format_exc(),
-                "hint": None,
-                "artifacts": [],
-                "warnings": _format_warnings(caught),
-                "line": None,
-                "error_type": type(exc).__name__,
-            }
+            return _internal_error(
+                f"The exercise's own check.py failed to load: {exc}",
+                traceback.format_exc(),
+                caught,
+            )
 
         if not hasattr(check_module, "check"):
             caught.extend(recorded)
-            return {
-                "outcome": "internal_error",
-                "message": f"{exercise_dir.name}/check.py does not define a check() function.",
-                "detail": None,
-                "hint": None,
-                "artifacts": [],
-                "warnings": _format_warnings(caught),
-                "line": None,
-                "error_type": None,
-            }
+            return _internal_error(
+                f"{exercise_dir.name}/check.py does not define a check() function.", None, caught
+            )
 
         try:
-            artifacts = _normalize_artifacts(check_module.check(module))
+            returned = check_module.check(module)
         except CheckFailed as exc:
             caught.extend(recorded)
             return {
@@ -126,6 +152,12 @@ def run(exercise_dir: Path, target: Path) -> dict:
         except BaseException as exc:  # noqa: BLE001
             caught.extend(recorded)
             return _failure_payload(exc, target, caught, stage="check")
+
+        try:
+            artifacts = _normalize_artifacts(returned)
+        except AuthoringError as exc:
+            caught.extend(recorded)
+            return _internal_error(f"{exercise_dir.name}/check.py is broken: {exc}", None, caught)
 
         caught.extend(recorded)
 
@@ -176,6 +208,33 @@ def _format_warnings(caught: list) -> list[str]:
     return seen
 
 
+def _write(path: Path, payload: dict) -> None:
+    """Serialize defensively: an artifact that cannot be JSON is an authoring bug.
+
+    Without this, the write raises, no file is produced, and the parent reports it
+    as though the learner had killed the process.
+    """
+    try:
+        text = json.dumps(payload)
+    except (TypeError, ValueError) as exc:
+        text = json.dumps(
+            {
+                "outcome": "internal_error",
+                "message": "The exercise's check.py returned something that cannot be serialized.",
+                "detail": (
+                    f"{type(exc).__name__}: {exc}\nArtifact payloads must be JSON-ready: "
+                    "plain numbers, strings, lists and dicts."
+                ),
+                "hint": None,
+                "artifacts": [],
+                "warnings": payload.get("warnings", []),
+                "line": None,
+                "error_type": type(exc).__name__,
+            }
+        )
+    path.write_text(text, encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="quantum_exercises.worker")
     parser.add_argument("exercise_dir", type=Path)
@@ -201,7 +260,7 @@ def main(argv: list[str] | None = None) -> int:
             "error_type": type(exc).__name__,
         }
 
-    args.result_path.write_text(json.dumps(payload), encoding="utf-8")
+    _write(args.result_path, payload)
     return EXIT_OK
 
 

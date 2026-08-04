@@ -60,12 +60,17 @@ def check(mod):
     ]
 
 
+def _gate_names(qc) -> list[str]:
+    """Instruction names in order, ignoring barriers, which change nothing."""
+    return [i.operation.name for i in qc.data if i.operation.name != "barrier"]
+
+
 def _check_undo(qc) -> None:
     if qc.num_qubits != 1:
         raise CheckFailed(f"`qc_undo` has {qc.num_qubits} qubits, but should have exactly 1.")
 
-    ops = dict(qc.count_ops())
-    if not ops:
+    names = _gate_names(qc)
+    if not names:
         raise CheckFailed(
             "`qc_undo` is still empty.",
             detail=(
@@ -73,9 +78,9 @@ def _check_undo(qc) -> None:
                 "The exercise wants two gates that visibly cancel each other out."
             ),
         )
-    if ops != {"h": 2}:
+    if names != ["h", "h"]:
         raise CheckFailed(
-            f"`qc_undo` should be exactly two Hadamards, but it contains {ops}.",
+            f"`qc_undo` should be exactly two Hadamards, but it contains {names}.",
             detail="Apply qc_undo.h(0) twice, on the same qubit.",
         )
 
@@ -90,19 +95,28 @@ def _check_flip(qc) -> None:
     if qc.num_qubits != 1:
         raise CheckFailed(f"`qc_flip` has {qc.num_qubits} qubits, but should have exactly 1.")
 
-    ops = dict(qc.count_ops())
-    if ops.get("h", 0) != 2:
+    names = _gate_names(qc)
+    if names.count("h") != 2:
         raise CheckFailed(
-            f"`qc_flip` should still have exactly two Hadamards, but it has {ops.get('h', 0)}.",
+            f"`qc_flip` should still have exactly two Hadamards, but it has {names.count('h')}.",
             detail=(
                 "The point is what a phase does BETWEEN the two Hadamards. Reaching for "
                 "qc_flip.x(0) gives the right matrix while skipping the lesson."
             ),
         )
-    if sum(ops.values()) < 3:
+
+    # Position matters, not just the tally: h, h, x also has two Hadamards and
+    # also equals X, but it is an identity followed by a NOT and teaches nothing
+    # about a phase interfering with anything.
+    middle = names[1:-1]
+    if names[0] != "h" or names[-1] != "h" or not any(name != "h" for name in middle):
         raise CheckFailed(
-            "`qc_flip` has nothing between the two Hadamards, so it is still the identity.",
-            detail="Add one gate in the middle that flips the sign of the |1> amplitude.",
+            f"`qc_flip` is {names}, which does not sandwich a phase between the Hadamards.",
+            detail=(
+                "The circuit has to be: Hadamard, then a gate that flips the sign of the |1> "
+                "amplitude, then Hadamard. Putting the extra gate outside that sandwich gives "
+                "the right matrix by a different route and skips the whole point."
+            ),
         )
 
     assert_operator_equiv(

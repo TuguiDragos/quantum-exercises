@@ -1,0 +1,29 @@
+title = "quantum-exercises"
+
+# Keep every built-in rule and add one for the shape this project actually risks.
+[extend]
+useDefault = true
+
+# An IBM Quantum API key is 44 generic alphanumeric characters. On its own that
+# matches half the base64 in the world, so match it only where it is being
+# assigned to a token-like name, which is how a leak really happens: someone
+# pastes their key into an exercise while debugging.
+#
+# Verified against gitleaks v8.30.1: without this rule a hardcoded IBM key in a
+# call to QiskitRuntimeService(token=...) passes the default rule set untouched.
+[[rules]]
+id = "ibm-quantum-api-key"
+description = "IBM Quantum API key assigned to a token-like name"
+regex = '''(?i)(?:qiskit_ibm_token|api[_-]?key|apikey|\btoken\b)\s*[:=]\s*["']([A-Za-z0-9_\-]{40,50})["']'''
+secretGroup = 1
+keywords = ["token", "api_key", "apikey", "api-key"]
+
+[rules.allowlist]
+regexTarget = "match"
+regexes = [
+  # Obvious placeholders in documentation.
+  '''(?i)["'](?:your|my|the)[_-]?(?:api[_-]?)?key''',
+  '''(?i)["']<[^"']*>["']''',
+  '''(?i)["']x{40,50}["']''',
+  '''(?i)["']a{40,50}["']''',
+]

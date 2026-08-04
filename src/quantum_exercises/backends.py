@@ -112,18 +112,32 @@ def to_isa(circuit, backend, *, optimization_level: int = 1):
 
 
 def sample(circuit, selection: Selection, *, shots: int = 1024) -> dict[str, int]:
-    """Run an ISA circuit and return counts, using the right Sampler for the backend."""
+    """Run an ISA circuit on the selected backend and return counts."""
     if selection.is_hardware:
         from qiskit_ibm_runtime import SamplerV2
 
-        sampler = SamplerV2(mode=selection.backend)
-    else:
-        from qiskit_aer.primitives import SamplerV2
+        result = SamplerV2(mode=selection.backend).run([circuit], shots=shots).result()
+        return single_register_counts(result[0])
 
-        sampler = SamplerV2()
+    # Run on the backend we actually chose. A fresh qiskit_aer SamplerV2() would
+    # ignore it and sample noiselessly, so the noise model copied from hardware
+    # would silently do nothing and the whole point of the fallback would be lost.
+    counts = selection.backend.run(circuit, shots=shots).result().get_counts()
+    return _normalize_counts(counts)
 
-    result = sampler.run([circuit], shots=shots).result()
-    return single_register_counts(result[0])
+
+def _normalize_counts(counts) -> dict[str, int]:
+    """Plain dict of str to int, rejecting the multi-register case like the V2 path."""
+    normalized: dict[str, int] = {}
+    for key, value in dict(counts).items():
+        label = str(key)
+        if " " in label:
+            raise ValueError(
+                f"The circuit has several classical registers (outcome {label!r}); "
+                "this helper expects exactly one."
+            )
+        normalized[label] = int(value)
+    return normalized
 
 
 def single_register_counts(pub_result) -> dict[str, int]:
@@ -146,12 +160,19 @@ def single_register_counts(pub_result) -> dict[str, int]:
     return dict(getattr(pub_result.data, fields[0]).get_counts())
 
 
+def noise_model(selection: Selection):
+    """The noise model actually in force, or None for a noiseless backend."""
+    options = getattr(selection.backend, "options", None)
+    return getattr(options, "noise_model", None)
+
+
 __all__ = [
     "FAKE_BACKEND",
     "OFFLINE_ENV",
     "Kind",
     "Selection",
     "get_backend",
+    "noise_model",
     "offline",
     "sample",
     "single_register_counts",

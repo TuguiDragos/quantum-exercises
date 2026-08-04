@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from quantum_exercises.registry import Exercise, load_exercise
-from quantum_exercises.runner import run_exercise
+from quantum_exercises.runner import MAX_CAPTURED_BYTES, ran_on, run_exercise
 
 CHECK_SOURCE = """
 from quantum_exercises.checks import CheckFailed, require, text_artifact
@@ -127,3 +127,109 @@ def test_broken_check_file_is_not_blamed_on_the_learner(
     result = run_exercise(synthetic, root=tmp_path)
     assert result.outcome == "internal_error"
     assert "check.py" in result.message
+
+
+class TestHardening:
+    """Regressions for defects found by an adversarial review of the runner."""
+
+    def test_stdin_is_closed_so_exercises_cannot_eat_your_typing(
+        self, synthetic: Exercise, tmp_path: Path
+    ) -> None:
+        _write(synthetic, "answer = input('give me something: ')\n")
+        result = run_exercise(synthetic, root=tmp_path, timeout=20)
+        assert result.outcome == "error"
+        assert result.error_type == "EOFError"
+
+    def test_runaway_output_is_capped(self, synthetic: Exercise, tmp_path: Path) -> None:
+        """A print loop must not grow the parent's memory without bound."""
+        _write(
+            synthetic,
+            "import sys\nfor _ in range(20000):\n    sys.stdout.write('A' * 4096 + '\\n')\n"
+            "answer = 42\n",
+        )
+        result = run_exercise(synthetic, root=tmp_path, timeout=60)
+        assert result.passed
+        assert len(result.stdout.encode()) < 4 * MAX_CAPTURED_BYTES
+        assert "discarded" in result.stdout
+
+    def test_a_verdict_written_before_the_timeout_is_honoured(
+        self, synthetic: Exercise, tmp_path: Path
+    ) -> None:
+        """A leftover grandchild must not turn a finished run into a timeout."""
+        _write(
+            synthetic,
+            "import subprocess, sys\n"
+            "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
+            "answer = 42\n",
+        )
+        result = run_exercise(synthetic, root=tmp_path, timeout=15)
+        assert result.passed, f"{result.outcome}: {result.message}"
+
+    def test_a_stray_module_in_the_root_does_not_break_the_run(
+        self, synthetic: Exercise, tmp_path: Path
+    ) -> None:
+        """A learner's scratch qiskit.py must not shadow the real package."""
+        (tmp_path / "qiskit.py").write_text("BROKEN = True\n", encoding="utf-8")
+        _write(synthetic, "answer = 42\n")
+        result = run_exercise(synthetic, root=tmp_path)
+        assert result.passed, f"{result.outcome}: {result.message}"
+
+    def test_binary_on_stdout_does_not_crash_the_runner(
+        self, synthetic: Exercise, tmp_path: Path
+    ) -> None:
+        _write(
+            synthetic,
+            "import sys\nsys.stdout.buffer.write(b'\\xff\\xfe\\x00 hi\\n')\nanswer = 42\n",
+        )
+        result = run_exercise(synthetic, root=tmp_path)
+        assert result.passed
+
+    def test_a_generator_check_is_an_authoring_error_not_a_pass(
+        self, synthetic: Exercise, tmp_path: Path
+    ) -> None:
+        """The worst possible failure: silently marking every answer correct."""
+        synthetic.check_file.write_text(
+            "from quantum_exercises.checks import CheckFailed\n\n\n"
+            "def check(mod):\n    yield None\n    raise CheckFailed('wrong')\n",
+            encoding="utf-8",
+        )
+        _write(synthetic, "answer = 999\n")
+        result = run_exercise(synthetic, root=tmp_path)
+        assert result.outcome == "internal_error"
+        assert "generator" in result.message
+
+    def test_an_unserializable_artifact_is_not_blamed_on_the_learner(
+        self, synthetic: Exercise, tmp_path: Path
+    ) -> None:
+        synthetic.check_file.write_text(
+            "from quantum_exercises.checks import Artifact\n\n\n"
+            "def check(mod):\n"
+            "    return Artifact(kind='text', caption='c', payload=complex(1, 2))\n",
+            encoding="utf-8",
+        )
+        _write(synthetic, "answer = 42\n")
+        result = run_exercise(synthetic, root=tmp_path)
+        assert result.outcome == "internal_error"
+        assert "serialized" in result.message
+
+    def test_a_non_artifact_return_is_an_authoring_error(
+        self, synthetic: Exercise, tmp_path: Path
+    ) -> None:
+        synthetic.check_file.write_text(
+            "def check(mod):\n    return 'just a string'\n", encoding="utf-8"
+        )
+        _write(synthetic, "answer = 42\n")
+        result = run_exercise(synthetic, root=tmp_path)
+        assert result.outcome == "internal_error"
+
+
+class TestRanOn:
+    def test_reads_the_backend_an_exercise_reported(self) -> None:
+        assert ran_on([{"meta": {"ran_on": "hardware"}}]) == "hardware"
+
+    def test_tolerates_meta_being_none(self) -> None:
+        """A hand-written artifact dict can carry meta=None; that must not crash."""
+        assert ran_on([{"meta": None}, {"meta": {"ran_on": "simulator"}}]) == "simulator"
+
+    def test_tolerates_junk_entries(self) -> None:
+        assert ran_on(["not a dict", {}, {"meta": {}}]) is None

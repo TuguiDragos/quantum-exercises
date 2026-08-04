@@ -27,7 +27,12 @@ repos:
       - id: nbstripout
 
   # GitHub push protection does not recognise the IBM Quantum API key format,
-  # which is a plain 44-character string. This is the actual safety net.
+  # which is 44 generic characters, and neither does gitleaks out of the box:
+  # verified that a hardcoded key passes the default rule set untouched. The rule
+  # that does catch it lives in .gitleaks.toml.
+  #
+  # This hook scans staged changes only. The tree-wide scan is the `secrets` job
+  # in ci.yml, because installing hooks is opt-in and easy to skip.
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
     hooks:

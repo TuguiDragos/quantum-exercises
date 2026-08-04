@@ -66,13 +66,33 @@ def _bar(fraction: float, width: int = BAR_WIDTH, track: str = " ") -> str:
     filled_cells = int(exact)
     remainder = exact - filled_cells
 
-    # A rounded-to-zero remainder must add nothing. Emitting ramp[0], which is a
-    # space, would punch a hole between the filled part and the track.
+    # Any partial cell that is blank must add nothing, or it punches a hole
+    # between the filled part and the track. That is ramp[0] in both ramps, and
+    # ramp[1..7] in the ASCII one, which has no sub-character glyphs to offer.
     step = round(remainder * 8)
     partial = ramp[step] if step > 0 and filled_cells < width else ""
+    if not partial.strip():
+        partial = ""
 
     filled = full * filled_cells + partial
     return filled + track * (width - len(filled))
+
+
+def _safe(text: str) -> str:
+    """Replace characters the output stream cannot encode, rather than crashing.
+
+    Qiskit circuit drawings are box-drawing art. Printing one to a console on a
+    legacy code page raises UnicodeEncodeError from deep inside rich, which would
+    take down a run that had already succeeded.
+    """
+    encoding = getattr(console.file, "encoding", None)
+    if not encoding:
+        return text
+    try:
+        text.encode(encoding)
+    except (UnicodeEncodeError, LookupError):
+        return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+    return text
 
 
 def _fmt_complex(re: float, im: float, places: int = 3) -> str:
@@ -138,6 +158,7 @@ def render_artifact(artifact: dict):
     payload = artifact.get("payload")
     meta = artifact.get("meta") or {}
 
+    caption = _safe(caption)
     if kind == "counts" and isinstance(payload, dict):
         return render_counts(payload, caption)
     if kind == "statevector" and isinstance(payload, list):
@@ -145,7 +166,7 @@ def render_artifact(artifact: dict):
         return render_statevector(payload, caption, num_qubits)
     if kind == "matrix" and isinstance(payload, list):
         return render_matrix(payload, caption)
-    return Panel(Text(str(payload)), title=caption, border_style="cyan", expand=False)
+    return Panel(Text(_safe(str(payload))), title=caption, border_style="cyan", expand=False)
 
 
 # --------------------------------------------------------------------------
@@ -162,7 +183,7 @@ def render_run(exercise: Exercise, result: RunResult, *, root: Path) -> None:
     if result.stdout.strip():
         console.print(
             Panel(
-                Text(result.stdout.rstrip()),
+                Text(_safe(result.stdout.rstrip())),
                 title="output from your program",
                 border_style="dim",
                 expand=False,
@@ -170,7 +191,7 @@ def render_run(exercise: Exercise, result: RunResult, *, root: Path) -> None:
         )
 
     for warning in result.warnings:
-        console.print(Text(f"warning  {warning}", style="yellow"))
+        console.print(Text(_safe(f"warning  {warning}"), style="yellow"))
 
     if result.passed:
         for artifact in result.artifacts:
@@ -192,7 +213,7 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
     }
     heading = headings.get(result.outcome, "FAILED")
 
-    parts: list = [Text(result.message, style="bold")]
+    parts: list = [Text(_safe(result.message), style="bold")]
 
     if result.line is not None:
         try:
@@ -202,10 +223,10 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
         parts.append(Text(f"\nat {where}:{result.line}", style="cyan"))
 
     if result.detail:
-        parts.append(Text("\n" + result.detail, style="dim"))
+        parts.append(Text(_safe("\n" + result.detail), style="dim"))
 
     if result.hint:
-        parts.append(Text("\nfix  ", style="bold yellow") + Text(result.hint))
+        parts.append(Text("\nfix  ", style="bold yellow") + Text(_safe(result.hint)))
 
     console.print(
         Panel(
@@ -218,7 +239,12 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
 
     if result.stderr.strip() and result.outcome in ("crash", "internal_error"):
         console.print(
-            Panel(Text(result.stderr.rstrip()), title="stderr", border_style="dim", expand=False)
+            Panel(
+                Text(_safe(result.stderr.rstrip())),
+                title="stderr",
+                border_style="dim",
+                expand=False,
+            )
         )
 
     console.print(

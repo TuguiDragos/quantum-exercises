@@ -285,6 +285,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Adding an exercise means creating one
 directory; the test suite enforces the rest. The full dependency inventory, with
 the reason each one is present, lives there too.
 
+## Security
+
+Reporting, and what the tool does with your IBM API key, are in
+[SECURITY.md](SECURITY.md). The short version: an account is optional, the key
+never reaches this repository, and `qx run` executes `check.py` from whichever
+copy you cloned, so clone from a source you trust.
+
 ## Author
 
 Tugui Dragos, [tuguidragos.com](https://tuguidragos.com).

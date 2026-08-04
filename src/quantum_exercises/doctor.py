@@ -7,7 +7,9 @@ never prints a token.
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import stat
 import sys
 from dataclasses import dataclass
 from importlib import import_module
@@ -180,7 +182,36 @@ def check_credentials() -> Check:
             "credentials no longer work. Save again on `ibm_quantum_platform`.",
         )
 
+    loose = _loose_permissions()
+    if loose:
+        return Check(
+            "IBM Quantum account",
+            "warn",
+            f"{'; '.join(accounts)} - but the file is readable by other local users ({loose})",
+            "The key is stored in clear text. Tighten it with "
+            f"`chmod 600 {CREDENTIALS_PATH}` and `chmod 700 {CREDENTIALS_PATH.parent}`. "
+            "Accounts saved through this tool are tightened automatically; older ones "
+            "kept whatever umask was in force when qiskit wrote them.",
+        )
+
     return Check("IBM Quantum account", "ok", "; ".join(accounts))
+
+
+def _loose_permissions() -> str | None:
+    """Report the mode when the saved key is readable beyond its owner.
+
+    A long-lived API key in clear text is only as private as the file holding it,
+    and qiskit writes it with whatever umask happens to be in force.
+    """
+    if os.name == "nt":  # pragma: no cover - POSIX modes do not apply
+        return None
+    try:
+        mode = CREDENTIALS_PATH.stat().st_mode
+    except OSError:  # pragma: no cover - the caller has already read the file
+        return None
+    if mode & (stat.S_IRGRP | stat.S_IROTH | stat.S_IWGRP | stat.S_IWOTH):
+        return stat.filemode(mode)
+    return None
 
 
 def check_online() -> Check:

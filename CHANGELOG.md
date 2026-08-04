@@ -4,6 +4,28 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-08-04
+
+### Added
+
+- **A security policy**, written from verified behaviour rather than a template.
+  It documents the two things worth knowing before cloning: what happens to an
+  IBM API key, and the fact that `qx run` executes `check.py` from whichever
+  repository you cloned, with your environment and filesystem in reach. That
+  second point was confirmed by writing a `check.py` that reads the credentials
+  file, so the policy states a demonstrated fact rather than a caution.
+- **`qx doctor` now checks the permissions of the saved key.** qiskit writes it
+  with whatever umask is in force, normally leaving it world-readable, and the
+  automatic tightening added in 0.2.1 only applies to accounts saved through this
+  tool afterwards. Any account saved before that, or saved by qiskit directly,
+  stayed readable by every local user with nothing to say so.
+- **The README shows the tool instead of describing it.** Eight screenshots
+  replace the hand-copied terminal transcripts, which could not show colour and
+  had to be re-verified by hand whenever output changed. Installation became a
+  real walkthrough: uv per platform, clone, install, and `qx doctor` with a
+  picture of the checks it runs. Every image carries alt text, so the page still
+  reads without them.
+
 ## [0.3.4] - 2026-08-04
 
 ### Changed
@@ -350,6 +372,7 @@ empty laptop to a Bell state on IBM hardware, with answers verified by inspectin
 Qiskit objects rather than comparing source text, and measurement counts checked
 against statistical tolerances rather than for equality.
 
+[0.4.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.4.0
 [0.3.4]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.4
 [0.3.3]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.3
 [0.3.2]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.2

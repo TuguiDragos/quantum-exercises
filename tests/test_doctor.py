@@ -49,6 +49,7 @@ class TestCredentials:
             ),
             encoding="utf-8",
         )
+        path.chmod(0o600)  # permissions are a separate check; this one is about content
         monkeypatch.setattr(doctor, "CREDENTIALS_PATH", path)
 
         check = doctor.check_credentials()
@@ -101,3 +102,44 @@ class TestFullRun:
     def test_online_check_is_opt_in(self, root: Path) -> None:
         names = {c.name for c in doctor.run_checks(root, online=False)}
         assert "IBM Quantum connection" not in names
+
+
+class TestCredentialPermissions:
+    """A clear-text key is only as private as the file holding it."""
+
+    def _write_account(self, tmp_path: Path, mode: int) -> Path:
+        path = tmp_path / "qiskit-ibm.json"
+        path.write_text(
+            json.dumps({"default": {"channel": "ibm_quantum_platform", "token": "t" * 44}}),
+            encoding="utf-8",
+        )
+        path.chmod(mode)
+        return path
+
+    def test_world_readable_key_is_a_warning(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(doctor, "CREDENTIALS_PATH", self._write_account(tmp_path, 0o644))
+        check = doctor.check_credentials()
+        assert check.status == "warn"
+        assert "other local users" in check.detail
+        assert "chmod 600" in check.fix
+
+    def test_group_readable_key_is_a_warning(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(doctor, "CREDENTIALS_PATH", self._write_account(tmp_path, 0o640))
+        assert doctor.check_credentials().status == "warn"
+
+    def test_owner_only_key_passes(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(doctor, "CREDENTIALS_PATH", self._write_account(tmp_path, 0o600))
+        check = doctor.check_credentials()
+        assert check.status == "ok"
+
+    def test_the_warning_never_contains_the_token(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(doctor, "CREDENTIALS_PATH", self._write_account(tmp_path, 0o644))
+        check = doctor.check_credentials()
+        assert "t" * 44 not in check.detail
+        assert "t" * 44 not in (check.fix or "")

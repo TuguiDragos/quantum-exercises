@@ -1,7 +1,7 @@
 # readme-assets
 
-Screenshots for the project README. Nothing here is referenced yet; add the
-image, then link it from `README.md`.
+Screenshots referenced by the project README. Replacing a file updates the page
+without touching it, as long as the name stays the same.
 
 ## Naming
 

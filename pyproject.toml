@@ -1,6 +1,6 @@
 [project]
 name = "quantum-exercises"
-version = "0.3.1"
+version = "0.3.2"
 description = "Hands-on quantum computing exercises for Qiskit, from an empty laptop to real IBM hardware"
 readme = "README.md"
 requires-python = ">=3.10"

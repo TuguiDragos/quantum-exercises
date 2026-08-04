@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 import pytest
 from rich.console import Console
@@ -99,3 +100,36 @@ class TestBarHasNoGaps:
             bar = ui._bar(numerator / 14, width=28, track=ui._TRACK)
             assert " " not in bar, f"{encoding} at {numerator}/14: {bar!r}"
             assert len(bar) == 28
+
+
+class TestMetadataOnlyArtifacts:
+    """An artifact can carry only metadata. It must not draw an empty box."""
+
+    def test_a_marker_artifact_renders_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from quantum_exercises.registry import Exercise
+        from quantum_exercises.runner import RunResult
+
+        console = _console_with_encoding("utf-8")
+        monkeypatch.setattr(ui, "console", console)
+
+        exercise = Exercise(
+            slug="01_demo",
+            number=1,
+            path=Path("/tmp/01_demo"),
+            title="Demo",
+            act="Act I",
+            summary="s",
+            hardware=False,
+            timeout=10,
+        )
+        result = RunResult(
+            outcome="pass",
+            artifacts=[
+                {"kind": "text", "caption": "", "payload": "", "meta": {"ran_on": "hardware"}},
+            ],
+        )
+        ui.render_run(exercise, result, root=Path("/tmp"))
+        console.file.flush()
+        rendered = console.file.buffer.getvalue().decode("utf-8")
+        assert "┌" not in rendered, "a metadata-only artifact drew a box"
+        assert "PASS" in rendered

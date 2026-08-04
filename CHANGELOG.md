@@ -4,6 +4,22 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-08-04
+
+### Fixed
+
+- **An artifact carrying only metadata drew an empty box.** Exercise 13 records
+  which backend it ran on by returning an artifact with no caption and no
+  payload, purely as transport. It rendered as a bare two-character frame under
+  the result. Such artifacts are now skipped, and the backend is still recorded.
+
+### Changed
+
+- `readme-assets/README.md` no longer warns that `qx doctor` exposes an account.
+  Checked rather than assumed: it prints no API key, no CRN and no credentials,
+  only the account label and paths containing the username, neither of which is
+  a secret.
+
 ## [0.3.1] - 2026-08-04
 
 ### Fixed
@@ -309,6 +325,7 @@ empty laptop to a Bell state on IBM hardware, with answers verified by inspectin
 Qiskit objects rather than comparing source text, and measurement counts checked
 against statistical tolerances rather than for equality.
 
+[0.3.2]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.2
 [0.3.1]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.1
 [0.3.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.0
 [0.2.3]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.3

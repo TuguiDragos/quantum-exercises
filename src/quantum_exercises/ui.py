@@ -241,6 +241,10 @@ def render_run(exercise: Exercise, result: RunResult, *, root: Path) -> None:
 
     if result.passed:
         for artifact in result.artifacts:
+            # Some artifacts carry only metadata, such as which backend a run
+            # used. With no caption and no payload they would draw an empty box.
+            if not artifact.get("caption") and not artifact.get("payload"):
+                continue
             console.print(render_artifact(artifact))
         console.print(Text(f"\n  PASS  {exercise.slug}", style=theme.STATUS_DONE))
         console.print(Text(f"        finished in {result.duration:.2f}s\n", style=theme.DETAIL))

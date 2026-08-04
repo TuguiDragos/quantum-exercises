@@ -4,6 +4,18 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] - 2026-08-04
+
+### Fixed
+
+- **The tool printed a command that contradicted its own files.** Every exercise
+  file and every exercise README says `uv run qx run N`, which works straight
+  from a fresh clone with nothing installed. The tool's own output said `qx run`,
+  which only works after a global install. Both appeared inches apart on screen.
+  The printed form is now chosen at run time: `qx` when it resolves on PATH,
+  `uv run qx` otherwise, so the guidance always matches what the reader can
+  actually type. Ten places printed a command; all of them go through one helper.
+
 ## [0.3.2] - 2026-08-04
 
 ### Fixed
@@ -325,6 +337,7 @@ empty laptop to a Bell state on IBM hardware, with answers verified by inspectin
 Qiskit objects rather than comparing source text, and measurement counts checked
 against statistical tolerances rather than for equality.
 
+[0.3.3]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.3
 [0.3.2]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.2
 [0.3.1]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.1
 [0.3.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.0

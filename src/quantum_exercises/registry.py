@@ -12,6 +12,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from quantum_exercises import invocation
+
 if sys.version_info >= (3, 11):
     import tomllib
 else:  # pragma: no cover - exercised only on 3.10
@@ -204,7 +206,7 @@ def resolve(name: str, exercises: list[Exercise]) -> Exercise:
         raise RegistryError(
             f"'{name}' matches several exercises: {', '.join(m.slug for m in matches)}"
         )
-    raise RegistryError(f"No exercise matches '{name}'. Run `qx list` to see them all.")
+    raise RegistryError(f"No exercise matches '{name}'. Run `{invocation()} list` to see them all.")
 
 
 __all__ = [

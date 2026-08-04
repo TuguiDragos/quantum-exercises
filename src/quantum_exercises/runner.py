@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from quantum_exercises import invocation
 from quantum_exercises.registry import Exercise
 
 Outcome = Literal["pass", "fail", "error", "internal_error", "timeout", "crash"]
@@ -142,7 +143,10 @@ def run_exercise(
         return RunResult(
             outcome="internal_error",
             message=f"{target} does not exist.",
-            detail="The exercise file is missing. `qx reset` can restore it from the template.",
+            detail=(
+                f"The exercise file is missing. `{invocation()} reset` can restore it "
+                "from the template."
+            ),
         )
 
     limit = timeout if timeout is not None else exercise.timeout

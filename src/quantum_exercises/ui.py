@@ -13,7 +13,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
-from quantum_exercises import theme
+from quantum_exercises import invocation, theme
 from quantum_exercises.registry import Exercise
 from quantum_exercises.runner import RunResult
 from quantum_exercises.state import State
@@ -304,7 +304,7 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
 
     console.print(
         Text("\n  next  ", style=theme.DETAIL)
-        + Text(f"qx hint {exercise.number}", style=theme.COMMAND)
+        + Text(f"{invocation()} hint {exercise.number}", style=theme.COMMAND)
         + Text(" for a nudge, or open", style=theme.DETAIL)
     )
     # On its own unwrapped line: a path broken across two lines cannot be copied.
@@ -314,7 +314,9 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
         crop=False,
     )
     console.print(
-        Text("        then run ", style=theme.DETAIL) + Text("qx run", style=theme.COMMAND) + "\n"
+        Text("        then run ", style=theme.DETAIL)
+        + Text(f"{invocation()} run", style=theme.COMMAND)
+        + "\n"
     )
 
 
@@ -402,7 +404,7 @@ def render_next(exercise: Exercise) -> None:
     )
     console.print(
         Text("  then  ", style=theme.DETAIL)
-        + Text(f"qx run {exercise.number}", style=theme.COMMAND)
+        + Text(f"{invocation()} run {exercise.number}", style=theme.COMMAND)
         + "\n"
     )
 

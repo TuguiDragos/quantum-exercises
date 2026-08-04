@@ -15,7 +15,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
-from quantum_exercises import __version__, theme, ui
+from quantum_exercises import __version__, invocation, theme, ui
 from quantum_exercises.registry import (
     Exercise,
     RegistryError,
@@ -67,7 +67,8 @@ def _pick(name: str | None, exercises: list[Exercise], state: State) -> Exercise
             return exercise
 
     ui.success(
-        "Every exercise is complete. Run `qx list` to review, or `qx reset <name>` to redo one."
+        f"Every exercise is complete. Run `{invocation()} list` to review, "
+        f"or `{invocation()} reset <name>` to redo one."
     )
     raise typer.Exit(code=0)
 
@@ -128,7 +129,7 @@ def doctor(
     if failed:
         ui.error(f"{len(failed)} blocking problem(s). Fix those before starting.")
         raise typer.Exit(code=1)
-    ui.success("Environment is ready. Run `qx next` to begin.")
+    ui.success(f"Environment is ready. Run `{invocation()} next` to begin.")
     ui.console.print()
 
 
@@ -191,7 +192,7 @@ def _save_account() -> None:
 
     restricted = _restrict_credentials_permissions()
 
-    ui.success("Account saved. Verify it with `qx doctor --online`.")
+    ui.success(f"Account saved. Verify it with `{invocation()} doctor --online`.")
     if restricted:
         ui.info(f"{doctor_module.CREDENTIALS_PATH} is readable only by you.")
     else:
@@ -263,7 +264,10 @@ def run(
         if not was_complete:
             remaining = [e for e in exercises if not state.is_complete(e.slug)]
             if remaining:
-                ui.info(f"Next up: {remaining[0].number:02d} {remaining[0].title}  (qx next)")
+                ui.info(
+                    f"Next up: {remaining[0].number:02d} {remaining[0].title}  "
+                    f"({invocation()} next)"
+                )
             else:
                 ui.success("That was the last one. All exercises complete.")
 
@@ -303,10 +307,13 @@ def hint(
 
     if visible < len(hints):
         ui.info(
-            f"{len(hints) - visible} more hint(s) available: run `qx hint {exercise.number}` again."
+            f"{len(hints) - visible} more hint(s) available: run "
+            f"`{invocation()} hint {exercise.number}` again."
         )
     else:
-        ui.info(f"That was the last hint. `qx solution {exercise.number}` shows the answer.")
+        ui.info(
+            f"That was the last hint. `{invocation()} solution {exercise.number}` shows the answer."
+        )
     ui.console.print()
 
 
@@ -345,7 +352,7 @@ def solution(
 
     state.mark_solved(exercise.slug)
     save(root, state)
-    ui.info(f"{exercise.slug} recorded as solved. Run `qx next` to continue.")
+    ui.info(f"{exercise.slug} recorded as solved. Run `{invocation()} next` to continue.")
     ui.console.print()
 
 

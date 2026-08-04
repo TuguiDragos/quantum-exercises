@@ -199,33 +199,54 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
 # --------------------------------------------------------------------------
 
 
-def render_list(exercises: list[Exercise], state: State) -> None:
-    table = Table(title="quantum-exercises", title_style="bold", header_style="bold")
-    table.add_column("#", justify="right", style="dim")
-    table.add_column("exercise", style="cyan")
-    table.add_column("title")
-    table.add_column("status")
-    table.add_column("act", style="dim")
+# Fixed widths so the per-act tables line up with each other. Repeating the act
+# name on every row would cost this much space and squeeze the titles instead.
+# The exercise column is exactly the longest slug, and the title column the
+# longest title, so nothing wraps in a standard 80-column terminal.
+LIST_COLUMNS = (("#", 2), ("exercise", 20), ("title", 36), ("status", 14))
 
-    current_act: str | None = None
+# Compact forms of backends.Kind, so the status column stays narrow.
+RAN_ON_LABEL = {"hardware": "QPU", "noisy_simulator": "noisy", "simulator": "sim"}
+
+
+def _act_table() -> Table:
+    table = Table(header_style="bold", box=None, pad_edge=False, expand=False)
+    table.add_column(LIST_COLUMNS[0][0], width=LIST_COLUMNS[0][1], justify="right", style="dim")
+    table.add_column(LIST_COLUMNS[1][0], width=LIST_COLUMNS[1][1], style="cyan")
+    table.add_column(LIST_COLUMNS[2][0], width=LIST_COLUMNS[2][1])
+    table.add_column(LIST_COLUMNS[3][0], width=LIST_COLUMNS[3][1])
+    return table
+
+
+def _by_act(exercises: list[Exercise]) -> list[tuple[str, list[Exercise]]]:
+    """Group consecutive exercises by act, keeping the curriculum order."""
+    groups: list[tuple[str, list[Exercise]]] = []
     for exercise in exercises:
-        if exercise.act != current_act:
-            table.add_section()
-            current_act = exercise.act
-        entry = state.get(exercise.slug)
-        label, style = STATUS_STYLE.get(entry.status, ("todo", "dim"))
-        if entry.status == "done" and entry.ran_on:
-            label = f"done ({entry.ran_on})"
-        table.add_row(
-            f"{exercise.number:02d}",
-            exercise.slug,
-            exercise.title,
-            Text(label, style=style),
-            exercise.act,
-        )
+        if not groups or groups[-1][0] != exercise.act:
+            groups.append((exercise.act, []))
+        groups[-1][1].append(exercise)
+    return groups
 
+
+def render_list(exercises: list[Exercise], state: State) -> None:
     console.print()
-    console.print(table)
+    console.print(Text("  quantum-exercises", style="bold"))
+
+    for act, group in _by_act(exercises):
+        console.print(Text(f"\n  {act}", style="bold blue"))
+        table = _act_table()
+        for exercise in group:
+            entry = state.get(exercise.slug)
+            label, style = STATUS_STYLE.get(entry.status, ("todo", "dim"))
+            if entry.status == "done" and entry.ran_on:
+                label = f"done ({RAN_ON_LABEL.get(entry.ran_on, entry.ran_on)})"
+            table.add_row(
+                f"{exercise.number:02d}",
+                exercise.slug,
+                exercise.title,
+                Text(label, style=style),
+            )
+        console.print(table)
 
     done = sum(1 for e in exercises if state.is_complete(e.slug))
     total = len(exercises)

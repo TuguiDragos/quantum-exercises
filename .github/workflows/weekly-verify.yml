@@ -87,14 +87,27 @@ jobs:
             "color": "$colour"
           }
           JSON
-      - name: Commit to the badges branch
+      - name: Publish to the badges branch
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B badges
-          git add -f badges/qiskit.json
+
+          # An orphan branch, so `badges` holds the payload and nothing else.
+          # Branching from HEAD would leave a full copy of the repository there,
+          # force-pushed every week and confusing to anyone who checks it out.
+          # RUNNER_TEMP is outside the workspace, which is why git clean cannot
+          # take the file with it.
+          cp badges/qiskit.json "$RUNNER_TEMP/qiskit.json"
+          git checkout --orphan badges
+          git rm -rf --cached . > /dev/null 2>&1 || true
+          git clean -fdxq
+          mkdir -p badges
+          cp "$RUNNER_TEMP/qiskit.json" badges/qiskit.json
+
+          git add badges/qiskit.json
           # A scheduled workflow is disabled after 60 days without repository
-          # activity. This weekly commit is also what keeps it alive.
+          # activity. This weekly push is also what keeps it alive, so the commit
+          # is allowed to be empty on a week when nothing changed.
           git commit -m "weekly verification badge" --allow-empty
           git push --force origin badges

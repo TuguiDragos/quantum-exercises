@@ -24,6 +24,10 @@ from quantum_exercises.state import State
 # are written in named colours and would otherwise surface through `qx hint`.
 console = Console(highlight=False, theme=Theme(theme.RICH_OVERRIDES))
 
+# Square everywhere. A filled cell is painted corner to corner, so a rounded
+# glyph drawn over it leaves the cell's outer corner coloured outside the curve.
+TABLE_BOX = box.SQUARE
+
 BAR_WIDTH = 34
 
 # Eight-step block ramp, so a bar can render fractions of a cell.
@@ -85,12 +89,16 @@ def _bar(fraction: float, width: int = BAR_WIDTH, track: str = " ") -> str:
     return filled + track * (width - len(filled))
 
 
-def _panel(*, border: str = theme.BORDER_ACTIVE, heavy: bool = False, raised: bool = False) -> dict:
-    """Panel styling in one place, so no call site ever names a colour."""
+def panel(*, border: str = theme.BORDER_ACTIVE, heavy: bool = False, raised: bool = False) -> dict:
+    """Panel styling in one place, so no call site names a colour or a box."""
     return {
         "border_style": border,
         "style": theme.RAISED if raised else theme.PANEL,
-        "box": box.HEAVY if heavy else box.ROUNDED,
+        # Square, not rounded: a filled cell is painted corner to corner, and a
+        # rounded glyph drawn over it leaves the cell's outer corner coloured
+        # outside the curve, which reads as a notch. Square geometry matches the
+        # fill exactly. Rounded looks right only on an unfilled panel.
+        "box": box.HEAVY if heavy else box.SQUARE,
         "expand": False,
     }
 
@@ -163,7 +171,7 @@ def render_counts(payload: dict[str, int], caption: str) -> Panel:
         body.append_text(_bar_text(count / peak))
         body.append(f" {count:>6}  {share * 100:5.1f}%\n")
     body.append(f"\n{'total':>8}   {total} shots", style=theme.DETAIL)
-    return Panel(body, title=caption, **_panel(raised=True))
+    return Panel(body, title=caption, **panel(raised=True))
 
 
 def render_statevector(payload: list[list[float]], caption: str, num_qubits: int) -> Panel:
@@ -179,7 +187,7 @@ def render_statevector(payload: list[list[float]], caption: str, num_qubits: int
         style = theme.DETAIL if probability < 1e-12 else theme.BODY
         table.add_row(label, _fmt_complex(re, im), f"{probability:.4f}", style=style)
 
-    return Panel(table, title=caption, **_panel(raised=True))
+    return Panel(table, title=caption, **panel(raised=True))
 
 
 def render_matrix(payload: list[list[list[float]]], caption: str) -> Panel:
@@ -188,7 +196,7 @@ def render_matrix(payload: list[list[list[float]]], caption: str) -> Panel:
         table.add_column(justify="right")
     for row in payload:
         table.add_row(*[_fmt_complex(re, im) for re, im in row])
-    return Panel(table, title=caption, **_panel(raised=True))
+    return Panel(table, title=caption, **panel(raised=True))
 
 
 def render_artifact(artifact: dict):
@@ -205,7 +213,7 @@ def render_artifact(artifact: dict):
         return render_statevector(payload, caption, num_qubits)
     if kind == "matrix" and isinstance(payload, list):
         return render_matrix(payload, caption)
-    return Panel(Text(_safe(str(payload))), title=caption, **_panel(raised=True))
+    return Panel(Text(_safe(str(payload))), title=caption, **panel(raised=True))
 
 
 # --------------------------------------------------------------------------
@@ -224,7 +232,7 @@ def render_run(exercise: Exercise, result: RunResult, *, root: Path) -> None:
             Panel(
                 Text(_safe(result.stdout.rstrip()), style=theme.BODY),
                 title="output from your program",
-                **_panel(border=theme.BORDER_QUIET),
+                **panel(border=theme.BORDER_QUIET),
             )
         )
 
@@ -274,7 +282,7 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
             title=heading,
             # "not yet" is an inactive outline; anything louder gets the accent
             # and a heavier rule, since the palette carries no error hue.
-            **_panel(
+            **panel(
                 border=theme.BORDER if result.outcome == "fail" else theme.BORDER_ACTIVE,
                 heavy=result.outcome != "fail",
             ),
@@ -286,7 +294,7 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
             Panel(
                 Text(_safe(result.stderr.rstrip()), style=theme.BODY),
                 title="stderr",
-                **_panel(border=theme.BORDER_QUIET),
+                **panel(border=theme.BORDER_QUIET),
             )
         )
 
@@ -377,7 +385,7 @@ def render_next(exercise: Exercise) -> None:
         Panel(
             Text(exercise.summary, style=theme.BODY),
             title=f"{exercise.number:02d} {exercise.title}",
-            **_panel(border=theme.BORDER_ACTIVE),
+            **panel(border=theme.BORDER_ACTIVE),
         )
     )
     # Outside the panel and unwrapped: a path with a box border through the middle
@@ -412,7 +420,9 @@ def error(message: str) -> None:
 
 
 __all__ = [
+    "TABLE_BOX",
     "console",
+    "panel",
     "error",
     "info",
     "render_artifact",

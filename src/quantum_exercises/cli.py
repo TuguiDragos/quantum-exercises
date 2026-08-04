@@ -99,6 +99,8 @@ def doctor(
         title="qx doctor",
         title_style=theme.TITLE,
         header_style=theme.HEADING,
+        border_style=theme.BORDER,
+        box=ui.TABLE_BOX,
         show_lines=False,
     )
     table.add_column("", width=4)
@@ -152,9 +154,7 @@ def _save_account() -> None:
                 "on a machine you trust.",
             ),
             title="save IBM Quantum account",
-            border_style=theme.BORDER_ACTIVE,
-            style=theme.PANEL,
-            expand=False,
+            **ui.panel(),
         )
     )
 
@@ -297,9 +297,7 @@ def hint(
             Panel(
                 Markdown(hints[index], code_theme=theme.SYNTAX_THEME),
                 title=f"hint {index + 1} of {len(hints)}",
-                border_style=theme.BORDER,
-                style=theme.PANEL,
-                expand=False,
+                **ui.panel(border=theme.BORDER),
             )
         )
 
@@ -341,9 +339,7 @@ def solution(
                 line_numbers=False,
             ),
             title=str(exercise.solution_file),
-            border_style=theme.BORDER_ACTIVE,
-            style=theme.PANEL,
-            expand=False,
+            **ui.panel(),
         )
     )
 

@@ -4,6 +4,21 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-08-04
+
+### Fixed
+
+- **Square corners everywhere.** Rounded corners and a filled background
+  contradict each other: a filled cell is painted corner to corner, and a
+  rounded glyph drawn over it leaves the cell's outer corner coloured outside
+  the curve, which reads as a notch stuck to the curve. The `qx doctor` table
+  looked right only because it carried no fill at all. Every panel and table now
+  uses square geometry, which matches the fill exactly.
+- Three panels in the CLI and the doctor table were still using rich's default
+  box rather than the shared helper, so they kept rounded corners even after the
+  panels were changed. All of them route through one helper now, which is also
+  the only place a box is chosen.
+
 ## [0.3.0] - 2026-08-04
 
 ### Added
@@ -294,6 +309,7 @@ empty laptop to a Bell state on IBM hardware, with answers verified by inspectin
 Qiskit objects rather than comparing source text, and measurement counts checked
 against statistical tolerances rather than for equality.
 
+[0.3.1]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.1
 [0.3.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.0
 [0.2.3]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.3
 [0.2.2]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.2

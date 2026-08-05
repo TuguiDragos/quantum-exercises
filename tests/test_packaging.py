@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -24,7 +26,7 @@ def pyproject(root: Path) -> dict:
 
 
 def test_version_agrees_across_every_file(pyproject: dict, root: Path) -> None:
-    """Three files carry the version. They drift the moment one is forgotten."""
+    """Four files carry the version. They drift the moment one is forgotten."""
     declared = pyproject["project"]["version"]
 
     assert quantum_exercises.__version__ == declared, (
@@ -37,10 +39,40 @@ def test_version_agrees_across_every_file(pyproject: dict, root: Path) -> None:
     assert match.group(1) == declared, "CITATION.cff disagrees with pyproject.toml"
 
 
+def test_the_lockfile_carries_the_current_version(pyproject: dict, root: Path) -> None:
+    """The fourth place, and the one that fails in CI rather than in review.
+
+    uv.lock records this project as a package like any other. Bump the version
+    without running `uv lock` and every job that runs `uv sync --locked` refuses to
+    start, which is a red build for a reason nothing in the diff points at.
+    """
+    declared = pyproject["project"]["version"]
+    with (root / "uv.lock").open("rb") as handle:
+        locked = tomllib.load(handle)
+
+    entry = next(
+        (package for package in locked["package"] if package["name"] == "quantum-exercises"), None
+    )
+    assert entry is not None, "uv.lock has no entry for quantum-exercises"
+    assert entry["version"] == declared, (
+        f"uv.lock says {entry['version']}, pyproject.toml says {declared}. Run `uv lock`."
+    )
+
+
 def test_changelog_documents_the_current_version(pyproject: dict, root: Path) -> None:
     declared = pyproject["project"]["version"]
     changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert f"## [{declared}]" in changelog, f"CHANGELOG.md has no entry for {declared}"
+    assert f"## {declared} - " in changelog, f"CHANGELOG.md has no entry for {declared}"
+
+
+def test_changelog_links_no_tag_that_does_not_exist(root: Path) -> None:
+    """Every version heading used to link to a release tag. None was ever created.
+
+    Twelve headings, twelve definitions, twelve 404s. Plain headings until the
+    repository actually tags releases, at which point the links can come back.
+    """
+    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "releases/tag/" not in changelog
 
 
 def test_entry_point_is_importable(pyproject: dict) -> None:
@@ -143,11 +175,28 @@ class TestDependencyInventory:
                 pytest.fail(f"CONTRIBUTING claims {name} {claimed}, but it is not installed")
             assert actual == claimed, f"{name}: documented {claimed}, installed {actual}"
 
-    def test_locked_package_count_is_accurate(self, root: Path, inventory: str) -> None:
+    def test_locked_package_counts_are_accurate(self, root: Path, inventory: str) -> None:
+        """Three different numbers, and the prose used to give one of them a wrong name.
+
+        uv.lock holds one entry per resolution, so entries outnumber packages, and
+        both outnumber what any single environment installs.
+        """
+        from importlib.metadata import distributions
+
         with (root / "uv.lock").open("rb") as handle:
             locked = tomllib.load(handle)
-        claimed = int(re.search(r"is (\d+) packages", inventory).group(1))
-        assert claimed == len(locked["package"])
+
+        entries = int(re.search(r"records (\d+) package entries", inventory).group(1))
+        distinct = int(re.search(r"names (\d+)\s+distinct packages", inventory).group(1))
+        installed = int(re.search(r"ends up with (\d+) installed", inventory).group(1))
+
+        assert entries == len(locked["package"])
+        assert distinct == len({entry["name"] for entry in locked["package"]})
+
+        running = f"{sys.version_info.major}.{sys.version_info.minor}"
+        if running != DOCUMENTED_INTERPRETER:
+            pytest.skip(f"the count is for {DOCUMENTED_INTERPRETER}; this is {running}")
+        assert installed == len(list(distributions()))
 
     def test_ci_matrix_matches_the_prose(self, root: Path, inventory: str) -> None:
         stated = set(
@@ -207,6 +256,58 @@ class TestReadmeBadges:
             assert " " not in url, f"{label} badge URL contains a raw space"
 
 
+# A key-shaped string: 44 generic characters, the shape IBM actually issues.
+SAMPLE_KEY = "b3Kq9ZmX7pLwR2tYvN8cJ4hG6sD1fA5eQ0uIAAAAAAAA"
+
+
+@pytest.fixture(scope="module")
+def secret_rule(root: Path) -> dict:
+    with (root / ".gitleaks.toml").open("rb") as handle:
+        config = tomllib.load(handle)
+    for entry in config["rules"]:
+        if entry["id"] == "ibm-quantum-api-key":
+            return entry
+    pytest.fail("the ibm-quantum-api-key rule is gone from .gitleaks.toml")
+
+
+def _caught(rule: dict, blob: str) -> bool:
+    found = re.search(rule["regex"], blob)
+    if found is None:
+        return False
+    return not any(re.search(pattern, found.group()) for pattern in rule["allowlist"]["regexes"])
+
+
+class TestSecretScanning:
+    """The custom gitleaks rule, exercised rather than assumed.
+
+    gitleaks itself runs in CI and in pre-commit; this checks the pattern the
+    config actually carries, so a well-meant edit cannot quietly stop it matching.
+    Python's `re` and Go's RE2 agree on every construct used here, and each case
+    below was confirmed against the pinned gitleaks 8.30.1 binary.
+    """
+
+    def test_a_key_in_a_python_file_is_caught(self, secret_rule: dict) -> None:
+        assert _caught(secret_rule, f'QiskitRuntimeService(token="{SAMPLE_KEY}")')
+
+    def test_a_key_in_a_notebook_cell_is_caught(self, secret_rule: dict) -> None:
+        """A .ipynb stores cell source as JSON, so the quotes arrive backslashed.
+
+        README sends readers to notebooks/playground.ipynb to experiment, which
+        makes it the likeliest place in this repository for a key to be pasted.
+        The rule was anchored to a bare quote and missed this case entirely.
+        """
+        source = f'QiskitRuntimeService(token="{SAMPLE_KEY}")\n'
+        notebook = json.dumps({"cells": [{"cell_type": "code", "source": [source]}]})
+        assert '\\"' in notebook, "fixture is wrong: the quotes should be escaped"
+        assert _caught(secret_rule, notebook)
+
+    @pytest.mark.parametrize("placeholder", ["x" * 44, "a" * 44, "<your-api-key-goes-right-here>"])
+    def test_documentation_placeholders_do_not_trip_it(
+        self, secret_rule: dict, placeholder: str
+    ) -> None:
+        assert not _caught(secret_rule, f'token="{placeholder}"')
+
+
 class TestNoDerivativeFraming:
     """This project is described on its own terms, not as a version of another.
 
@@ -256,3 +357,75 @@ class TestOneSpellingForTheCommand:
         from quantum_exercises import invocation
 
         assert invocation() in {"qx", "uv run qx"}
+
+    @staticmethod
+    def _invocation_with(
+        monkeypatch: pytest.MonkeyPatch, prefix: Path, path_entries: list[Path]
+    ) -> str:
+        """Answer invocation() against a real PATH holding real executables.
+
+        Built on disk rather than by patching shutil.which, because the lookup
+        walks PATH one directory at a time and a stubbed which() cannot model
+        which entry a hit came from, which is the whole question being asked.
+        """
+        from quantum_exercises import invocation
+
+        for directory in path_entries:
+            directory.mkdir(parents=True, exist_ok=True)
+            executable = directory / "qx"
+            executable.write_text("#!/bin/sh\n", encoding="utf-8")
+            executable.chmod(0o755)
+
+        monkeypatch.setattr(sys, "prefix", str(prefix))
+        monkeypatch.setenv("PATH", os.pathsep.join(str(p) for p in path_entries))
+        invocation.cache_clear()
+        try:
+            return invocation()
+        finally:
+            invocation.cache_clear()
+
+    def test_only_a_qx_inside_this_environment_is_not_advertised(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """`uv run` puts the project's own bin on PATH for the length of one command.
+
+        Answering "qx" on the strength of that tells the reader to type a command
+        their next shell does not have, which is the case this helper exists for.
+        """
+        env = tmp_path / "project" / ".venv"
+        assert self._invocation_with(monkeypatch, env, [env / "bin"]) == "uv run qx"
+
+    def test_a_qx_outside_this_environment_is_advertised(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """What `uv tool install` leaves behind: a link in ~/.local/bin, really on PATH."""
+        env = tmp_path / "tools" / "quantum-exercises"
+        assert self._invocation_with(monkeypatch, env, [tmp_path / "local" / "bin"]) == "qx"
+
+    def test_a_global_qx_wins_over_the_one_in_an_active_venv(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """An activated project venv shadows the global qx, but does not replace it.
+
+        The venv's copy comes first on PATH, so stopping at the first hit answered
+        "uv run qx" to someone who has qx installed and can simply type it. The
+        search has to look past its own environment before giving up.
+        """
+        env = tmp_path / "project" / ".venv"
+        entries = [env / "bin", tmp_path / "local" / "bin"]
+        assert self._invocation_with(monkeypatch, env, entries) == "qx"
+
+    def test_no_qx_anywhere_falls_back(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        monkeypatch.setattr(sys, "prefix", str(tmp_path))
+        monkeypatch.setenv("PATH", str(empty))
+        from quantum_exercises import invocation
+
+        invocation.cache_clear()
+        try:
+            assert invocation() == "uv run qx"
+        finally:
+            invocation.cache_clear()

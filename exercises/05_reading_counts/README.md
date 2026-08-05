@@ -3,11 +3,17 @@
 You have a result object. Your counts are inside it. Getting them out is the step
 where almost every tutorial written before 2024 will lead you astray.
 
-The old way, which no longer exists:
+The old way, copied from every 0.x tutorial:
 
 ```python
-counts = result.get_counts()  # AttributeError on Qiskit 2.x
+counts = result.get_counts()  # AttributeError on a V2 primitive result
 ```
+
+Be precise about why that fails, because the reason is not "the method was
+deleted". `get_counts()` is alive and well on the `Result` that `backend.run()`
+returns, and this project calls it on that path. What changed is the object in
+front of you: a V2 primitive hands back a `PrimitiveResult`, which is a list of
+per-circuit results and has no `get_counts()` of its own.
 
 The current way:
 

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import shutil
 import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -12,6 +14,9 @@ from typing import Literal
 
 STATE_FILENAME = ".qx-state.json"
 SCHEMA_VERSION = 1
+
+# Where a state file this version cannot read is copied before being replaced.
+UNREADABLE_SUFFIX = ".unreadable"
 
 Status = Literal["todo", "done", "solved"]
 
@@ -99,9 +104,38 @@ def load(root: Path) -> State:
     return State(version=SCHEMA_VERSION, exercises=exercises)
 
 
-def save(root: Path, state: State) -> None:
-    """Write atomically so an interrupted run cannot leave a half-written file."""
+def _preserve_unreadable(path: Path) -> Path | None:
+    """Copy aside a state file this version cannot read, and say where it went.
+
+    Treating an unknown schema version or a corrupt file as a fresh start is the
+    right call for reading. Writing over it afterwards was not: running a newer qx
+    once and then an older one destroyed every recorded exercise, permanently and
+    with nothing on screen to say it had happened.
+    """
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        raw = None
+    if isinstance(raw, dict) and raw.get("version") == SCHEMA_VERSION:
+        return None
+
+    backup = path.with_name(path.name + UNREADABLE_SUFFIX)
+    with contextlib.suppress(OSError):
+        shutil.copyfile(path, backup)
+        return backup
+    return None  # pragma: no cover - only when the copy itself fails
+
+
+def save(root: Path, state: State) -> Path | None:
+    """Write atomically so an interrupted run cannot leave a half-written file.
+
+    Returns the path an unreadable previous file was copied to, or None when there
+    was nothing to preserve.
+    """
     path = state_path(root)
+    preserved = _preserve_unreadable(path)
     payload = json.dumps(asdict(state), indent=2, sort_keys=True) + "\n"
 
     # Not a context manager: the file has to outlive the block so os.replace can
@@ -123,10 +157,12 @@ def save(root: Path, state: State) -> None:
     except BaseException:
         Path(handle.name).unlink(missing_ok=True)
         raise
+    return preserved
 
 
 __all__ = [
     "STATE_FILENAME",
+    "UNREADABLE_SUFFIX",
     "ExerciseState",
     "State",
     "Status",

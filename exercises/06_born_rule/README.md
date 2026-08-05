@@ -39,7 +39,7 @@ Note the **half angle**. That trips people up too.
 Fill in `predicted` with the probability of each outcome. Work it out on paper.
 
 The runner then samples the circuit 4096 times and compares your prediction
-against what actually came out, at a tolerance of four standard errors.
+against what actually came out, at a tolerance set by the sampling noise.
 
 ## About that tolerance
 
@@ -50,9 +50,16 @@ sampling is random. With N shots, a proportion p has a standard error of
 SE = sqrt(p(1-p)/N)
 ```
 
-At 4096 shots and p = 0.75, that is about 0.0068, so roughly 28 counts. The runner
-accepts anything within four of those. A correct answer passes essentially always;
-a wrong one, like confusing amplitude with probability, is off by far more.
+At 4096 shots and p = 0.75, that is about 0.0068, so roughly 28 counts.
+
+Two checks run over those numbers. The first looks at each outcome on its own and
+accepts anything within four standard errors. The second is a chi-square
+goodness-of-fit test over the whole distribution at alpha = 0.001, and with only
+two outcomes that one is the stricter of the pair: it rejects past about 3.3
+standard errors. So 3.3 is the bound that actually decides this exercise.
+
+A correct answer passes essentially always. A wrong one, such as confusing an
+amplitude with a probability, is off by far more than either bound.
 
 ## Run it
 

@@ -1,4 +1,4 @@
-# 09 - Bell state, and which bit is which
+# 11 - Bell state, and which bit is which
 
 Two gates give you the most important two-qubit state there is:
 
@@ -9,10 +9,17 @@ Two gates give you the most important two-qubit state there is:
 Measure it and you get `00` about half the time and `11` about half the time. You
 never get `01` or `10`. Not rarely: never, in the ideal case.
 
-That is the interesting part. Neither qubit has a definite value before you look,
-yet the two agree perfectly every single time. You cannot reproduce that
-correlation by secretly deciding both answers in advance and keeping them hidden.
-This is what Bell proved, and it is the reason this state carries his name.
+It is worth being careful about what that proves, because this is the single most
+misquoted result in the subject.
+
+Perfect agreement on its own is not mysterious. Flip one coin, seal the answer in
+two envelopes, hand one to each person: they agree every time, and nothing quantum
+happened. Everything you measure in this exercise is reproducible that way, so
+nothing here rules out the two qubits having simply agreed in advance.
+
+What no pair of envelopes can reproduce is the pattern that appears when the two
+qubits are measured along **different** axes. That is Bell's theorem, it is why
+this state carries his name, and exercise 17 is where you actually measure it.
 
 ## The endianness trap
 

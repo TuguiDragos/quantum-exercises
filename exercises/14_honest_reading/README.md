@@ -1,4 +1,4 @@
-# 12 - Reading a noisy result honestly
+# 14 - Reading a noisy result honestly
 
 Exercise 11 told you a Bell state can never produce `01` or `10`.
 

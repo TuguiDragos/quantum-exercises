@@ -7,6 +7,7 @@ goes red.
 
 from __future__ import annotations
 
+import ast
 import subprocess
 from pathlib import Path
 
@@ -94,11 +95,43 @@ def test_template_matches_the_committed_exercise(exercise: Exercise, root: Path)
     )
 
 
+def test_readme_heading_carries_the_right_number(exercise: Exercise) -> None:
+    """Four READMEs drifted two behind their directory when exercises were inserted.
+
+    Nothing else reads the heading, so nothing else noticed for four releases.
+    """
+    first_line = exercise.readme_file.read_text(encoding="utf-8").splitlines()[0]
+    expected = f"# {exercise.number:02d} - "
+    assert first_line.startswith(expected), (
+        f"{exercise.slug}/README.md starts {first_line!r}, expected it to start {expected!r}"
+    )
+
+
 def test_has_three_hints(exercise: Exercise) -> None:
     hints = load_hints(exercise)
     assert len(hints) == 3, f"{exercise.slug} has {len(hints)} hints, expected 3"
     for index, hint in enumerate(hints, start=1):
         assert hint.strip(), f"{exercise.slug} hint {index} is empty"
+
+
+def test_title_and_slug_fit_their_columns(exercise: Exercise) -> None:
+    """`qx list` uses fixed widths so the per-act tables line up with each other.
+
+    A title one character too long wraps onto a second row and the alignment the
+    fixed widths exist for is gone. ui.py sizes the columns to the longest of
+    each; this is the other half of that arrangement.
+    """
+    from quantum_exercises.ui import LIST_COLUMNS
+
+    widths = dict(LIST_COLUMNS)
+    assert len(exercise.title) <= widths["title"], (
+        f"{exercise.slug} title is {len(exercise.title)} characters, "
+        f"and the column is {widths['title']}: it will wrap in `qx list`"
+    )
+    assert len(exercise.slug) <= widths["exercise"], (
+        f"{exercise.slug} is {len(exercise.slug)} characters, "
+        f"and the column is {widths['exercise']}"
+    )
 
 
 def test_metadata_is_filled_in(exercise: Exercise) -> None:
@@ -117,3 +150,70 @@ def test_no_hardware_exercise_outside_act_three(exercises: list[Exercise]) -> No
     for exercise in exercises:
         if exercise.hardware:
             assert "III" in exercise.act, f"{exercise.slug} touches hardware but is not in Act III"
+
+
+# Reading the learner's file back is how a check stops testing the answer and
+# starts testing the spelling. Everything that pulls source text in one way or
+# another, so a rewrite through a different call is caught too.
+SOURCE_READING = frozenset(
+    {
+        "getsource",
+        "getsourcelines",
+        "getsourcefile",
+        "findsource",
+        "read_text",
+        "read_bytes",
+        "readlines",
+        "readline",
+        "read",
+    }
+)
+
+# The one exercise allowed to do it, and why. Exercise 01 asks the learner to
+# read the version out of the package rather than typing the number in. Both
+# produce the identical string, so no amount of object inspection can tell them
+# apart, and the file itself is the only evidence there is.
+SOURCE_READING_ALLOWED = frozenset({"01_environment"})
+
+
+def test_check_does_not_read_the_learners_source(exercise: Exercise) -> None:
+    """CONTRIBUTING promises the suite blocks this. Until now nothing looked."""
+    tree = ast.parse(exercise.check_file.read_text(encoding="utf-8"))
+    found = sorted(
+        {
+            node.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Attribute) and node.attr in SOURCE_READING
+        }
+        | {node.id for node in ast.walk(tree) if isinstance(node, ast.Name) and node.id == "open"}
+    )
+    if exercise.slug in SOURCE_READING_ALLOWED:
+        return
+    assert not found, (
+        f"{exercise.slug}/check.py reads source text ({', '.join(found)}). "
+        "Inspect the objects the learner's code produced instead, so an answer that is "
+        "right in an unexpected way still passes."
+    )
+
+
+def test_check_never_compares_counts_for_equality(exercise: Exercise) -> None:
+    """Sampling is random, so an exact counts comparison is a flaky test by construction."""
+    tree = ast.parse(exercise.check_file.read_text(encoding="utf-8"))
+    offenders: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Compare):
+            continue
+        for operator, right in zip(node.ops, node.comparators, strict=True):
+            if not isinstance(operator, (ast.Eq, ast.NotEq)):
+                continue
+            for side in (node.left, right):
+                if isinstance(side, ast.Dict) or (
+                    isinstance(side, ast.Call)
+                    and isinstance(side.func, ast.Attribute)
+                    and side.func.attr == "get_counts"
+                ):
+                    offenders.append(ast.unparse(node))
+    assert not offenders, (
+        f"{exercise.slug}/check.py compares counts for equality: {offenders}. "
+        "Use assert_counts_support, assert_counts_close or assert_counts_distribution."
+    )

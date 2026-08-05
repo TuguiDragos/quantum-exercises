@@ -40,19 +40,22 @@ Development, installed by `uv sync` and not needed to take the course:
 | Dependency | Range | On 3.13 | Why it is here |
 |---|---|---|---|
 | [pytest](https://pypi.org/project/pytest/) | `>=9,<10` | 9.1.1 | the test suite |
-| [ruff](https://pypi.org/project/ruff/) | `>=0.16,<0.17` | 0.16.1 | linting and formatting, including the notebook |
+| [ruff](https://pypi.org/project/ruff/) | `>=0.16,<0.17` | 0.16.1 | linting and formatting, including the notebooks |
 | [pre-commit](https://pypi.org/project/pre-commit/) | `>=4,<5` | 4.6.1 | runs the lint, format, notebook and secret-scan hooks before each commit |
 | [nbstripout](https://pypi.org/project/nbstripout/) | `>=0.9,<1` | 0.9.1 | strips notebook outputs, which can carry IBM job ids |
-| [ipykernel](https://pypi.org/project/ipykernel/) | `>=7,<8` | 7.3.0 | the kernel the playground notebook runs on |
+| [ipykernel](https://pypi.org/project/ipykernel/) | `>=7,<8` | 7.3.0 | the kernel the notebooks run on |
 
-Counting everything those pull in, the locked environment is 122 packages.
+Counting everything those pull in, `uv.lock` records 122 package entries. That is
+not the size of any one environment: the lockfile carries a separate entry per
+resolution, so numpy, scipy and six others appear more than once. It names 112
+distinct packages, and a 3.13 environment ends up with 105 installed.
 Two more tools are fetched by pre-commit and CI rather than installed into the
 environment: [gitleaks](https://github.com/gitleaks/gitleaks) 8.30.1 for secret
 scanning, and the hooks from
 [pre-commit-hooks](https://github.com/pre-commit/pre-commit-hooks) 6.0.0.
 
 Python 3.10 or newer, which is the same floor Qiskit sets. CI runs the suite on
-3.10, 3.12, 3.13 and 3.14; `uv` installs 3.13 by default.
+3.10, 3.11, 3.12, 3.13 and 3.14; `uv` installs 3.13 by default.
 
 ## Adding an exercise
 
@@ -61,7 +64,7 @@ ordering comes from the numeric prefix, and the test suite enforces everything
 else.
 
 ```
-exercises/13_your_topic/
+exercises/18_your_topic/
 ├── meta.toml       # title, act, summary; optional hardware and timeout
 ├── README.md       # the teaching text
 ├── exercise.py     # what the learner edits
@@ -74,7 +77,7 @@ exercises/13_your_topic/
 `template.py` starts as a byte-identical copy of `exercise.py`:
 
 ```bash
-cp exercises/13_your_topic/exercise.py exercises/13_your_topic/template.py
+cp exercises/18_your_topic/exercise.py exercises/18_your_topic/template.py
 ```
 
 ### Writing `check.py`
@@ -92,7 +95,8 @@ def check(mod):
     return statevector_artifact(state, caption="Your state")
 ```
 
-Two rules the test suite will not let you break:
+Two rules the test suite will not let you break. Both are checked by walking the
+syntax tree of every `check.py`, in `tests/test_exercises.py`:
 
 1. **Compare objects, never source text.** Use `assert_state_equiv` and
    `assert_operator_equiv`, which go through `.equiv` and therefore ignore global
@@ -100,6 +104,12 @@ Two rules the test suite will not let you break:
 2. **Never assert exact counts.** Use `assert_counts_support` for which outcomes
    are possible, `assert_counts_close` for proportions at 4 sigma, or
    `assert_counts_distribution` for a chi-square test over the whole distribution.
+
+There is exactly one exception to the first rule, and it is named in the test:
+`01_environment` reads the learner's file. That exercise is about asking the
+package for its version rather than typing the number in, and both routes produce
+the same string, so no object inspection can tell them apart. If you need a
+second exception, you almost certainly want a different exercise instead.
 
 Artifacts cross a process boundary as JSON, so their payloads must be
 JSON-serializable. The helpers in `checks.py` already handle that for states,
@@ -120,18 +130,38 @@ New translations go in `errors.py`. **Trigger the real exception first and paste
 its actual message** - never write a pattern from memory. `tests/test_errors.py`
 raises each error for real, so a guessed pattern fails immediately.
 
-## The notebook
+## The notebooks
 
-`notebooks/playground.ipynb` is executed cell by cell in CI, so treat it as code:
-if you change an API it uses, the suite tells you. Outputs are stripped on commit
-by nbstripout, which matters because notebook output can carry IBM job ids and
-account details.
+Everything in `notebooks/` is executed cell by cell in CI, so treat it as code: if
+you change an API it uses, the suite tells you. The test is parametrised over the
+directory, so a new notebook is covered the moment it lands, and
+`tests/test_notebook.py` names the ones that must exist so a rename cannot quietly
+drop one from the suite.
+
+Outputs are stripped on commit by nbstripout, which matters because notebook
+output can carry IBM job ids and account details.
+
+Labs are not graded and must run offline. If a cell needs a real QPU, it belongs
+in a fenced markdown block showing the code rather than in a cell that runs.
 
 ## Releasing
 
-The version appears in three files and a test enforces that they agree:
-`pyproject.toml`, `src/quantum_exercises/__init__.py`, and `CITATION.cff`. Add
-the change to `CHANGELOG.md` in the same commit.
+The version appears in **four** files, and tests enforce that they agree:
+
+- `pyproject.toml`
+- `src/quantum_exercises/__init__.py`
+- `CITATION.cff`
+- `uv.lock`, which records this project as a package like any other
+
+The fourth is the one that bites. Editing the first three and stopping leaves the
+lockfile behind, and then every CI job that runs `uv sync --locked` refuses to
+start, for a reason nothing in the diff points at. So after bumping:
+
+```bash
+uv lock
+```
+
+It rewrites one line. Add the change to `CHANGELOG.md` in the same commit.
 
 ## What CI checks
 
@@ -143,7 +173,12 @@ For every exercise:
 - there are exactly three hints
 - `meta.toml` is complete
 
-Plus lint, format, and the unit tests, on Python 3.10, 3.12, 3.13 and 3.14.
+`ci.yml` has three jobs. `test` runs the suite once per interpreter in the matrix.
+`lint` runs `ruff check` and `ruff format --check` as two steps on 3.13. `secrets`
+runs gitleaks over the tree and uses no Python at all.
+
+The triggers are every pull request and every push to `main`. A push to a side
+branch runs nothing until a pull request exists for it.
 
 `weekly-verify.yml` additionally resolves to the newest Qiskit the version ranges
 allow and runs everything again. That job is the early warning for a breaking

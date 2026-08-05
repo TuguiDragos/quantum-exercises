@@ -62,7 +62,11 @@ class _BoundedReader(threading.Thread):
     def run(self) -> None:
         try:
             while True:
-                chunk = self._stream.read(8192)
+                # read1, not read: a buffered read(n) waits for n bytes or EOF, so a
+                # single short line sat in this buffer until the pipe closed. When
+                # something the exercise spawned kept the write end open, that meant
+                # the learner's output was reported as empty.
+                chunk = self._stream.read1(8192)
                 if not chunk:
                     break
                 self.total += len(chunk)
@@ -113,7 +117,21 @@ def _spawn_kwargs() -> dict:
     return {"start_new_session": True}
 
 
-def _kill_tree(process: subprocess.Popen) -> None:
+def _process_group(process: subprocess.Popen) -> int | None:
+    """The child's process group, read while the child is certainly still alive.
+
+    Read once, up front. Asking later races with the child exiting, and a pid that
+    has been reused would hand back a group belonging to something else entirely.
+    """
+    if os.name == "nt":  # pragma: no cover - exercised only on Windows
+        return None
+    try:
+        return os.getpgid(process.pid)
+    except (ProcessLookupError, PermissionError, OSError):  # pragma: no cover
+        return None
+
+
+def _kill_tree(process: subprocess.Popen, pgid: int | None = None) -> None:
     """Kill the worker and anything it spawned."""
     if os.name == "nt":  # pragma: no cover - exercised only on Windows
         subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
@@ -124,8 +142,10 @@ def _kill_tree(process: subprocess.Popen) -> None:
     else:
         import signal
 
-        with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
-            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        group = pgid if pgid is not None else _process_group(process)
+        if group is not None:
+            with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                os.killpg(group, signal.SIGKILL)
 
     with contextlib.suppress(OSError):
         process.kill()
@@ -178,54 +198,76 @@ def run_exercise(
             **_spawn_kwargs(),
         )
 
-        out_reader = _BoundedReader(process.stdout)
-        err_reader = _BoundedReader(process.stderr)
-        out_reader.start()
-        err_reader.start()
+        # Read the group now, while the child is certainly alive, so the cleanup
+        # below cannot race the pid being reused.
+        pgid = _process_group(process)
 
-        timed_out = False
+        # Everything below runs under a finally that kills the whole group. The child
+        # sits in its own group precisely so the terminal cannot signal it, which also
+        # means Ctrl-C reaches only this process. Without the finally the parent
+        # unwinds and the worker is orphaned, and since the time limit is enforced
+        # here rather than in the child, nothing would ever stop it again.
+        #
+        # The kill is unconditional rather than guarded on the worker still running:
+        # a worker can exit cleanly having left something of its own behind, and that
+        # something holds the write end of these pipes open. Killing the group is what
+        # closes them, which is what lets the joins below return.
         try:
-            returncode = process.wait(timeout=limit)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            _kill_tree(process)
-            returncode = process.returncode if process.returncode is not None else -1
+            out_reader = _BoundedReader(process.stdout)
+            err_reader = _BoundedReader(process.stderr)
+            out_reader.start()
+            err_reader.start()
 
-        out_reader.join(timeout=5)
-        err_reader.join(timeout=5)
-        stdout, stderr = out_reader.text(), err_reader.text()
-        duration = time.monotonic() - started
+            timed_out = False
+            try:
+                returncode = process.wait(timeout=limit)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                _kill_tree(process, pgid)
+                returncode = process.returncode if process.returncode is not None else -1
+            else:
+                # The worker is done, so nothing it left running has anything more to
+                # say. Close the pipes by killing the group before waiting on the
+                # readers, or a stray grandchild holds them open and the joins below
+                # burn their full timeout and return nothing.
+                _kill_tree(process, pgid)
 
-        # Check for a verdict even after a timeout: the worker may have finished
-        # and only a process it spawned kept the clock running.
-        payload = _read_payload(result_path)
+            out_reader.join(timeout=5)
+            err_reader.join(timeout=5)
+            stdout, stderr = out_reader.text(), err_reader.text()
+            duration = time.monotonic() - started
 
-        if payload is None:
-            if timed_out:
+            # Check for a verdict even after a timeout: the worker may have finished
+            # and only a process it spawned kept the clock running.
+            payload = _read_payload(result_path)
+
+            if payload is None:
+                if timed_out:
+                    return RunResult(
+                        outcome="timeout",
+                        message=(
+                            f"Your code did not finish within {limit} seconds, so it was stopped."
+                        ),
+                        detail=_timeout_detail(exercise, explicit=timeout is not None),
+                        stdout=stdout,
+                        stderr=stderr,
+                        duration=duration,
+                    )
+                # The worker always writes a file unless the process died outright,
+                # for example os._exit or a segfault inside a native extension.
                 return RunResult(
-                    outcome="timeout",
-                    message=f"Your code did not finish within {limit} seconds, so it was stopped.",
+                    outcome="crash",
+                    message="Your code stopped the whole process before it could be checked.",
                     detail=(
-                        "An endless `while` loop is the usual cause. If this exercise genuinely "
-                        "needs longer, raise `timeout` in the exercise's meta.toml."
+                        f"The process exited with code {returncode}. Calling `os._exit()`, or a "
+                        "crash inside a compiled extension, does this."
                     ),
                     stdout=stdout,
                     stderr=stderr,
                     duration=duration,
                 )
-            # The worker always writes a file unless the process died outright,
-            # for example os._exit or a segfault inside a native extension.
-            return RunResult(
-                outcome="crash",
-                message="Your code stopped the whole process before it could be checked.",
-                detail=(
-                    f"The process exited with code {returncode}. Calling `os._exit()`, or a "
-                    "crash inside a compiled extension, does this."
-                ),
-                stdout=stdout,
-                stderr=stderr,
-                duration=duration,
-            )
+        finally:
+            _kill_tree(process, pgid)
 
     return RunResult(
         outcome=payload.get("outcome", "internal_error"),
@@ -239,6 +281,21 @@ def run_exercise(
         stdout=stdout,
         stderr=stderr,
         duration=duration,
+    )
+
+
+def _timeout_detail(exercise: Exercise, *, explicit: bool) -> str:
+    """Point at the knob the reader actually turned, not the other one.
+
+    The number of seconds is already in the message this detail sits under, so it
+    is deliberately not repeated here.
+    """
+    where = (
+        "pass a larger `--timeout`" if explicit else f"raise `timeout` in {exercise.slug}/meta.toml"
+    )
+    return (
+        "An endless `while` loop is the usual cause. If this exercise genuinely "
+        f"needs longer, {where}."
     )
 
 

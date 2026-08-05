@@ -54,6 +54,38 @@ class TestDiscovery:
         with pytest.raises(RegistryError, match="no exercises/ directory"):
             find_project_root()
 
+    @pytest.mark.parametrize("contents", [[], ["algebra"], ["chapter_one", "notes"]])
+    def test_an_unrelated_exercises_directory_does_not_hijack_the_search(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, root: Path, contents: list[str]
+    ) -> None:
+        """A plain `~/exercises` used to swallow the search from anywhere beneath it.
+
+        The walk stopped at the first directory merely named `exercises`, reported
+        "No exercises found" and advised running from inside the repository, which
+        is where the reader already was. It also made the installed-package
+        fallback below unreachable for anyone owning such a directory.
+        """
+        monkeypatch.delenv("QX_ROOT", raising=False)
+        decoy = tmp_path / "exercises"
+        decoy.mkdir()
+        for name in contents:
+            (decoy / name).mkdir()
+
+        # Nothing that looks like a curriculum sits anywhere above this.
+        start = tmp_path / "some" / "working" / "directory"
+        start.mkdir(parents=True)
+
+        found = find_project_root(start)
+        assert found != tmp_path.resolve(), "the decoy captured the search"
+        assert found == root, "the installed-package fallback should have answered"
+
+    def test_a_directory_holding_real_exercises_is_a_root(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("QX_ROOT", raising=False)
+        _write_exercise(tmp_path / "exercises", "01_demo")
+        assert find_project_root(tmp_path) == tmp_path.resolve()
+
 
 class TestMalformedExercises:
     def test_bad_directory_name(self, tmp_path: Path) -> None:

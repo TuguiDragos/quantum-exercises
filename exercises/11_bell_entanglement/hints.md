@@ -1,8 +1,8 @@
 ## Hint 1
 
 For the circuit: exercise 03 gave you the gate that creates superposition, and
-exercise 08 used the gate that copies one qubit's value onto another. You need one
-of each, in that order.
+exercise 08 used the controlled gate that flips a target when its control is 1.
+You need one of each, in that order.
 
 For `label_q0_only`: write the two characters down, then ask yourself which end of
 the string qubit 0 sits at. The README has a diagram.
@@ -13,11 +13,13 @@ The circuit is:
 
 ```python
 qc.h(0)  # qubit 0 into superposition
-qc.cx(0, 1)  # qubit 1 follows qubit 0
+qc.cx(0, 1)  # qubit 1 flips when qubit 0 is 1
 ```
 
 The `cx` is what entangles them. Without it you would have two independent qubits
-and all four outcomes would appear.
+and all four outcomes would appear. Note what it does not do: qubit 0 has no
+definite value when `cx` runs, so nothing is copied onto qubit 1. Copying a
+superposition is exactly what the no-cloning theorem forbids.
 
 For the bitstring: qubit 0 is the **rightmost** character. So "qubit 0 is 1" means
 the right character is `1`, and "qubit 1 is 0" means the left character is `0`.

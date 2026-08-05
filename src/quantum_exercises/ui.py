@@ -1,4 +1,10 @@
-"""All terminal rendering. Nothing here computes a verdict, it only shows one."""
+"""All terminal rendering. Nothing here computes a verdict, it only shows one.
+
+The one exception is `save_progress`, which lives here because saving and saying
+what happened when it fails are the same act, and both `qx run` and `qx watch`
+need it. Putting it in state.py would mean state.py importing this module, and
+this module already imports state.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +22,7 @@ from rich.theme import Theme
 from quantum_exercises import invocation, theme
 from quantum_exercises.registry import Exercise
 from quantum_exercises.runner import RunResult
-from quantum_exercises.state import State
+from quantum_exercises.state import STATE_FILENAME, State, save, state_path
 
 # highlight=False: rich otherwise recolours numbers, strings and paths with its
 # own default theme, laying colours over the palette that nothing here chose.
@@ -64,14 +70,25 @@ def _supports_blocks() -> bool:
     return True
 
 
+def _effective_track(track: str) -> str:
+    """The track character actually drawn, after the ASCII fallback.
+
+    Lives here rather than inside _bar so that _bar_text strips the same character
+    _bar drew. When they disagreed, nothing was stripped and the empty half of the
+    bar was painted in the fill colour.
+    """
+    if track == _TRACK and not _supports_blocks():
+        return _ASCII_TRACK
+    return track
+
+
 def _bar(fraction: float, width: int = BAR_WIDTH, track: str = " ") -> str:
     """Render a proportion as a bar with sub-character resolution where possible."""
     fraction = max(0.0, min(1.0, fraction))
     unicode_ok = _supports_blocks()
     ramp = _BLOCKS if unicode_ok else _ASCII_BLOCKS
     full = _FULL if unicode_ok else _ASCII_FULL
-    if track == _TRACK and not unicode_ok:
-        track = _ASCII_TRACK
+    track = _effective_track(track)
 
     exact = fraction * width
     filled_cells = int(exact)
@@ -121,7 +138,8 @@ def _display_path(path: Path) -> str:
 def _bar_text(fraction: float, width: int = BAR_WIDTH, *, track: str = " ") -> Text:
     """A bar as two spans, so the track keeps its own colour instead of the fill's."""
     rendered = _bar(fraction, width, track)
-    filled = len(rendered.rstrip(track)) if track.strip() else len(rendered.rstrip(" "))
+    used = _effective_track(track)
+    filled = len(rendered.rstrip(used)) if used.strip() else len(rendered.rstrip(" "))
     return Text(rendered[:filled], style=theme.BAR) + Text(rendered[filled:], style=theme.BAR_TRACK)
 
 
@@ -162,7 +180,10 @@ def _fmt_complex(re: float, im: float, places: int = 3) -> str:
 
 def render_counts(payload: dict[str, int], caption: str) -> Panel:
     total = sum(payload.values()) or 1
-    peak = max(payload.values()) if payload else 1
+    # Floor of 1: a dict whose counts are all zero made peak 0 and the bar below
+    # divided by it. No shipped exercise reaches that, because the count assertions
+    # fail first, but this helper takes whatever an exercise author passes it.
+    peak = max(1, max(payload.values(), default=1))
     body = Text()
     for outcome in sorted(payload):
         count = payload[outcome]
@@ -307,11 +328,13 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
         + Text(f"{invocation()} hint {exercise.number}", style=theme.COMMAND)
         + Text(" for a nudge, or open", style=theme.DETAIL)
     )
-    # On its own unwrapped line: a path broken across two lines cannot be copied.
+    # On its own line, and soft_wrap so it survives whole. no_wrap with crop=False
+    # is not enough: rich still measures against the console width and cuts there,
+    # which silently hands the reader a path that does not exist. soft_wrap also
+    # sets overflow to ignore, which is the part that actually keeps every character.
     console.print(
         Text(f"        {_display_path(exercise.exercise_file)}", style=theme.PATH),
-        no_wrap=True,
-        crop=False,
+        soft_wrap=True,
     )
     console.print(
         Text("        then run ", style=theme.DETAIL)
@@ -394,19 +417,42 @@ def render_next(exercise: Exercise) -> None:
             **panel(border=theme.BORDER_ACTIVE),
         )
     )
-    # Outside the panel and unwrapped: a path with a box border through the middle
-    # of it cannot be copied, which is the one thing it is there for.
+    # Outside the panel and soft-wrapped: a path with a box border through the middle
+    # of it cannot be copied, and one cut off at the terminal width is worse still,
+    # because nothing on screen says it was cut.
     console.print(
         Text("\n  open  ", style=theme.DETAIL)
         + Text(_display_path(exercise.exercise_file), style=theme.PATH),
-        no_wrap=True,
-        crop=False,
+        soft_wrap=True,
     )
     console.print(
         Text("  then  ", style=theme.DETAIL)
         + Text(f"{invocation()} run {exercise.number}", style=theme.COMMAND)
         + "\n"
     )
+
+
+def save_progress(root: Path, state: State) -> bool:
+    """Write progress, or say plainly why it could not be written.
+
+    A read-only clone, a full disk or a directory owned by someone else must not
+    turn a finished exercise into a traceback: the work happened, only the
+    bookkeeping failed, and the two deserve different words.
+
+    Returns whether the write landed, so a caller that is about to claim something
+    was recorded can soften the claim instead.
+    """
+    try:
+        preserved = save(root, state)
+    except OSError as exc:
+        warn(f"Progress was not saved to {state_path(root)}: {exc.strerror or exc}.")
+        return False
+    if preserved is not None:
+        warn(
+            f"The previous {STATE_FILENAME} was written by a different version of qx and "
+            f"could not be read. It was copied to {preserved.name} before being replaced."
+        )
+    return True
 
 
 def success(message: str) -> None:
@@ -438,6 +484,7 @@ __all__ = [
     "render_next",
     "render_run",
     "render_statevector",
+    "save_progress",
     "success",
     "warn",
 ]

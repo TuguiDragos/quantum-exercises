@@ -19,8 +19,15 @@ import sys
 # in the repository root would shadow the real module and break every run, with
 # the failure landing on the learner. PYTHONSAFEPATH handles this on 3.11 and up;
 # doing it here covers 3.10 as well.
-_CWD = os.getcwd()
-sys.path[:] = [entry for entry in sys.path if entry not in ("", ".", _CWD)]
+#
+# Compared by real path, not by string: PYTHONSAFEPATH does not filter PYTHONPATH,
+# and an entry naming this same directory through a symlink is a different string.
+# On macOS everything under /tmp is reached that way, so a string comparison would
+# quietly let the directory back in.
+_CWD = os.path.realpath(os.getcwd())
+sys.path[:] = [
+    entry for entry in sys.path if entry not in ("", ".") and os.path.realpath(entry) != _CWD
+]
 
 import argparse  # noqa: E402
 import dataclasses  # noqa: E402
@@ -37,6 +44,19 @@ from quantum_exercises.checks import Artifact, CheckFailed  # noqa: E402
 from quantum_exercises.errors import UNTRANSLATED_HINT, translate  # noqa: E402
 
 EXIT_OK = 0
+
+# The parent bounds stdout and stderr at 64 KB each. The verdict file is the other
+# way out of this process, and it was not bounded at all: an exception whose string
+# form is enormous, say a large array interpolated into a message, travelled whole,
+# was held in the parent's memory and printed in full. Generous enough that no real
+# message is ever touched.
+MAX_FIELD_CHARS = 8000
+
+
+def _clip(text: str, limit: int = MAX_FIELD_CHARS) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"\n... {len(text) - limit} further characters were cut ...\n"
 
 
 class AuthoringError(Exception):
@@ -214,6 +234,14 @@ def _write(path: Path, payload: dict) -> None:
     Without this, the write raises, no file is produced, and the parent reports it
     as though the learner had killed the process.
     """
+    payload = {
+        key: _clip(value)
+        if isinstance(value, str)
+        else [_clip(item) for item in value]
+        if key == "warnings" and isinstance(value, list)
+        else value
+        for key, value in payload.items()
+    }
     try:
         text = json.dumps(payload)
     except (TypeError, ValueError) as exc:

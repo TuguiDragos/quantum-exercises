@@ -4,7 +4,133 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.1] - 2026-08-04
+## 0.5.0 - 2026-08-05
+
+### Added
+
+- **Act IV: three exercises on expectation values, ending in a real Bell test.**
+  Everything before this returned counts. Exercise 15 introduces the Estimator
+  and has the learner compute the same number twice, once through the primitive
+  and once from a counts dict, to show they agree. Exercise 16 is the fact behind
+  it: the hardware measures Z and nothing else, so reading any other axis means
+  rotating the state first. Exercise 17 spends both on CHSH, reaching S = 2.83
+  against a classical ceiling of 2 that the runner demonstrates by trying all
+  sixteen pre-decided strategies.
+- Python 3.11 to the CI matrix. `pyproject.toml` had claimed support for it since
+  the first release without a single job ever running it. The suite passes there.
+- Tests that enforce the two `check.py` rules CONTRIBUTING says the suite
+  enforces. Nothing had ever looked at a `check.py`; both rules were honoured by
+  convention alone. `01_environment` is the one documented exception, because it
+  has to read the learner's file to tell "asked the package" from "typed the
+  number in".
+- A test pinning each exercise README's heading number to its directory.
+- **Three lab notebooks in `notebooks/`**, written from scratch and running
+  entirely offline. `lab-1-qiskit-patterns` walks the four steps every Qiskit
+  program has and shows the same answer arriving through the Sampler and the
+  Estimator. `lab-2-noise` separates readout error from gate error and then
+  measures which one is actually costing you: on this device readout alone
+  accounts for almost the whole gap, and choosing qubits 3 and 4 over 1 and 2
+  moves a Bell pair from 0.88 to 0.97 with no other change. `lab-3-dynamic-circuits`
+  measures partway through, branches on the bit, and ends in teleportation,
+  including the correction that looks like dead code until you measure the other
+  axis and find it missing.
+- The notebook tests are parametrised over `notebooks/` instead of naming one
+  file, so every notebook is executed in CI and a new one is covered as soon as it
+  lands. Two more checks came with that: every notebook opens with a title, and
+  the ones that must exist are named so a rename cannot silently drop one.
+
+### Fixed
+
+- **Ctrl-C no longer orphans the worker.** The child sits in its own process
+  group so the terminal cannot signal it, and the time limit is enforced by the
+  parent, so an interrupt left an unkillable process spinning at 100% CPU
+  forever. `qx watch` was worse: it printed "Stopped watching." and exited 0 while
+  the runaway loop kept going. The spawn is now wrapped in a `finally` that kills
+  the tree on any exit.
+- **The "open this file" path is no longer truncated.** `no_wrap` with
+  `crop=False` still measured against the console width and cut there, so a path
+  two directories deep pointed at a file that does not exist. That line is the
+  entire reason the failure panel exists.
+- A repository that cannot be written to no longer produces a traceback. A
+  read-only clone or a full disk turned a passing exercise into sixty lines of
+  rich traceback, which is precisely what this tool exists not to do. All four
+  commands that record progress now say what happened in one line.
+- `qx solution` and `qx reset` re-read progress before writing it. Both block on
+  a confirmation prompt between reading and writing, so an exercise finished in
+  another terminal during that window was silently erased.
+- A state file from a different schema version is copied aside instead of being
+  overwritten. Running a newer qx once and then an older one destroyed every
+  recorded exercise with nothing on screen to say so.
+- Five error translations that were confidently wrong. `Operator()` on a measured
+  circuit was reported as a statevector problem, in the exercise that teaches
+  `Operator`. A typo in a submodule of an installed package was reported as the
+  package being missing. `Index 0 out of range for size 0` was always blamed on a
+  missing classical register, even for a qubit. `ccx` was called a two-qubit gate.
+  And `qiskit.execute(...)` reached by attribute, the commoner 0.x spelling, had
+  no rule at all.
+- The verdict file is bounded. Learner output was capped at 64 KB, but an
+  exception message crossed uncapped: a 20 MB one made qx allocate 488 MB and
+  flood the terminal with 22 MB.
+- The gitleaks rule now matches a key inside a notebook. A `.ipynb` stores cell
+  source as JSON, so `token="..."` is on disk as `token=\"...\"`, and the rule was
+  anchored to a bare quote. Confirmed against the pinned gitleaks binary, along
+  with the claim in SECURITY.md that the default rule set misses these keys, which
+  still holds.
+- The saved API key is never world-readable, not even briefly. qiskit creates the
+  file with the process umask and writes the token before anything tightens it, so
+  `qx` now creates it at 0600 first.
+- `timeout` in `meta.toml` is validated. A non-integer raised `ValueError` and
+  took down every command at once; zero or negative parsed fine and produced "did
+  not finish within -5 seconds".
+- `PYTHONPATH` can no longer put the working directory back on `sys.path`. The
+  filter compared strings, so any symlinked spelling of the same directory
+  survived it, which on macOS is everything under `/tmp`.
+- The progress bar's track is no longer painted in the fill colour on consoles
+  without block glyphs, and a counts artifact of all zeros no longer divides by
+  zero.
+- Any directory merely named `exercises` no longer captures the search for the
+  project root. A plain `~/exercises` shadowed the real repository from every
+  directory beneath it, reported "No exercises found" and advised running from
+  inside the repository, which is where the reader already was. It also made the
+  installed-package fallback unreachable for anyone owning such a directory.
+- `invocation()` no longer tells a `uv run` user to type `qx`. `uv run` puts the
+  project's own bin on PATH for the length of one command, so `shutil.which`
+  found a `qx` that the reader's next shell does not have, which is the single
+  case the helper exists to prevent.
+- The two committed `.DS_Store` files are out of the index and in `.gitignore`,
+  along with the state file's `.unreadable` copy and its write-temporaries.
+
+### Changed
+
+- Exercise 11 no longer claims its measurement refutes hidden variables. It does
+  not: perfect agreement in a single basis is exactly what a shared coin flip
+  produces, and the exercise never measures a second basis. The text now says what
+  the result does and does not show, and points at exercise 17, which runs the
+  experiment that settles it.
+- Exercise 11 stops describing `cx` as copying one qubit onto another. On a
+  superposition there is no value to copy, which is what no-cloning is about, and
+  the same README says two lines earlier that neither qubit has a definite value.
+- Exercise 05 no longer says `result.get_counts()` "no longer exists". It exists,
+  and `backends.py` calls it; what has no `get_counts` is a V2 `PrimitiveResult`.
+- Exercise 06 documents the tolerance that actually binds. Two checks run, and
+  with two outcomes the chi-square test rejects at about 3.3 standard errors
+  rather than the four the README advertised. Its amplitude diagnostic also
+  stated a false rule.
+- README no longer says `uv tool install` builds the environment from the
+  lockfile. It does not read `uv.lock` at all, verified by corrupting the file and
+  watching the install succeed.
+- README no longer says the `.vscode` settings point the Python extension at the
+  project environment. They deliberately set no interpreter, and have not since
+  0.2.1.
+- CONTRIBUTING's package count says what it counts. 122 is the number of lockfile
+  entries, not packages: there are 112 distinct ones and 105 in a 3.13
+  environment. The test named after accuracy asserted the wrong quantity.
+- The changelog's version headings are plain text. All twelve linked to release
+  tags, and this repository has never had a tag.
+- The timeout message names the knob you actually turned, `--timeout` or
+  `meta.toml`.
+
+## 0.4.1 - 2026-08-04
 
 ### Removed
 
@@ -28,7 +154,7 @@ Notable changes to this project. The format follows
   the thing that kept the schedule alive, so removing it makes that GitHub
   behaviour something to know rather than something silently handled.
 
-## [0.4.0] - 2026-08-04
+## 0.4.0 - 2026-08-04
 
 ### Added
 
@@ -50,7 +176,7 @@ Notable changes to this project. The format follows
   picture of the checks it runs. Every image carries alt text, so the page still
   reads without them.
 
-## [0.3.4] - 2026-08-04
+## 0.3.4 - 2026-08-04
 
 ### Changed
 
@@ -63,7 +189,7 @@ Notable changes to this project. The format follows
   three further messages that had hardcoded the old form now go through it. A
   test refuses the other spelling in any written file.
 
-## [0.3.3] - 2026-08-04
+## 0.3.3 - 2026-08-04
 
 ### Fixed
 
@@ -75,7 +201,7 @@ Notable changes to this project. The format follows
   `uv run qx` otherwise, so the guidance always matches what the reader can
   actually type. Ten places printed a command; all of them go through one helper.
 
-## [0.3.2] - 2026-08-04
+## 0.3.2 - 2026-08-04
 
 ### Fixed
 
@@ -91,7 +217,7 @@ Notable changes to this project. The format follows
   only the account label and paths containing the username, neither of which is
   a secret.
 
-## [0.3.1] - 2026-08-04
+## 0.3.1 - 2026-08-04
 
 ### Fixed
 
@@ -106,7 +232,7 @@ Notable changes to this project. The format follows
   panels were changed. All of them route through one helper now, which is also
   the only place a box is chosen.
 
-## [0.3.0] - 2026-08-04
+## 0.3.0 - 2026-08-04
 
 ### Added
 
@@ -163,7 +289,7 @@ were not there. It now walks the parameters properly.
   installed globally and run from another directory. `qx next` had the path but
   wrapped it across two lines, so it could not be copied.
 
-## [0.2.3] - 2026-08-04
+## 0.2.3 - 2026-08-04
 
 ### Fixed
 
@@ -193,7 +319,7 @@ were not there. It now walks the parameters properly.
   against the CI matrix and the Qiskit badges against the installed versions.
 - Added `readme-assets/`, for screenshots.
 
-## [0.2.2] - 2026-08-04
+## 0.2.2 - 2026-08-04
 
 Documentation and metadata only. No behaviour changed.
 
@@ -228,7 +354,7 @@ Documentation and metadata only. No behaviour changed.
 - A stray reference in the dependency table pointed at hooks that were not listed
   anywhere in the README.
 
-## [0.2.1] - 2026-08-04
+## 0.2.1 - 2026-08-04
 
 An adversarial review of the finished repository, one reviewer per dimension,
 each finding then re-tested by hand. Twenty-two defects confirmed by
@@ -316,7 +442,7 @@ Smaller, each reproduced first:
 - `worker.py` described the child process as an isolation boundary. It is not a
   sandbox and the docstring now says so plainly.
 
-## [0.2.0] - 2026-08-04
+## 0.2.0 - 2026-08-04
 
 The curriculum taught the tool but not the subject: five distinct gates across
 every solution, and no algorithm at all. A learner could run a Bell state on real
@@ -389,22 +515,9 @@ that, and closes the gap where the hardware path had never actually run.
 - Exercise 14's hardware counts are that measurement, replacing numbers that had
   been written by hand and described as real.
 
-## [0.1.0] - 2026-08-04
+## 0.1.0 - 2026-08-04
 
 First release. The `qx` runner and twelve exercises taking a learner from an
 empty laptop to a Bell state on IBM hardware, with answers verified by inspecting
 Qiskit objects rather than comparing source text, and measurement counts checked
 against statistical tolerances rather than for equality.
-
-[0.4.1]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.4.1
-[0.4.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.4.0
-[0.3.4]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.4
-[0.3.3]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.3
-[0.3.2]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.2
-[0.3.1]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.1
-[0.3.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.3.0
-[0.2.3]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.3
-[0.2.2]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.2
-[0.2.1]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.1
-[0.2.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.2.0
-[0.1.0]: https://github.com/TuguiDragos/quantum-exercises/releases/tag/v0.1.0

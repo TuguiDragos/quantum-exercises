@@ -19,6 +19,30 @@ the folder reads in the same order as the page:
 | `07-qx-watch.png` | watch mode waiting on a save |
 | `08-real-hardware.png` | exercise 13 on a real QPU |
 
+## When a shot goes stale
+
+Five of these were retaken for 0.5.0, when the course grew from 14 exercises in
+three acts to 17 in four and `notebooks/` went from one file to four. What made
+them stale is worth knowing, because the same things will do it again:
+
+- **a count changes.** `01-qx-list.png` showed 14 rows and a 0/14 bar,
+  `04-qx-doctor.png` reported "14 exercises found in".
+- **the file tree is in shot.** The three VS Code shots show `exercises/` and
+  `notebooks/` in the sidebar, so adding either puts them out of date.
+- **the tool's own wording changes.** `07-qx-watch.png` carried the pre-0.3.4
+  spelling of the run command, and a `__pycache__` directory from before the
+  worker stopped writing one.
+
+`02-qx-run-fail.png`, `03-qx-run-pass.png` and `08-real-hardware.png` survived
+all of that: each shows one run of one exercise, with no tree and no totals.
+Framing a shot that way is what makes it last.
+
+Shots 1 to 3 and 5 to 7 come from a throwaway copy of the repository, so the
+progress shown is chosen rather than whatever happens to be finished, and so
+nothing in the sidebar belongs to whoever took the picture. Exclude `.venv`,
+`.git`, `.DS_Store` and any editor or assistant directory from that copy, and
+hide the caches through `files.exclude`.
+
 ## Capture settings
 
 Keep these identical across every shot, or the set looks assembled rather than

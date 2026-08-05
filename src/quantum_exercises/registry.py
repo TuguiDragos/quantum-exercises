@@ -78,8 +78,31 @@ class Exercise:
         return self.path / TEMPLATE_FILE
 
 
+def _holds_exercises(directory: Path) -> bool:
+    """Whether this directory is a project root, rather than merely near one.
+
+    An `exercises/` directory alone is not enough. Anyone can have `~/exercises`
+    for something else, and it used to shadow the real repository from every
+    directory beneath it: the walk stopped there, reported "No exercises found",
+    and told the reader to run from inside the repository, which is what they
+    thought they were doing. It also made the installed-package fallback below
+    unreachable for anyone with such a directory in their home.
+    """
+    base = directory / EXERCISES_DIR
+    try:
+        return base.is_dir() and any(
+            entry.is_dir() and SLUG_PATTERN.match(entry.name) for entry in base.iterdir()
+        )
+    except OSError:  # unreadable directory, treat as not a root
+        return False
+
+
 def find_project_root(start: Path | None = None) -> Path:
-    """Locate the repo root: the nearest ancestor holding an `exercises/` directory.
+    """Locate the repo root: the nearest ancestor whose exercises/ directory holds one.
+
+    Holding the directory is not enough. A plain `~/exercises` used to swallow the
+    search from everything beneath it, so a candidate only counts when at least one
+    numbered exercise sits inside. See _holds_exercises.
 
     QX_ROOT overrides the search, which is what the test suite uses.
     """
@@ -99,7 +122,7 @@ def find_project_root(start: Path | None = None) -> Path:
 
     for candidate in candidates:
         for directory in [candidate.resolve(), *candidate.resolve().parents]:
-            if (directory / EXERCISES_DIR).is_dir():
+            if _holds_exercises(directory):
                 return directory
 
     raise RegistryError(
@@ -136,6 +159,18 @@ def load_exercise(path: Path) -> Exercise:
     if missing_keys:
         raise RegistryError(f"{path.name}/{META_FILE} is missing keys: {sorted(missing_keys)}")
 
+    # The one conversion that used to be unguarded. int() on a string raises
+    # ValueError rather than RegistryError, and load_exercises() reads every
+    # exercise, so one typo took down every command at once. A zero or negative
+    # value parsed fine and produced "did not finish within -5 seconds".
+    # bool is a subclass of int, so `timeout = true` needs excluding by hand.
+    timeout = meta.get("timeout", DEFAULT_TIMEOUT)
+    if isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0:
+        raise RegistryError(
+            f"{path.name}/{META_FILE} has timeout = {timeout!r}. "
+            "It must be a positive whole number of seconds."
+        )
+
     return Exercise(
         slug=path.name,
         number=int(match.group(1)),
@@ -144,7 +179,7 @@ def load_exercise(path: Path) -> Exercise:
         act=str(meta["act"]),
         summary=str(meta["summary"]),
         hardware=bool(meta.get("hardware", False)),
-        timeout=int(meta.get("timeout", DEFAULT_TIMEOUT)),
+        timeout=timeout,
     )
 
 

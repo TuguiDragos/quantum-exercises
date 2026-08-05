@@ -9,21 +9,24 @@ useDefault = true
 # assigned to a token-like name, which is how a leak really happens: someone
 # pastes their key into an exercise while debugging.
 #
-# Verified against gitleaks v8.30.1: without this rule a hardcoded IBM key in a
-# call to QiskitRuntimeService(token=...) passes the default rule set untouched.
+# The optional backslash before each quote is what makes this work inside a
+# notebook. A .ipynb stores cell source as a JSON string, so `token="KEY"` is on
+# disk as `token=\"KEY\"`, and a rule anchored to a bare quote never sees it.
+# README points readers at notebooks/playground.ipynb as the place to experiment,
+# which makes it the likeliest place in this repository for a key to be pasted.
 [[rules]]
 id = "ibm-quantum-api-key"
 description = "IBM Quantum API key assigned to a token-like name"
-regex = '''(?i)(?:qiskit_ibm_token|api[_-]?key|apikey|\btoken\b)\s*[:=]\s*["']([A-Za-z0-9_\-]{40,50})["']'''
+regex = '''(?i)(?:qiskit_ibm_token|api[_-]?key|apikey|\btoken\b)\s*[:=]\s*\\?["']([A-Za-z0-9_\-]{40,50})\\?["']'''
 secretGroup = 1
 keywords = ["token", "api_key", "apikey", "api-key"]
 
 [rules.allowlist]
 regexTarget = "match"
 regexes = [
-  # Obvious placeholders in documentation.
-  '''(?i)["'](?:your|my|the)[_-]?(?:api[_-]?)?key''',
-  '''(?i)["']<[^"']*>["']''',
-  '''(?i)["']x{40,50}["']''',
-  '''(?i)["']a{40,50}["']''',
+  # Obvious placeholders in documentation, in both spellings.
+  '''(?i)\\?["'](?:your|my|the)[_-]?(?:api[_-]?)?key''',
+  '''(?i)\\?["']<[^"']*>\\?["']''',
+  '''(?i)\\?["']x{40,50}\\?["']''',
+  '''(?i)\\?["']a{40,50}\\?["']''',
 ]

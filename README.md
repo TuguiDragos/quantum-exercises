@@ -3,7 +3,7 @@
 [![ci](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/ci.yml/badge.svg)](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/ci.yml)
 [![weekly-verify](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/weekly-verify.yml/badge.svg)](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/weekly-verify.yml)
 
-[![python](https://img.shields.io/badge/python-3.10%20%7C%203.12%20%7C%203.13%20%7C%203.14-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![qiskit](https://img.shields.io/badge/qiskit-2.5.1-6929C4)](https://pypi.org/project/qiskit/)
 [![qiskit-ibm-runtime](https://img.shields.io/badge/qiskit--ibm--runtime-0.48.0-6929C4)](https://pypi.org/project/qiskit-ibm-runtime/)
 [![qiskit-aer](https://img.shields.io/badge/qiskit--aer-0.17.2-6929C4)](https://pypi.org/project/qiskit-aer/)
@@ -11,8 +11,9 @@
 [![ruff](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fastral-sh%2Fruff%2Fmain%2Fassets%2Fbadge%2Fv2.json)](https://github.com/astral-sh/ruff)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Fourteen hands-on exercises that take you from an empty laptop to a quantum
-circuit running on real IBM hardware.
+Seventeen hands-on exercises that take you from an empty laptop to a quantum
+circuit on real IBM hardware, and then to a Bell test that no classical
+explanation survives.
 
 You edit a file, you run one command, and it tells you exactly what is wrong in
 the language of the problem rather than as a Python traceback.
@@ -21,7 +22,7 @@ the language of the problem rather than as a Python traceback.
 
 ### You get something wrong
 
-![A failing run. The panel reads: label_q0_only is '10', but the answer is "01". Qiskit is little-endian: qubit 0 is the RIGHTMOST character.](readme-assets/02-qx-run-fail.png)
+![A failing run of exercise 11. The panel reads: Your circuit does not prepare (|00> + |11>) / sqrt(2), and shows your probabilities, {'00': 1.0000}, against the target, {'00': 0.5000, '11': 0.5000}, with a note that global phase is ignored so a phase difference is not the problem.](readme-assets/02-qx-run-fail.png)
 
 That is the whole idea. No traceback, no line number pointing at library code, no
 guessing. The runner knows which concept you tripped over, so it explains the
@@ -31,13 +32,13 @@ concept.
 
 ![A passing run showing three panels: the statevector with amplitudes and probabilities, a histogram of 2048 shots split between 00 and 11, and a demonstration of little-endian bit order.](readme-assets/03-qx-run-pass.png)
 
-No exercise ends on a green tick alone. Each one finishes with a state, a matrix
-or a histogram that your own code produced, because seeing the object is the
-point.
+No exercise ends on a green tick alone. Each one finishes with something your own
+code produced and the runner rendered: a state, a matrix, a histogram, or the
+numbers themselves. Seeing the object is the point.
 
 ### You always know where you are
 
-![The qx list command showing all fourteen exercises grouped into three acts, with a progress bar reading 11 of 14.](readme-assets/01-qx-list.png)
+![The qx list command showing the exercises grouped by act, each row carrying its number, slug, title and status, under a progress bar.](readme-assets/01-qx-list.png)
 
 ## Why this exists
 
@@ -106,10 +107,14 @@ cd quantum-exercises
 uv tool install --editable .
 ```
 
-That last command takes about a second. It builds the environment from the
-committed lockfile and puts `qx` on your PATH, so every command below works from
+That last command takes about a second. It resolves the dependency ranges declared
+in `pyproject.toml` and puts `qx` on your PATH, so every command below works from
 any directory. `--editable` keeps it pointed at this clone, so it follows your
 edits and finds the exercises wherever you run it from.
+
+If you want the exact versions this repository is tested against rather than a
+fresh resolution, use `uv sync --locked` instead: `uv tool install` does not read
+`uv.lock` at all, and has no flag that makes it.
 
 ### 3. Check that it worked
 
@@ -156,7 +161,7 @@ and `qx run 11_bell_entanglement` are the same thing.
 If you skipped the install step, everything still works as `uv run qx <command>`
 from inside the repository, and the tool prints whichever form applies to you.
 
-## The fourteen exercises
+## The seventeen exercises
 
 **Act I - reaching a first result**
 
@@ -166,7 +171,7 @@ from inside the repository, and the tool prints whichever form applies to you.
 | 02 | Counts is just a dictionary | Measurement results are a plain `dict`. Write the three helpers you will reuse all course |
 | 03 | Your first circuit | Build a one-qubit circuit and see the matrix it represents |
 | 04 | Measurement, or the result is empty | Forget the measurement and Qiskit hands you nothing, without raising an error. Meet that trap on purpose |
-| 05 | Reading counts out of a V2 result | `result.get_counts()` is gone. Learn the three-step path that replaced it |
+| 05 | Reading counts out of a V2 result | A V2 result has no `get_counts()`. Learn the three-step path that replaces it |
 
 **Act II - understanding what you see**
 
@@ -186,6 +191,19 @@ from inside the repository, and the tool prints whichever form applies to you.
 | 12 | Code from 2021 that no longer runs | Migrate real 0.x code to 2.x. This is the skill that unblocks every old tutorial you will ever find |
 | 13 | A Bell state on a real machine | Transpile to the backend's instruction set and run, on a QPU if you have one |
 | 14 | Reading a noisy result honestly | Hardware gives outcomes the theory forbids. Quantify that instead of assuming your circuit is broken |
+
+**Act IV - expectation values, and a real Bell test**
+
+Everything so far ends in counts. There is a second primitive that returns a
+number instead, and it is the one every serious algorithm is built on. Three
+exercises to reach it, and then to spend it on the experiment exercise 11
+deliberately did not claim to have run.
+
+| # | Exercise | What you come away with |
+|---|---|---|
+| 15 | The Estimator, and what it returns | Expectation values instead of shots, computed two ways and shown to agree |
+| 16 | A device that only measures Z | Hardware reads one axis. Measuring any other means rotating the state first |
+| 17 | CHSH, the experiment that settles it | Measure along different axes and reach S = 2.83, past the 2 that any pre-agreed answer is stuck below |
 
 ## How answers are checked
 
@@ -217,8 +235,11 @@ code .
 
 ![VS Code with exercise.py open on the left and the integrated terminal on the right, showing a passing run of exercise 11.](readme-assets/05-vscode-split.png)
 
-The `.vscode` settings in this repository point the Python extension at the
-project's own environment, so the interpreter is right from the first open.
+The `.vscode` settings in this repository turn on pytest, activate the environment
+in new terminals, and set ruff as the formatter. They deliberately do **not**
+hardcode an interpreter path, because `uv` puts it in `.venv/bin` on macOS and
+Linux and `.venv/Scripts` on Windows; the Python extension discovers `.venv` on
+its own. If it picks the wrong one, choose it from the status bar.
 
 Editing and rerunning by hand gets old quickly, so there is a watch mode:
 
@@ -231,13 +252,22 @@ qx watch
 It re-runs on every save and moves to the next exercise on its own when one
 passes.
 
-## The playground notebook
+## The notebooks
 
-`notebooks/playground.ipynb` is the other half of learning: nothing there is
-graded, and you are meant to change numbers and see what moves. CI executes every
-cell, so it cannot quietly rot.
+Four of them, none graded, all meant to be poked at. CI executes every cell of
+every one, so none of them can quietly rot.
 
-![The playground notebook in VS Code, showing a cell that samples a Bell circuit and the matplotlib histogram it produced.](readme-assets/06-vscode-notebook.png)
+| Notebook | What it is for |
+|---|---|
+| `playground.ipynb` | scratch space. Change numbers, see what moves |
+| `lab-1-qiskit-patterns.ipynb` | the four steps every Qiskit program has: map, optimize, execute, post-process |
+| `lab-2-noise.ipynb` | readout error against gate error, measured on a real device's published rates. Readout wins by more than most people expect |
+| `lab-3-dynamic-circuits.ipynb` | measuring partway through and branching on the result, ending in teleportation |
+
+The exercises are where you are checked. The labs are where you are shown, at a
+length an exercise cannot afford. Everything runs on a local simulator.
+
+![The noise lab open in VS Code, showing an executed cell that runs the same Bell pair on three different pairs of physical qubits, and a table where the measured fidelity, 0.94, 0.88 and 0.97, tracks what the published readout rates predict.](readme-assets/06-vscode-notebook.png)
 
 In VS Code the notebook kernel is a **separate** setting from the Python
 interpreter. If `qx doctor` passes but the notebook cannot import qiskit, that is

@@ -219,8 +219,22 @@ __marimo__/
 
 # --- quantum-exercises ---
 
-# Local progress, per learner
+# Local progress, per learner. The .unreadable copy is what qx sets aside when it
+# meets a state file written by a different version, rather than overwriting it.
 .qx-state.json
+.qx-state.json.unreadable
+.qx-state-*.tmp
+
+# macOS Finder metadata. Nothing here belongs to the project.
+.DS_Store
+
+# Per-machine configuration for editors and assistants. Local to whoever is
+# working, never part of the course. Listed here rather than left to a personal
+# global gitignore, which only protects the one machine that has it.
+.claude/
+.cursor/
+.aider*
+.continue/
 
 # IBM credentials live in ~/.qiskit/qiskit-ibm.json, outside this repository.
 # Never add a copy here.

@@ -6,7 +6,9 @@ Fill in the TODOs, then run:  qx run 11
 from qiskit import QuantumCircuit
 
 # TODO: add two gates so that qc prepares (|00> + |11>) / sqrt(2).
-#       Put one qubit into superposition, then make the second copy it.
+#       Put one qubit into superposition, then tie the second to it with a
+#       controlled gate. On a definite value that gate copies. On a superposition
+#       there is no value to copy, and it entangles instead.
 #       Do not add measurements; the runner adds them itself.
 qc = QuantumCircuit(2)
 

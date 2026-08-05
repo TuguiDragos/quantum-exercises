@@ -86,7 +86,8 @@ def _diagnose_amplitude_confusion(predicted: dict[str, float]) -> None:
             detail=(
                 f"cos(pi/6) = {amplitudes['0']:.4f} and sin(pi/6) = {amplitudes['1']:.4f} are the "
                 "amplitudes. The Born rule squares them. Notice they sum to "
-                f"{sum(amplitudes.values()):.4f} rather than 1, which is the giveaway: "
-                "probabilities always sum to exactly 1, amplitudes do not."
+                f"{sum(amplitudes.values()):.4f} rather than 1, which is the giveaway here: "
+                "it is the squared amplitudes that must always sum to 1, not the "
+                "amplitudes themselves."
             ),
         )

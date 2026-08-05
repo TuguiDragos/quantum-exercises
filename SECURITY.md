@@ -31,9 +31,13 @@ When you do use it:
 - The key is stored by qiskit at `~/.qiskit/qiskit-ibm.json`, **in clear text**.
   That location is qiskit's, not this project's, and it sits outside the
   repository so it cannot be committed by accident.
-- `qx` tightens that file to `0600` inside a `0700` directory immediately after
-  saving, because qiskit writes it with whatever umask happens to be in force,
-  which is normally world-readable.
+- `qx` creates that file at `0600`, inside a `0700` directory, **before** the key
+  is written into it. This ordering is the whole point. qiskit creates the file
+  with whatever umask happens to be in force, normally world-readable, and only
+  then writes the key, so tightening it afterwards would leave a window in which
+  the key sits on disk readable by anyone with a local account. Opening a file
+  that already exists does not change its mode, so creating it first closes that
+  window rather than narrowing it. The permissions are checked again after saving.
 - `qx doctor` warns when the file is readable by other local users, which catches
   accounts saved before this tool existed or saved by qiskit directly.
 - The key is read without terminal echo. If the terminal cannot suppress echo,
@@ -49,7 +53,8 @@ If you believe a key was exposed, revoke it at
 This is the part worth thinking about, because it is not obvious.
 
 `qx run` imports two files: your `exercise.py`, and the exercise's `check.py`.
-Both run as ordinary Python in a child process. That child inherits your
+With `--solution` the first of those is the exercise's `solution.py` instead, which
+is repository code like `check.py`. Both run as ordinary Python in a child process. That child inherits your
 environment, your filesystem and your network access. It is **not a sandbox**,
 and it is not trying to be: `exercise.py` is code you wrote yourself, and
 `check.py` is repository code reviewed like any other source file.
@@ -66,10 +71,21 @@ So treat this repository the way you would treat any other you are about to run:
   run with `QX_OFFLINE=1` and skip `qx doctor --save-account` entirely. The whole
   course works that way.
 
-The child process is hardened against accidents rather than against malice. It
-gets a time limit, a bounded output buffer, its own process group, no stdin, and
-no working directory on `sys.path`. Those stop a runaway loop or a stray
-`qiskit.py` from breaking your session. None of them stop deliberate code.
+The child process is hardened against accidents rather than against malice:
+
+- a time limit, enforced by the parent, and the child is killed whenever the parent
+  unwinds, Ctrl-C included, so an interrupted run does not leave the loop spinning.
+  A `kill -9` of `qx` itself still orphans the child, because nothing survives that
+  to do the cleaning up
+- a bounded output buffer, and a bounded verdict file, so neither a runaway printer
+  nor an enormous exception message can grow the parent's memory
+- its own process group, so a timeout takes anything the exercise spawned with it
+- no stdin, so exercise code cannot eat what you type
+- no working directory on `sys.path`, compared by real path, so a stray `qiskit.py`
+  in the repository root cannot shadow the real module even through a symlink
+
+Those stop a runaway loop or a misnamed file from breaking your session. None of
+them stop deliberate code.
 
 ## What is not a vulnerability
 
@@ -93,8 +109,17 @@ So the repository carries its own rule in
 a token-like name, and it runs in two places:
 
 - **pre-commit**, on staged changes, for anyone who ran `pre-commit install`
-- **CI**, over the whole tree on every push and pull request, because installing
-  hooks is opt-in and easy to skip
+- **CI**, over the whole tree on every pull request and on every push to `main`,
+  because installing hooks is opt-in and easy to skip. A push to a side branch with
+  no pull request open is the one path neither covers
+
+The rule also allows for a backslash before the quote, which is what makes it work
+inside a notebook. A `.ipynb` stores cell source as a JSON string, so `token="..."`
+sits on disk as `token=\"...\"`, and a rule anchored to a bare quote never sees it.
+That matters because the README points readers at `notebooks/playground.ipynb` as
+the place to experiment, which makes it the likeliest place in this repository for
+a key to be pasted. `tests/test_packaging.py` exercises the rule against both
+spellings so an edit cannot quietly undo it.
 
 Notebook outputs are stripped by `nbstripout` on commit, since a cell that ran
 against hardware can carry job identifiers.

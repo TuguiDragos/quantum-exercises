@@ -167,11 +167,14 @@ def check_credentials() -> Check:
 
     accounts: list[str] = []
     retired: list[str] = []
+    unknown: list[str] = []
     for name, entry in raw.items():
         channel = entry.get("channel") if isinstance(entry, dict) else None
         accounts.append(f"{name} (channel: {channel or 'unset'})")
         if channel in RETIRED_CHANNELS:
             retired.append(name)
+        elif channel not in VALID_CHANNELS:
+            unknown.append(f"{name} ({channel or 'unset'})")
 
     if retired:
         return Check(
@@ -180,6 +183,19 @@ def check_credentials() -> Check:
             f"saved on the retired `ibm_quantum` channel: {', '.join(retired)}",
             "That channel was switched off with IBM Quantum Platform Classic and those "
             "credentials no longer work. Save again on `ibm_quantum_platform`.",
+        )
+
+    if unknown:
+        # Neither current nor known-retired. A typo lands here, and used to be
+        # reported as a healthy account because only the retired list was checked.
+        return Check(
+            "IBM Quantum account",
+            "warn",
+            f"channel not recognised: {', '.join(unknown)}",
+            f"Expected one of {sorted(VALID_CHANNELS)}. A typo in the channel name means "
+            "qiskit cannot route the request, and the failure appears later as a "
+            f"connection error. Save the account again with `{invocation()} doctor "
+            "--save-account`.",
         )
 
     loose = _loose_permissions()

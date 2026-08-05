@@ -1,4 +1,4 @@
 title = "Reading counts out of a V2 result"
 act = "Act I - Reaching a first result"
-summary = "The old result.get_counts() is gone. Learn the three-step path that replaced it."
+summary = "A V2 result has no get_counts(). Learn the three-step path that replaces it."
 hardware = false

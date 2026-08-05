@@ -98,10 +98,12 @@ def translate(exc: BaseException) -> Translation | None:
     for rule in (
         _syntax,
         _import_from_qiskit,
+        _qiskit_attribute,
         _missing_module,
         _circuit_index,
         _duplicate_bits,
-        _statevector_with_measurement,
+        _classical_bits_in_conversion,
+        _mid_circuit_measurement,
         _primitive_pub,
         _v1_result_api,
         _databin_field,
@@ -150,6 +152,30 @@ def _import_from_qiskit(exc: BaseException) -> Translation | None:
     )
 
 
+def _qiskit_attribute(exc: BaseException) -> Translation | None:
+    """The other half of the 0.x import: `import qiskit` then `qiskit.execute(...)`.
+
+    Real message: module 'qiskit' has no attribute 'execute'. The `from qiskit
+    import execute` spelling raises ImportError and is handled above; this one
+    raises AttributeError and used to fall through untranslated, even though it is
+    the more common form in old tutorials.
+    """
+    if not isinstance(exc, AttributeError):
+        return None
+    match = re.search(r"module 'qiskit' has no attribute '(\w+)'", str(exc))
+    if not match:
+        return None
+    symbol = match.group(1)
+    if symbol in _REMOVED_FROM_QISKIT:
+        message, hint = _REMOVED_FROM_QISKIT[symbol]
+        return Translation(message, hint)
+    return Translation(
+        f"`qiskit.{symbol}` does not exist on this version of Qiskit.",
+        "This is usually code written for Qiskit 0.x. Check the migration guide for the "
+        "current name.",
+    )
+
+
 def _missing_module(exc: BaseException) -> Translation | None:
     if not isinstance(exc, ModuleNotFoundError):
         return None
@@ -158,9 +184,19 @@ def _missing_module(exc: BaseException) -> Translation | None:
         message, hint = _REMOVED_MODULES[name]
         return Translation(message, hint)
     root = name.split(".")[0]
-    if root in _MISSING_PACKAGES:
+    # Only claim the package is absent when the package itself is what failed.
+    # Python names the first component it could not find, so `name == root` means
+    # the install is missing, while a longer name means the package imported fine
+    # and a submodule under it did not. Saying "matplotlib is not installed" to
+    # someone who typed `matplotlib.pyploy` sends them to reinstall what they have.
+    if root in _MISSING_PACKAGES and name == root:
         message, hint = _MISSING_PACKAGES[root]
         return Translation(message, hint)
+    if root in _MISSING_PACKAGES:
+        return Translation(
+            f"`{root}` is installed, but it has no submodule `{name.split('.', 1)[1]}`.",
+            "That is a typo in the import rather than a missing package.",
+        )
     if name.startswith("qiskit."):
         return Translation(
             f"`{name}` does not exist in Qiskit 2.x.",
@@ -176,10 +212,14 @@ def _circuit_index(exc: BaseException) -> Translation | None:
         return None
     index, size = int(match.group(1)), int(match.group(2))
     if size == 0:
+        # Qiskit words this identically for a qubit and for a classical bit, so the
+        # rule cannot tell them apart. Lead with the common case, name the other.
         return Translation(
-            "You addressed a classical bit, but the circuit has no classical register.",
-            "Measurement needs somewhere to write the result. Either build the circuit as "
-            "`QuantumCircuit(n, n)`, or call `qc.measure_all()`, which adds the register for you.",
+            f"You addressed index {index}, but the circuit has no wires of that kind at all.",
+            "Usually this is a missing classical register: measurement needs somewhere to "
+            "write its result, so build the circuit as `QuantumCircuit(n, n)`, or call "
+            "`qc.measure_all()`, which adds one for you. If you meant a qubit, note that "
+            "`QuantumCircuit()` with no arguments has none.",
         )
     return Translation(
         f"You referred to index {index}, but the circuit only has {size} "
@@ -191,22 +231,53 @@ def _circuit_index(exc: BaseException) -> Translation | None:
 def _duplicate_bits(exc: BaseException) -> Translation | None:
     if "duplicate bit arguments" not in str(exc):
         return None
+    # Qiskit does not name the gate, and the same message covers ccx, so neither
+    # does this: "two-qubit gate, use cx" is wrong advice half the time.
     return Translation(
-        "A two-qubit gate was given the same qubit twice.",
-        "`qc.cx(0, 0)` is not a valid operation. Control and target must be different qubits, "
-        "for example `qc.cx(0, 1)`.",
+        "A gate was given the same qubit more than once.",
+        "`qc.cx(0, 0)` and `qc.ccx(0, 0, 1)` are not valid operations. Every qubit a gate "
+        "acts on has to be a different one, for example `qc.cx(0, 1)`.",
     )
 
 
-def _statevector_with_measurement(exc: BaseException) -> Translation | None:
-    # Real message: 'Cannot apply instruction with classical bits: measure'
-    if not re.search(r"Cannot apply (instruction|operation) with classical bits", str(exc)):
+def _classical_bits_in_conversion(exc: BaseException) -> Translation | None:
+    """Name the object the learner actually asked for.
+
+    Verified against Qiskit 2.5.1: `Operator()` raises "Cannot apply operation with
+    classical bits" (operator.py), while `Statevector()`, `DensityMatrix()` and the
+    Pauli and Clifford paths raise "instruction". Exercise 08 is about `Operator`,
+    so reporting a statevector problem there points at the wrong line entirely.
+    """
+    match = re.search(
+        r"Cannot apply (instruction|operation) with classical bits", str(exc), re.IGNORECASE
+    )
+    if not match:
         return None
+    if match.group(1).lower() == "operation":
+        return Translation(
+            "You cannot build a matrix for a circuit that contains a measurement.",
+            "Measurement is not reversible, so a circuit containing one has no unitary "
+            "matrix. Remove the measurement for this exercise, or strip it with "
+            "`qc.remove_final_measurements(inplace=False)`.",
+        )
     return Translation(
         "You cannot compute a statevector for a circuit that contains a measurement.",
         "Measurement collapses the state, so there is no single vector left to describe. "
         "For this exercise, build the circuit without measurement, or strip it with "
         "`qc.remove_final_measurements(inplace=False)`.",
+    )
+
+
+def _mid_circuit_measurement(exc: BaseException) -> Translation | None:
+    # Real message: 'StatevectorSampler cannot handle mid-circuit measurements'
+    if "mid-circuit measurement" not in str(exc):
+        return None
+    return Translation(
+        "This sampler cannot run a circuit that measures partway through.",
+        "A measurement followed by more gates is a mid-circuit measurement, and "
+        "`StatevectorSampler` only handles measurements at the very end. Move the "
+        "measurement last, or run it on `AerSimulator`, which does support them. That "
+        "is what the dynamic circuits lab uses.",
     )
 
 

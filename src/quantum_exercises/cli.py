@@ -26,7 +26,7 @@ from quantum_exercises.registry import (
 )
 from quantum_exercises.runner import ran_on as run_result_ran_on
 from quantum_exercises.runner import run_exercise
-from quantum_exercises.state import State, load, save
+from quantum_exercises.state import State, load
 
 app = typer.Typer(
     name="qx",
@@ -178,6 +178,8 @@ def _save_account() -> None:
 
     instance = input("Instance CRN (press Enter to skip): ").strip() or None
 
+    prepared = _prepare_credentials_file()
+
     try:
         QiskitRuntimeService.save_account(
             channel="ibm_quantum_platform",
@@ -190,7 +192,7 @@ def _save_account() -> None:
         ui.error(f"Could not save the account: {type(exc).__name__}: {exc}")
         raise typer.Exit(code=1) from exc
 
-    restricted = _restrict_credentials_permissions()
+    restricted = _restrict_credentials_permissions() and prepared
 
     ui.success(f"Account saved. Verify it with `{invocation()} doctor --online`.")
     if restricted:
@@ -200,6 +202,35 @@ def _save_account() -> None:
             f"Could not restrict permissions on {doctor_module.CREDENTIALS_PATH}. "
             "On a shared machine, tighten them yourself."
         )
+
+
+def _prepare_credentials_file() -> bool:
+    """Create the credentials file owner-only before the token is written into it.
+
+    qiskit-ibm-runtime creates `~/.qiskit` and the JSON with whatever umask is in
+    force, normally 0755 and 0644, writes the token, and never chmods. Tightening
+    afterwards left a window in which the key sat on disk world-readable, which is
+    exactly the shared machine SECURITY.md tells the reader to worry about.
+    Opening a file that already exists does not change its mode, so creating it
+    first at 0600 closes the window instead of narrowing it.
+    """
+    from quantum_exercises.doctor import CREDENTIALS_PATH
+
+    try:
+        CREDENTIALS_PATH.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(CREDENTIALS_PATH.parent, 0o700)
+        if not CREDENTIALS_PATH.exists():
+            # Exclusive create, so an account saved by something else meanwhile is
+            # never truncated. qiskit reads this as "no accounts yet".
+            handle = os.open(CREDENTIALS_PATH, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            try:
+                os.write(handle, b"{}")
+            finally:
+                os.close(handle)
+        os.chmod(CREDENTIALS_PATH, 0o600)
+    except OSError:
+        return False
+    return True
 
 
 def _restrict_credentials_permissions() -> bool:
@@ -247,6 +278,10 @@ def run(
     ] = False,
 ) -> None:
     """Check an exercise. With no argument, checks the next unfinished one."""
+    if timeout is not None and timeout <= 0:
+        ui.error("--timeout must be a positive number of seconds.")
+        raise typer.Exit(code=2)
+
     root, exercises, state = _context()
     exercise = _pick(name, exercises, state)
 
@@ -260,7 +295,7 @@ def run(
         state = load(root)
         was_complete = state.is_complete(exercise.slug)
         state.mark_done(exercise.slug, ran_on=run_result_ran_on(result.artifacts))
-        save(root, state)
+        ui.save_progress(root, state)
         if not was_complete:
             remaining = [e for e in exercises if not state.is_complete(e.slug)]
             if remaining:
@@ -288,12 +323,13 @@ def hint(
         ui.warn(f"{exercise.slug} has no hints.")
         raise typer.Exit(code=0)
 
+    state = load(root)
     if all_hints:
         state.get(exercise.slug).hints_revealed = len(hints)
         visible = len(hints)
     else:
         visible = state.reveal_hint(exercise.slug, len(hints))
-    save(root, state)
+    ui.save_progress(root, state)
 
     ui.console.print()
     for index in range(visible):
@@ -350,9 +386,13 @@ def solution(
         )
     )
 
+    # Re-read after the prompt, not before it: the confirmation blocks for as long
+    # as the reader takes to answer, and progress another qx process recorded in
+    # that window would be erased by this stale copy.
+    state = load(root)
     state.mark_solved(exercise.slug)
-    save(root, state)
-    ui.info(f"{exercise.slug} recorded as solved. Run `{invocation()} next` to continue.")
+    if ui.save_progress(root, state):
+        ui.info(f"{exercise.slug} recorded as solved. Run `{invocation()} next` to continue.")
     ui.console.print()
 
 
@@ -378,10 +418,24 @@ def reset(
             ui.info("Nothing changed.")
             raise typer.Exit(code=0)
 
-    shutil.copyfile(exercise.template_file, exercise.exercise_file)
+    try:
+        shutil.copyfile(exercise.template_file, exercise.exercise_file)
+    except OSError as exc:
+        ui.error(f"Could not restore {exercise.exercise_file}: {exc.strerror or exc}")
+        raise typer.Exit(code=2) from exc
+
+    # Re-read after the prompt, for the same reason as `solution`.
+    state = load(root)
     state.reset(exercise.slug)
-    save(root, state)
-    ui.success(f"{exercise.slug} restored to its starting state.")
+    if ui.save_progress(root, state):
+        ui.success(f"{exercise.slug} restored to its starting state.")
+    else:
+        # The copy landed, the bookkeeping did not. Saying both happened would be
+        # the kind of half-truth this tool exists to avoid.
+        ui.warn(
+            f"{exercise.exercise_file.name} was restored, but {exercise.slug} is still "
+            "recorded as complete."
+        )
 
 
 @app.command()

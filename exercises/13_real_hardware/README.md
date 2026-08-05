@@ -1,4 +1,4 @@
-# 11 - A Bell state on a real machine
+# 13 - A Bell state on a real machine
 
 Two qubits, two gates, one measurement. It is the smallest circuit that is worth
 putting on real hardware: it takes seconds of QPU time and it shows you both

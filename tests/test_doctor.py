@@ -75,6 +75,41 @@ class TestCredentials:
         assert "ibm_quantum" in check.detail
         assert "ibm_quantum_platform" in check.fix
 
+    @pytest.mark.parametrize("channel", ["ibm_quantumm", "ibm-quantum-platform", None])
+    def test_unrecognised_channel_is_a_warning(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, channel: str | None
+    ) -> None:
+        """A typo used to be reported as a healthy account.
+
+        Only the retired list was consulted, so anything that was neither current
+        nor known-retired fell through to "ok". VALID_CHANNELS existed for this and
+        was never read.
+        """
+        path = tmp_path / "qiskit-ibm.json"
+        path.write_text(
+            json.dumps({"default": {"channel": channel, "token": "x" * 44}}), encoding="utf-8"
+        )
+        path.chmod(0o600)
+        monkeypatch.setattr(doctor, "CREDENTIALS_PATH", path)
+
+        check = doctor.check_credentials()
+        assert check.status == "warn"
+        assert "not recognised" in check.detail
+        assert "ibm_quantum_platform" in (check.fix or "")
+
+    @pytest.mark.parametrize("channel", sorted(doctor.VALID_CHANNELS))
+    def test_every_valid_channel_is_accepted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, channel: str
+    ) -> None:
+        path = tmp_path / "qiskit-ibm.json"
+        path.write_text(
+            json.dumps({"default": {"channel": channel, "token": "x" * 44}}), encoding="utf-8"
+        )
+        path.chmod(0o600)
+        monkeypatch.setattr(doctor, "CREDENTIALS_PATH", path)
+
+        assert doctor.check_credentials().status == "ok"
+
     def test_corrupt_file_is_a_failure(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

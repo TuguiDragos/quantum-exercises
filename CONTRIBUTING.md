@@ -1,3 +1,5 @@
+<img src="readme-assets/banner-contributing.svg" alt="Contributing: lint, build, test and scan, each one drawn as it passes." width="100%">
+
 # Contributing
 
 ## Setup

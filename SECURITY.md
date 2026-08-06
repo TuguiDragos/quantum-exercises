@@ -128,5 +128,12 @@ against hardware can carry job identifiers.
 
 ## Automated runs never reach hardware
 
-Both workflows set `QX_OFFLINE=1`, and so does the test suite. Nothing automated
-can submit a job or spend someone's free QPU minutes.
+`ci.yml` and `weekly-verify.yml` set `QX_OFFLINE=1`, and so does the test suite.
+Nothing automated can submit a job or spend someone's free QPU minutes.
+`rotate-notes.yml` runs no Python and never loads qiskit at all.
+
+That third workflow is the only one here holding `contents: write`. It rewrites
+the block between the NOTES markers in `README.md` from the author's public feed
+and commits the result, and it can change nothing else: the permission is granted
+on the job rather than the workflow, and every other job in this repository is
+read-only.

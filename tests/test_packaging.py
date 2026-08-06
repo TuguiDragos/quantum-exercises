@@ -122,9 +122,34 @@ def inventory(root: Path) -> str:
 
 @pytest.fixture(scope="module")
 def badges(root: Path) -> dict[str, str]:
-    """Every badge in the README: label -> URL."""
+    """Every badge in the README: label -> URL.
+
+    Both spellings are read. The badge row is centred, and GitHub does not render
+    markdown inside an HTML block, so centring it meant writing the badges as
+    `<img>`. The markdown form is still matched, because nothing forces the whole
+    row to convert at once and a half-converted row is exactly what would slip
+    through. The row moving to HTML once already emptied this dict of all nine
+    badges at a stroke.
+
+    An HTML badge is labelled by the first word of its alt text, so the alt can
+    stay useful to a screen reader, "qiskit 2.5.1", while the assertions below
+    still look it up as "qiskit". Only https sources count, which is what skips
+    the banner images stored in this repository.
+    """
     readme = (root / "README.md").read_text(encoding="utf-8")
-    return dict(re.findall(r"^\[!\[([a-z-]+)\]\((https://[^)]+)\)\]", readme, re.M))
+
+    found = dict(re.findall(r"^\[!\[([a-z-]+)\]\((https://[^)]+)\)\]", readme, re.M))
+
+    for tag in re.findall(r"<img\b[^>]*>", readme):
+        alt = re.search(r'\balt="([^"]*)"', tag)
+        src = re.search(r'\bsrc="(https://[^"]+)"', tag)
+        if alt is None or src is None:
+            continue
+        words = alt.group(1).split()
+        if words:
+            found.setdefault(words[0], src.group(1))
+
+    return found
 
 
 def _ci_matrix(root: Path) -> set[str]:
@@ -308,6 +333,26 @@ class TestSecretScanning:
         assert not _caught(secret_rule, f'token="{placeholder}"')
 
 
+# README.md carries a block of blog links that .github/workflows/rotate-notes.yml
+# rewrites from an RSS feed every Monday. Those titles are not written here, they
+# arrive from outside, and the two scanners below look for a bare string anywhere
+# in a file. A post titled around `uv run qx` would fail both of them.
+#
+# That failure would also be invisible until it hurt someone else: the rotation
+# commit is pushed with GITHUB_TOKEN, and a GITHUB_TOKEN push creates no workflow
+# run, so CI never sees it. The README would sit poisoned until the next real pull
+# request, which would then go red for a reason having nothing to do with it.
+#
+# Blanked rather than cut, so the line numbers in the failure messages still point
+# at the right lines further down the file.
+NOTES_BLOCK = re.compile(r"<!-- NOTES:START -->.*?<!-- NOTES:END -->", re.S)
+
+
+def _authored(text: str) -> str:
+    """Drop machine-written regions, leaving only prose this repository is responsible for."""
+    return NOTES_BLOCK.sub(lambda m: "\n" * m.group(0).count("\n"), text)
+
+
 class TestNoDerivativeFraming:
     """This project is described on its own terms, not as a version of another.
 
@@ -327,7 +372,7 @@ class TestNoDerivativeFraming:
                 part in {".venv", ".git", ".ruff_cache", ".pytest_cache"} for part in path.parts
             ):
                 continue
-            text = path.read_text(encoding="utf-8", errors="replace").lower()
+            text = _authored(path.read_text(encoding="utf-8", errors="replace")).lower()
             for term in self.FORBIDDEN:
                 if term in text:
                     offenders.append(f"{path.relative_to(root)} mentions {term}")
@@ -348,7 +393,8 @@ class TestOneSpellingForTheCommand:
                 continue
             if path.name in {"CHANGELOG.md", "__init__.py"}:
                 continue  # the changelog records history; __init__ documents the helper
-            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            source = _authored(path.read_text(encoding="utf-8"))
+            for number, line in enumerate(source.splitlines(), 1):
                 if other in line and "still works as" not in line:
                     offenders.append(f"{path.relative_to(root)}:{number}")
         assert not offenders, f"the other spelling appears in: {offenders}"

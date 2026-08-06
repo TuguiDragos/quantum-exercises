@@ -169,7 +169,7 @@
 
   <text x="84" y="378" font-size="16" fill="#9184d9">$</text>
   <text x="100" y="378" font-size="16" fill="#e9e9ed">qx list</text>
-  <text x="100" y="398">  progress  <tspan fill="#9184d9">████████████</tspan><tspan fill="#343856">░░░░</tspan>  <tspan fill="#cfd3e5">11/17</tspan></text>
+  <text x="100" y="398">  progress  <tspan fill="#9184d9">███████████</tspan><tspan fill="#343856">░░░░░░</tspan>  <tspan fill="#cfd3e5">11/17</tspan></text>
 
   <text x="84" y="426" font-size="16" fill="#9184d9">$</text>
 </g>

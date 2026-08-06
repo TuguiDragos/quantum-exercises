@@ -4,6 +4,90 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.1 - 2026-08-06
+
+### Added
+
+- **A banner on every document.** The README opens on a `qx` session beside a
+  panel that fills one bar per act and counts a ring to seventeen; CONTRIBUTING,
+  SECURITY and CODE_OF_CONDUCT each carry one of their own. Every line of
+  terminal output drawn in them matches a real run: the shot counts, the
+  percentages, and the backend name were taken from actual output rather than
+  invented.
+- **`rotate-notes.yml`, which rewrites five links in the README every Monday.**
+  It is also the only thing here that commits on a schedule, and that is the
+  point. GitHub disables a scheduled workflow in a public repository after 60
+  days without activity, and this project is meant to reach a state where nobody
+  touches it for months, which is exactly the state that would stop
+  weekly-verify without a word. Weekly rather than daily, so 52 machine commits a
+  year sit beside the handwritten history instead of burying it under 365.
+- **A `preview` job in weekly-verify, watching for the next major.**
+  `pyproject.toml` declares `qiskit>=2.5,<3` and `uv sync --upgrade` honours that
+  ceiling, so the workflow that exists to catch a breaking Qiskit release was
+  blind to the release most likely to break one. This job installs over the
+  ceiling on purpose and runs the seventeen reference solutions against whatever
+  it finds. It stays quiet until a 3.x exists, reports without reddening the
+  badge when one does, and tells three cases apart that a first attempt ran
+  together: a major that is there, a major that is not there yet, and an index it
+  could not reach at all. The third used to look exactly like the second, which
+  meant a broken probe would have read as a clean result for as long as it stayed
+  broken.
+- `dependabot.yml`, monthly and grouped into one pull request per ecosystem. The
+  actions here are pinned by commit, which is right and also means nothing moves
+  them without a person looking.
+
+### Changed
+
+- **weekly-verify runs its jobs on different cadences now.** `latest` resolves
+  fresh versions, so it is the only one that can catch an external change, and it
+  costs one runner: it stays weekly. `locked` installs the exact versions in
+  `uv.lock`, which by definition do not change, so it can only fail when a runner
+  image or an interpreter patch moves under it. Paying for three operating
+  systems every week to learn that was the wrong way round. The matrix runs once
+  a month now, detection is no slower, and a manual run still does everything.
+- The three tests that assert the installed environment is the documented one are
+  deselected in the jobs that install something newer on purpose. They hold for a
+  locked install and are false by construction anywhere else, so the first Qiskit
+  patch release would have turned this badge red over a stale badge rather than a
+  broken exercise, which is the kind of false alarm that teaches a maintainer to
+  stop reading the signal.
+- The badge row is centred, which meant writing it as HTML, because GitHub does
+  not render markdown inside an HTML block.
+- CONTRIBUTING and SECURITY describe three workflows rather than two, and no
+  longer say that nothing here writes back to the repository or that nothing
+  keeps the schedule alive on its own. Both sentences were true when 0.5.0 wrote
+  them and stopped being true the moment `rotate-notes.yml` landed.
+- The LICENSE copyright line carries the full name and the author's site.
+
+### Fixed
+
+- **Moving the badges to HTML had made the badge tests blind.** The fixture
+  matched the markdown spelling only, so all nine badges left it at once and five
+  assertions went from checking them to failing on their absence. It reads both
+  spellings now and labels an HTML badge by the first word of its alt text, so
+  the alt stays useful to a screen reader, "qiskit 2.5.1", while the assertions
+  still look it up as "qiskit".
+- **The Contributing banner named a job that does not exist.** It drew `lint`,
+  `build`, `test` and `scan`. `ci.yml` has `lint`, `secrets` and `test`, and has
+  never built anything. The four checks a contributor actually passes are
+  `format`, `lint`, `secrets` and `test`, which is what it draws now, in the
+  description and the alt text as well as on screen.
+- The README banner's progress bar filled 12 segments of 16 next to the number
+  11/17, showing three quarters for two thirds. Seventeen segments now, one per
+  exercise.
+- weekly-verify no longer reports a second, emptier failure on top of the real
+  one. The step that records the tested version ran under `set -e` with
+  `if: always()`, so a run where the environment never resolved failed twice:
+  once where it actually broke, and once more importing a qiskit that was never
+  installed.
+- A blog title arriving from the feed can no longer break CI. The two tests that
+  scan written files for a bare string read the README as well, and a post titled
+  around `uv run qx` would have failed both. Invisibly, too: the rotation commit
+  is pushed with `GITHUB_TOKEN`, which creates no workflow run, so the README
+  would have sat poisoned until an unrelated pull request went red for it. The
+  block between the NOTES markers is exempt from both scanners, and a square
+  bracket in a title is escaped rather than trusted.
+
 ## 0.5.0 - 2026-08-05
 
 ### Added

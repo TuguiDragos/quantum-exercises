@@ -1,4 +1,4 @@
-<img src="readme-assets/banner-contributing.svg" alt="Contributing: lint, build, test and scan, each one drawn as it passes." width="100%">
+<img src="readme-assets/banner-contributing.svg" alt="Contributing: format, lint, secrets and test, each one drawn as it passes." width="100%">
 
 # Contributing
 
@@ -182,22 +182,43 @@ runs gitleaks over the tree and uses no Python at all.
 The triggers are every pull request and every push to `main`. A push to a side
 branch runs nothing until a pull request exists for it.
 
-`weekly-verify.yml` additionally resolves to the newest Qiskit the version ranges
-allow and runs everything again. That job is the early warning for a breaking
-release, which is why dependencies are ranges rather than exact pins even though
-`uv.lock` is committed. It writes the version it tested to the run summary.
+`weekly-verify.yml` has three jobs on two cadences. `latest` resolves to the
+newest Qiskit the version ranges allow and runs everything again, weekly: it is
+the early warning for a breaking release, which is why dependencies are ranges
+rather than exact pins even though `uv.lock` is committed, and it writes the
+version it tested to the run summary. `preview` installs over the `<3` ceiling
+those ranges impose, because the release most likely to break an exercise is the
+one `latest` cannot see; it is quiet until a 3.x exists and never reddens the
+badge. `locked` installs the exact versions in `uv.lock` across three operating
+systems, monthly, because pinned versions do not change week to week.
+
+Three tests assert that the installed environment is the one the documentation
+describes. They are true of a locked install and false by construction in a job
+that installs something newer on purpose, so `latest` and `preview` deselect them
+through `PYTEST_ADDOPTS`. Without that, the first Qiskit patch release turns the
+badge red over a stale badge rather than a broken exercise.
 
 One thing to watch: GitHub disables a scheduled workflow in a public repository
 after 60 days with no repository activity, and emails the owner when it does. Any
-commit re-arms it, and the workflow can be re-enabled from the Actions tab. No
-workflow in this project writes anything back to the repository, so none of them
-needs write access and nothing keeps the schedule alive on its own.
+commit re-arms it, and the workflow can be re-enabled from the Actions tab.
+`rotate-notes.yml` is what keeps the clock from getting close: it rewrites the
+block between the NOTES markers in the README every Monday and commits the
+result. It is the only workflow here with `contents: write`, and the only one
+that changes anything in the repository.
+
+Those titles arrive from a feed rather than from this repository, so the block
+between the markers is exempt from the two tests that scan written files for a
+bare string, and a square bracket in a title is escaped rather than trusted. A
+commit pushed with `GITHUB_TOKEN` creates no workflow run, so nothing checks the
+rotation at the moment it lands; without both guards a post title could sit in
+the README until an unrelated pull request failed for it.
 
 ## Never in CI, never in tests
 
-Nothing may submit a job to real hardware. Both workflows set `QX_OFFLINE=1` and
-`tests/conftest.py` sets it for the whole session. A test that spends someone's
-free QPU quota is a bug.
+Nothing may submit a job to real hardware. `ci.yml` and `weekly-verify.yml` set
+`QX_OFFLINE=1` and `tests/conftest.py` sets it for the whole session. A test that
+spends someone's free QPU quota is a bug. `rotate-notes.yml` runs no Python and
+touches nothing quantum.
 
 ## Before opening a pull request
 

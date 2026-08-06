@@ -1,15 +1,23 @@
 name: weekly-verify
 
 # The point of this workflow is not to test the code, ci.yml does that. It is to
-# answer one question every week: does this curriculum still work against the
-# Qiskit that exists today?
+# answer one question: does this curriculum still work against the Qiskit that
+# exists today?
 #
 # That is why the "latest" job deliberately ignores uv.lock. If a new Qiskit
 # release breaks a reference solution, this is what notices.
+#
+# The jobs run on different cadences because they are worth different amounts.
+# "latest" resolves fresh versions, so it is the only one that can catch an
+# external change, and it costs one runner. "locked" installs the exact versions
+# recorded in uv.lock, which by definition do not change, so it can only fail
+# when a runner image or an interpreter patch moves under it. Paying for three
+# operating systems every week to learn that was the wrong way round.
 
 on:
   schedule:
-    - cron: "0 6 * * 1" # Mondays, 06:00 UTC
+    - cron: "23 6 * * 1" # Mondays: the fresh resolution, and the next-major probe
+    - cron: "23 6 1 * *" # the 1st: everything, including the full OS matrix
   workflow_dispatch:
 
 permissions: {}
@@ -17,9 +25,36 @@ permissions: {}
 env:
   QX_OFFLINE: "1"
 
+  # Three tests assert that the installed environment is the one the docs
+  # describe: the README version badges, the CONTRIBUTING version table, and the
+  # uv.lock package counts. All three hold for a locked install and are false by
+  # construction in any job that installs something newer on purpose. Left in,
+  # the first Qiskit patch release would turn this badge red over a stale badge
+  # rather than a broken exercise, which is the sort of false alarm that teaches
+  # a maintainer to stop reading the signal.
+  #
+  # Deselected by node id, so renaming one of these tests quietly stops
+  # deselecting it. A `pinned` marker would survive a rename, but that is a
+  # change to the test files rather than to CI.
+  #
+  # Handed to the jobs below through PYTEST_ADDOPTS rather than interpolated into
+  # the command line. pytest splits that variable itself, so the arguments never
+  # depend on the shell doing word splitting on an unquoted expansion, which bash
+  # does and several other shells do not.
+  UNPINNED_DESELECT: >-
+    --deselect tests/test_packaging.py::TestReadmeBadges::test_version_badges_match_the_installed_version
+    --deselect tests/test_packaging.py::TestDependencyInventory::test_documented_versions_are_the_installed_ones
+    --deselect tests/test_packaging.py::TestDependencyInventory::test_locked_package_counts_are_accurate
+
 jobs:
-  # Reproducible run: the exact versions recorded in uv.lock.
+  # Reproducible run: the exact versions recorded in uv.lock, on every supported
+  # operating system. Monthly, because nothing it tests changes week to week.
+  #
+  # Guarded with != rather than ==, so a manual run does the full thing: on
+  # workflow_dispatch the field is empty, and an empty string is not the weekly
+  # cron. Pressing the button by hand should check everything.
   locked:
+    if: github.event.schedule != '23 6 * * 1'
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -50,12 +85,90 @@ jobs:
       - name: Resolve to the newest allowed versions
         run: uv sync --upgrade --all-extras --dev
       - run: uv run pytest -q
+        env:
+          PYTEST_ADDOPTS: ${{ env.UNPINNED_DESELECT }}
+      # if: always(), so the version is recorded even when the suite failed, which
+      # is the run where knowing the version matters most. That is also why the
+      # command is allowed to fail: when it is the resolve step that broke, qiskit
+      # is not importable, and a hard failure here would add a second red step
+      # saying nothing on top of the real one.
+      #
+      # --no-sync reports the environment pytest actually ran against. A plain
+      # `uv run` would resolve again, and an index that moved between the two
+      # steps would be reported as the version under test when it was not.
       - name: Record what was tested
         if: always()
         run: |
-          set -euo pipefail
-          version="$(uv run python -c 'import qiskit; print(qiskit.__version__)')"
+          set -uo pipefail
+          version="$(uv run --no-sync python -c 'import qiskit; print(qiskit.__version__)' 2>/dev/null)" \
+            || version=""
           # Goes on the run summary page rather than into a badge, so nothing has
           # to be written back to the repository and no workflow needs write access.
-          echo "Verified against qiskit **$version** on $(date -u +%Y-%m-%d)." \
+          if [ -n "$version" ]; then
+            echo "Verified against qiskit **$version** on $(date -u +%Y-%m-%d)." \
+              >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No qiskit version was recorded: the environment never resolved." \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # Early warning for the next major, which is the one release the job above
+  # cannot see. pyproject.toml declares qiskit>=2.5,<3, and `uv sync --upgrade`
+  # honours that ceiling, so a Qiskit 3 would never be resolved and the badge
+  # would stay green straight through the release this workflow exists to catch.
+  # This job installs over the ceiling on purpose.
+  #
+  # continue-on-error, so a major that breaks the curriculum reports itself
+  # without reddening the badge. The badge answers "does the shipped course
+  # work", and while the ranges still stop at <3, it does.
+  preview:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: "3.13"
+      - run: uv sync --locked --all-extras --dev
+      # Three outcomes, kept apart on purpose. Treating every failure as "no such
+      # release" would let an unreachable index report as quiet, and quiet is what
+      # this job says when everything is fine, so a broken probe would be
+      # indistinguishable from a clean result for as long as it stayed broken.
+      #
+      # "unsatisfiable" is uv's own word for a version that does not exist, and
+      # was verified against uv 0.11.26 rather than guessed. If a later uv rewords
+      # it, a genuinely absent 3.x falls into the last branch and the job goes
+      # loud. That is the safe direction for this to break in.
+      - name: Install the next major over the ceiling, if one exists yet
+        id: major
+        run: |
+          set -uo pipefail
+          log="$(mktemp)"
+          if uv pip install --upgrade --prerelease=allow 'qiskit[visualization]>=3.0.0.dev0' \
+              >"$log" 2>&1; then
+            echo "found=1" >> "$GITHUB_OUTPUT"
+          elif grep -q "unsatisfiable" "$log"; then
+            echo "No qiskit 3.x on PyPI yet, nothing to preview." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The index could not be reached, so this run says nothing about qiskit 3." \
+              >> "$GITHUB_STEP_SUMMARY"
+            cat "$log"
+            exit 1
+          fi
+      # --no-sync, or `uv run` restores the locked qiskit and undoes the install
+      # above, leaving a job that reports on 2.x while claiming to test 3.x.
+      - name: Run the suite against it
+        if: steps.major.outputs.found == '1'
+        run: uv run --no-sync pytest -q
+        env:
+          PYTEST_ADDOPTS: ${{ env.UNPINNED_DESELECT }}
+      - name: Record what was previewed
+        if: steps.major.outputs.found == '1'
+        run: |
+          set -euo pipefail
+          version="$(uv run --no-sync python -c 'import qiskit; print(qiskit.__version__)')"
+          echo "Previewed qiskit **$version**, which pyproject.toml does not allow yet." \
             >> "$GITHUB_STEP_SUMMARY"

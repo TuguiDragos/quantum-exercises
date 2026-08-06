@@ -1,0 +1,44 @@
+version: 2
+
+# This file does two jobs.
+#
+# The obvious one: the actions in .github/workflows are pinned to commit SHAs,
+# which is the right call for supply-chain reasons and also means nothing ever
+# moves them. A pull request with the changelog attached is how they get read
+# before they get merged.
+#
+# The less obvious one, and the reason the interval is monthly rather than off:
+# GitHub disables a scheduled workflow in a public repository after 60 days with
+# no activity. This project is meant to reach a state where nobody commits to it
+# for months, which is exactly the state that silently stops weekly-verify. A
+# monthly pull request is what keeps it running.
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    # One pull request for all of them, not one per action.
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+
+  # Keeps uv.lock from drifting years behind the ranges in pyproject.toml.
+  #
+  # Expect these to arrive red. Bumping a pinned version makes the README badges
+  # and the CONTRIBUTING table disagree with what is installed, and three tests
+  # exist to say so. That is the tests working: in this context the docs really
+  # are stale, and the failing run is the list of files to update before merging.
+  # If the monthly touch-up is not worth it, delete this block. The one above
+  # already keeps the repository active on its own.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      dependencies:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps"

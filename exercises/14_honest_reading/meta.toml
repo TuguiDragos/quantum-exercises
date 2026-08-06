@@ -1,0 +1,4 @@
+title = "Reading a noisy result honestly"
+act = "Act III - The real world"
+summary = "Real hardware gives outcomes the theory forbids. Learn to quantify that instead of assuming your circuit is broken."
+hardware = false

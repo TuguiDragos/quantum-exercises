@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use this project, please cite it as below."
+title: "quantum-exercises: hands-on Qiskit exercises, from an empty laptop to real IBM hardware"
+abstract: >-
+  A command line course of seventeen exercises in quantum computing with Qiskit,
+  taking a learner from an unprepared machine to a circuit executed on real IBM
+  hardware, and on to a CHSH test that exceeds the classical bound. Answers are verified by inspecting the Qiskit objects a learner's
+  code produces rather than by comparing source text or program output: states
+  and operators are compared up to global phase, and measurement counts are
+  tested against statistical tolerances derived from the binomial standard error
+  and a chi-square goodness-of-fit test, never for equality. Each submission runs
+  in a separate process, and failures are reported in the language of the
+  problem rather than as a Python traceback. Every reference solution is re-run
+  on the 1st and the 15th of each month against the current Qiskit release, so
+  the material cannot rot silently as the library changes.
+type: software
+authors:
+  - family-names: "Tugui"
+    given-names: "Dragos"
+    email: contact@tuguidragos.com
+    website: "https://tuguidragos.com"
+contact:
+  - family-names: "Tugui"
+    given-names: "Dragos"
+    email: contact@tuguidragos.com
+    website: "https://tuguidragos.com"
+version: 0.5.1
+date-released: "2026-08-06"
+license: MIT
+license-url: "https://github.com/TuguiDragos/quantum-exercises/blob/main/LICENSE"
+url: "https://github.com/TuguiDragos/quantum-exercises"
+repository-code: "https://github.com/TuguiDragos/quantum-exercises"
+keywords:
+  - quantum computing
+  - qiskit
+  - quantum programming
+  - IBM Quantum
+  - education
+  - exercises
+  - command line

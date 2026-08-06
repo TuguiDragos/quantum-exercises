@@ -1,0 +1,5 @@
+title = "A Bell state on a real machine"
+act = "Act III - The real world"
+summary = "Transpile to the backend's instruction set and run. Falls back to a noise-modelled simulator when there is no account or no quota."
+hardware = true
+timeout = 900

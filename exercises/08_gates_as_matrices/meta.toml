@@ -1,0 +1,4 @@
+title = "Gates are matrices"
+act = "Act II - Understanding what you see"
+summary = "Build a controlled-Z out of nothing but Hadamards and a CNOT, and read the matrix you produced."
+hardware = false

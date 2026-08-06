@@ -1,0 +1,4 @@
+title = "Counts is just a dictionary"
+act = "Act I - Reaching a first result"
+summary = "Quantum results arrive as a plain Python dict. Write the three functions you will keep reusing."
+hardware = false

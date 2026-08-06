@@ -1,0 +1,177 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="512" viewBox="0 0 1200 512" role="img" aria-labelledby="ht hd">
+<title id="ht">quantum-exercises</title>
+<desc id="hd">A qx session: doctor reports a ready environment, exercise 11 returns a near-even split across two measured outcomes, exercise 13 agrees on 960 of 1024 shots, and list shows eleven of seventeen done. Beside it a light panel names each act as its bar begins to load and turns a ring up to seventeen.</desc>
+<defs>
+  <linearGradient id="ground" x1="0" y1="0" x2="1200" y2="512" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#1a1d2e"></stop><stop offset="1" stop-color="#121422"></stop>
+  </linearGradient>
+  <radialGradient id="halo" cx="996" cy="256" r="400" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#9184d9" stop-opacity="0.16"></stop><stop offset="1" stop-color="#9184d9" stop-opacity="0"></stop>
+  </radialGradient>
+  <radialGradient id="hazeA" cx="920" cy="160" r="150" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#c9b8f0" stop-opacity="0.55"></stop><stop offset="1" stop-color="#c9b8f0" stop-opacity="0"></stop>
+  </radialGradient>
+  <radialGradient id="hazeB" cx="1080" cy="330" r="160" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#8fb6e8" stop-opacity="0.42"></stop><stop offset="1" stop-color="#8fb6e8" stop-opacity="0"></stop>
+  </radialGradient>
+  <filter id="grain" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"></feTurbulence>
+    <feColorMatrix type="saturate" values="0"></feColorMatrix>
+  </filter>
+  <clipPath id="panelClip"><rect x="848" y="95" width="296" height="262" rx="16"></rect></clipPath>
+  <style>
+    .bar { animation-duration: 9s; animation-iteration-count: infinite;
+           animation-timing-function: cubic-bezier(.4, 0, .2, 1);
+           stroke-dasharray: 100; stroke-dashoffset: 100 }
+    .b1 { animation-name: fill1 } .b2 { animation-name: fill2 }
+    .b3 { animation-name: fill3 } .b4 { animation-name: fill4 }
+    @keyframes fill1 { 0%, 5%  { stroke-dashoffset: 100; opacity: 1 } 17%, 90% { stroke-dashoffset: 0; opacity: 1 } 97%, 100% { stroke-dashoffset: 0; opacity: 0 } }
+    @keyframes fill2 { 0%, 22% { stroke-dashoffset: 100; opacity: 1 } 34%, 90% { stroke-dashoffset: 0; opacity: 1 } 97%, 100% { stroke-dashoffset: 0; opacity: 0 } }
+    @keyframes fill3 { 0%, 39% { stroke-dashoffset: 100; opacity: 1 } 48%, 90% { stroke-dashoffset: 0; opacity: 1 } 97%, 100% { stroke-dashoffset: 0; opacity: 0 } }
+    @keyframes fill4 { 0%, 53% { stroke-dashoffset: 100; opacity: 1 } 62%, 90% { stroke-dashoffset: 0; opacity: 1 } 97%, 100% { stroke-dashoffset: 0; opacity: 0 } }
+    .ring { stroke-dashoffset: 87.96; animation: count 9s cubic-bezier(.4, 0, .2, 1) infinite }
+    @keyframes count {
+      0%, 5%    { stroke-dashoffset: 87.96; opacity: 1 }
+      17%, 22%  { stroke-dashoffset: 62.09 }
+      34%, 39%  { stroke-dashoffset: 31.05 }
+      48%, 53%  { stroke-dashoffset: 15.52 }
+      62%, 90%  { stroke-dashoffset: 0; opacity: 1 }
+      97%, 100% { stroke-dashoffset: 0; opacity: 0 }
+    }
+    /* One figure and one verb per act. Both arrive as that act's bar starts to fill,
+       and the ring turns until it reaches the figure. The figure swaps by shrinking
+       away while the next grows into its place; the verb, being wide, only rises. */
+    .n, .w { animation-duration: 9s; animation-iteration-count: infinite;
+             animation-timing-function: cubic-bezier(.4, 0, .2, 1);
+             opacity: 0; transform-box: fill-box; transform-origin: 50% 50% }
+    .n1 { animation-name: fig1 } .n2 { animation-name: fig2 }
+    .n3 { animation-name: fig3 } .n4 { animation-name: fig4 }
+    @keyframes fig1 { 0%          { opacity: 0; transform: scale(.5) }
+                      3.5%, 22%   { opacity: 1; transform: scale(1) }
+                      25.5%, 100% { opacity: 0; transform: scale(.5) } }
+    @keyframes fig2 { 0%, 22%     { opacity: 0; transform: scale(.5) }
+                      25.5%, 39%  { opacity: 1; transform: scale(1) }
+                      42.5%, 100% { opacity: 0; transform: scale(.5) } }
+    @keyframes fig3 { 0%, 39%     { opacity: 0; transform: scale(.5) }
+                      42.5%, 53%  { opacity: 1; transform: scale(1) }
+                      56.5%, 100% { opacity: 0; transform: scale(.5) } }
+    @keyframes fig4 { 0%, 53%     { opacity: 0; transform: scale(.5) }
+                      56.5%, 90%  { opacity: 1; transform: scale(1) }
+                      97%, 100%   { opacity: 0; transform: scale(1) } }
+    .w1 { animation-name: verb1 } .w2 { animation-name: verb2 }
+    .w3 { animation-name: verb3 } .w4 { animation-name: verb4 }
+    @keyframes verb1 { 0%          { opacity: 0; transform: translateY(4px) }
+                       3.5%, 22%   { opacity: 1; transform: translateY(0) }
+                       25.5%, 100% { opacity: 0; transform: translateY(-4px) } }
+    @keyframes verb2 { 0%, 22%     { opacity: 0; transform: translateY(4px) }
+                       25.5%, 39%  { opacity: 1; transform: translateY(0) }
+                       42.5%, 100% { opacity: 0; transform: translateY(-4px) } }
+    @keyframes verb3 { 0%, 39%     { opacity: 0; transform: translateY(4px) }
+                       42.5%, 53%  { opacity: 1; transform: translateY(0) }
+                       56.5%, 100% { opacity: 0; transform: translateY(-4px) } }
+    @keyframes verb4 { 0%, 53%     { opacity: 0; transform: translateY(4px) }
+                       56.5%, 90%  { opacity: 1; transform: translateY(0) }
+                       97%, 100%   { opacity: 0; transform: translateY(0) } }
+    .cur { animation: blink 1.1s step-end infinite }
+    @keyframes blink { 0%, 45% { opacity: 1 } 46%, 100% { opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) {
+      .bar, .ring { animation: none; stroke-dashoffset: 0 }
+      .cur { animation: none }
+      .n, .w { animation: none; opacity: 0 } .n4, .w4 { opacity: 1 }
+    }
+  </style>
+</defs>
+
+<rect width="1200" height="512" rx="14" fill="url(#ground)"></rect>
+<rect width="1200" height="512" rx="14" fill="url(#halo)"></rect>
+<rect x="0.5" y="0.5" width="1199" height="511" rx="14" fill="none" stroke="#2b2e46"></rect>
+
+<g transform="translate(0 30)">
+  <g clip-path="url(#panelClip)">
+    <rect x="848" y="95" width="296" height="262" fill="#f2f2f6"></rect>
+    <rect x="848" y="95" width="296" height="262" fill="url(#hazeA)"></rect>
+    <rect x="848" y="95" width="296" height="262" fill="url(#hazeB)"></rect>
+    <rect x="848" y="95" width="296" height="262" filter="url(#grain)" opacity="0.09"></rect>
+  </g>
+  <rect x="848" y="95" width="296" height="262" rx="16" fill="none" stroke="#ffffff" stroke-opacity="0.6"></rect>
+  <rect x="847" y="94" width="298" height="264" rx="17" fill="none" stroke="#9184d9" stroke-opacity="0.28"></rect>
+
+  <g class="mono" font-family="ui-monospace, SFMono-Regular, &#39;JetBrains Mono&#39;, Menlo, Consolas, monospace">
+    <circle cx="874" cy="121" r="3" fill="#1a1d2e" opacity="0.22"></circle>
+    <circle cx="884" cy="121" r="3" fill="#1a1d2e" opacity="0.22"></circle>
+    <circle cx="894" cy="121" r="3" fill="#1a1d2e" opacity="0.22"></circle>
+    <text x="1118" y="125" text-anchor="end" font-size="10" fill="#1a1d2e" opacity="0.45">quantum-exercises</text>
+
+    <text x="870" y="163" class="ui" font-family="Inter, system-ui, -apple-system, &#39;Segoe UI&#39;, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#1a1d2e">Learn to</text>
+    <text x="940" y="163" class="ui w w1" font-family="Inter, system-ui, -apple-system, &#39;Segoe UI&#39;, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#6b5cc4" opacity="0">Run</text>
+    <text x="940" y="163" class="ui w w2" font-family="Inter, system-ui, -apple-system, &#39;Segoe UI&#39;, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#6b5cc4" opacity="0">Understand</text>
+    <text x="940" y="163" class="ui w w3" font-family="Inter, system-ui, -apple-system, &#39;Segoe UI&#39;, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#6b5cc4" opacity="0">Adapt</text>
+    <text x="940" y="163" class="ui w w4" font-family="Inter, system-ui, -apple-system, &#39;Segoe UI&#39;, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#6b5cc4" opacity="1">Prove</text>
+
+    <line x1="870" y1="201" x2="1122" y2="201" stroke="#1a1d2e" stroke-opacity="0.1"></line>
+    <line x1="876" y1="225" x2="876" y2="321" stroke="#6b5cc4" stroke-opacity="0.22"></line>
+
+    <circle cx="876" cy="225" r="3.6" fill="#6b5cc4" opacity="0.6"></circle>
+    <text x="892" y="228.5" font-size="10" fill="#1a1d2e" opacity="0.55">ACT I</text>
+    <line x1="944" y1="225" x2="1014" y2="225" stroke="#1a1d2e" stroke-opacity="0.18" stroke-width="6" stroke-linecap="round"></line>
+    <line x1="944" y1="225" x2="1014" y2="225" class="bar b1" pathLength="100" fill="none" stroke="#6b5cc4" stroke-width="6" stroke-linecap="round"></line>
+
+    <circle cx="876" cy="257" r="3.6" fill="#6b5cc4" opacity="0.6"></circle>
+    <text x="892" y="260.5" font-size="10" fill="#1a1d2e" opacity="0.55">ACT II</text>
+    <line x1="944" y1="257" x2="1028" y2="257" stroke="#1a1d2e" stroke-opacity="0.18" stroke-width="6" stroke-linecap="round"></line>
+    <line x1="944" y1="257" x2="1028" y2="257" class="bar b2" pathLength="100" fill="none" stroke="#6b5cc4" stroke-width="6" stroke-linecap="round"></line>
+
+    <circle cx="876" cy="289" r="3.6" fill="#6b5cc4" opacity="0.6"></circle>
+    <text x="892" y="292.5" font-size="10" fill="#1a1d2e" opacity="0.55">ACT III</text>
+    <line x1="944" y1="289" x2="986" y2="289" stroke="#1a1d2e" stroke-opacity="0.18" stroke-width="6" stroke-linecap="round"></line>
+    <line x1="944" y1="289" x2="986" y2="289" class="bar b3" pathLength="100" fill="none" stroke="#6b5cc4" stroke-width="6" stroke-linecap="round"></line>
+
+    <circle cx="876" cy="321" r="3.6" fill="#6b5cc4" opacity="0.6"></circle>
+    <text x="892" y="324.5" font-size="10" fill="#1a1d2e" opacity="0.55">ACT IV</text>
+    <line x1="944" y1="321" x2="986" y2="321" stroke="#1a1d2e" stroke-opacity="0.18" stroke-width="6" stroke-linecap="round"></line>
+    <line x1="944" y1="321" x2="986" y2="321" class="bar b4" pathLength="100" fill="none" stroke="#6b5cc4" stroke-width="6" stroke-linecap="round"></line>
+
+    <circle cx="1096" cy="313" r="15.4" fill="#ffffff" fill-opacity="0.82"></circle>
+    <circle cx="1096" cy="313" r="14" fill="none" stroke="#1a1d2e" stroke-opacity="0.13" stroke-width="2.4"></circle>
+    <circle cx="1096" cy="313" r="14" class="ring" fill="none" stroke="#6b5cc4" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="87.96" stroke-dashoffset="0" transform="rotate(-90 1096 313)"></circle>
+    <text x="1096" y="316.5" text-anchor="middle" font-size="10" fill="#6b5cc4" class="n n1" opacity="0">5</text>
+    <text x="1096" y="316.5" text-anchor="middle" font-size="10" fill="#6b5cc4" class="n n2" opacity="0">11</text>
+    <text x="1096" y="316.5" text-anchor="middle" font-size="10" fill="#6b5cc4" class="n n3" opacity="0">14</text>
+    <text x="1096" y="316.5" text-anchor="middle" font-size="10" fill="#6b5cc4" class="n n4" opacity="1">17</text>
+  </g>
+</g>
+
+<rect x="56" y="48" width="752" height="416" rx="10" fill="#101220" stroke="#2b2e46"></rect>
+<path d="M56 84h752" stroke="#2b2e46"></path>
+<circle cx="80" cy="66" r="4.5" fill="#343856"></circle>
+<circle cx="98" cy="66" r="4.5" fill="#343856"></circle>
+<circle cx="116" cy="66" r="4.5" fill="#9184d9" opacity="0.55"></circle>
+<text x="140" y="71" class="mono" font-family="ui-monospace, SFMono-Regular, &#39;JetBrains Mono&#39;, Menlo, Consolas, monospace" font-size="13" fill="#6e7189">zsh · quantum-exercises</text>
+
+<g class="mono" font-family="ui-monospace, SFMono-Regular, &#39;JetBrains Mono&#39;, Menlo, Consolas, monospace" font-size="14.5" fill="#7e8299" xml:space="preserve">
+  <text x="84" y="114" font-size="16" fill="#9184d9">$</text>
+  <text x="100" y="114" font-size="16" fill="#e9e9ed">qx doctor</text>
+  <text x="100" y="134">  <tspan fill="#b5abfc">ok</tspan>  Qiskit SDK          version <tspan fill="#cfd3e5">2.5.1</tspan></text>
+  <text x="100" y="154">  <tspan fill="#b5abfc">ok</tspan>  Circuit smoke test  ran a Hadamard on <tspan fill="#cfd3e5">64</tspan> shots</text>
+  <text x="100" y="174">  Environment is ready. Run `<tspan fill="#b5abfc">qx next</tspan>` to begin.</text>
+
+  <text x="84" y="202" font-size="16" fill="#9184d9">$</text>
+  <text x="100" y="202" font-size="16" fill="#e9e9ed">qx run 11</text>
+  <text x="100" y="222">  <tspan fill="#cfd3e5">00</tspan>  <tspan fill="#9184d9">██████████████████</tspan>    <tspan fill="#cfd3e5">972</tspan>  <tspan fill="#cfd3e5">47.5%</tspan></text>
+  <text x="100" y="242">  <tspan fill="#cfd3e5">11</tspan>  <tspan fill="#9184d9">████████████████████</tspan> <tspan fill="#cfd3e5">1076</tspan>  <tspan fill="#cfd3e5">52.5%</tspan></text>
+  <text x="100" y="262">  <tspan fill="#b5abfc">PASS</tspan>  <tspan fill="#cfd3e5">11_bell_entanglement</tspan></text>
+
+  <text x="84" y="290" font-size="16" fill="#9184d9">$</text>
+  <text x="100" y="290" font-size="16" fill="#e9e9ed">qx run 13</text>
+  <text x="100" y="310">  backend             <tspan fill="#cfd3e5">ibm_fez</tspan></text>
+  <text x="100" y="330">  agreed (00 or 11)   <tspan fill="#cfd3e5">960 of 1024</tspan>   <tspan fill="#cfd3e5">93.75%</tspan></text>
+  <text x="100" y="350">  <tspan fill="#b5abfc">PASS</tspan>  <tspan fill="#cfd3e5">13_real_hardware</tspan></text>
+
+  <text x="84" y="378" font-size="16" fill="#9184d9">$</text>
+  <text x="100" y="378" font-size="16" fill="#e9e9ed">qx list</text>
+  <text x="100" y="398">  progress  <tspan fill="#9184d9">████████████</tspan><tspan fill="#343856">░░░░</tspan>  <tspan fill="#cfd3e5">11/17</tspan></text>
+
+  <text x="84" y="426" font-size="16" fill="#9184d9">$</text>
+</g>
+<rect x="100" y="411" width="2.5" height="19" class="cur" fill="#9184d9"></rect>
+</svg>

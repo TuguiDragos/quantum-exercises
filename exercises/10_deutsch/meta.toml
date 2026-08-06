@@ -1,0 +1,4 @@
+title = "Deutsch's algorithm in one query"
+act = "Act II - Understanding what you see"
+summary = "The first algorithm that provably beats every classical one. Four lines, using only the interference you just built."
+hardware = false

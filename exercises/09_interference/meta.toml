@@ -1,0 +1,4 @@
+title = "Interference: amplitudes that cancel"
+act = "Act II - Understanding what you see"
+summary = "Two Hadamards undo each other. Put a phase between them and they do the opposite. This cancellation is the whole trick."
+hardware = false

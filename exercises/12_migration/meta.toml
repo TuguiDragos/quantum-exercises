@@ -1,0 +1,4 @@
+title = "Code from 2021 that no longer runs"
+act = "Act III - The real world"
+summary = "Take working Qiskit code from 2021 and make it run on 2.x. This is the skill that unblocks every old tutorial you will ever find."
+hardware = false

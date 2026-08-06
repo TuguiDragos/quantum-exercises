@@ -1,0 +1,4 @@
+title = "Bell state, and which bit is which"
+act = "Act II - Understanding what you see"
+summary = "Build the two-qubit state that started the whole argument, then work out which character of the bitstring is qubit 0."
+hardware = false

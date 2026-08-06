@@ -1,0 +1,39 @@
+# Revisions verified against each repository's tags on 2026-08-04.
+# Note nbstripout tags have no leading "v", unlike the others.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: mixed-line-ending
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1
+    hooks:
+      # ruff-check replaced the older id "ruff"; both exist, only this one is current.
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  # Notebook outputs can contain IBM job ids and account details. Strip them.
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.9.1
+    hooks:
+      - id: nbstripout
+
+  # GitHub push protection does not recognise the IBM Quantum API key format,
+  # which is 44 generic characters, and neither does gitleaks out of the box:
+  # verified that a hardcoded key passes the default rule set untouched. The rule
+  # that does catch it lives in .gitleaks.toml.
+  #
+  # This hook scans staged changes only. The tree-wide scan is the `secrets` job
+  # in ci.yml, because installing hooks is opt-in and easy to skip.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

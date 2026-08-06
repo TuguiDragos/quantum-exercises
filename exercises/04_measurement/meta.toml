@@ -1,0 +1,4 @@
+title = "Measurement, or the result is empty"
+act = "Act I - Reaching a first result"
+summary = "Add measurement and run the circuit. Forget the measurement and Qiskit hands you nothing, without raising an error."
+hardware = false

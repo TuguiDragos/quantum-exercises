@@ -1,0 +1,4 @@
+title = "Your environment works"
+act = "Act I - Reaching a first result"
+summary = "Prove the toolchain is real: import Qiskit and read the version it reports about itself."
+hardware = false

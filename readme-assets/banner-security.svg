@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="168" viewBox="0 0 1200 168" role="img" aria-labelledby="t-sec d-sec">
+<title id="t-sec">Security</title>
+<desc id="d-sec">Two places side by side. The repository holds exercises, source and notebooks; the credential file lives on your machine, readable by its owner alone. A broken line marks the boundary between them.</desc>
+<defs>
+  <linearGradient id="g-sec" x1="0" y1="0" x2="1200" y2="168" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#1a1d2e"/><stop offset="1" stop-color="#121422"/>
+  </linearGradient>
+  <linearGradient id="fade-sec" x1="0" y1="56" x2="0" y2="132" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#9184d9" stop-opacity="0"/><stop offset="0.3" stop-color="#9184d9" stop-opacity="0.6"/>
+    <stop offset="0.7" stop-color="#9184d9" stop-opacity="0.6"/><stop offset="1" stop-color="#9184d9" stop-opacity="0"/>
+  </linearGradient>
+  <radialGradient id="h-sec" cx="1010" cy="84" r="290" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#9184d9" stop-opacity="0.15"/><stop offset="1" stop-color="#9184d9" stop-opacity="0"/>
+  </radialGradient>
+  <style>
+    .ui { font-family: Inter, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace; }
+    /* 6.4s: the repository outlines itself and names what it tracks, then the machine
+       does the same and the file mode lands last. Nothing ever crosses the boundary
+       between them, which is the whole claim the page is making. */
+    .edge { fill: none; stroke-width: 1.6; stroke-dasharray: 100; stroke-dashoffset: 100; }
+    .edgeL { stroke: #55507a; animation: drawL 9s cubic-bezier(.4, 0, .2, 1) infinite; }
+    .edgeR { stroke: #9184d9; animation: drawR 9s cubic-bezier(.4, 0, .2, 1) infinite; }
+    @keyframes drawL { 0%, 2%   { stroke-dashoffset: 100; opacity: 1 }
+                       14%, 38% { stroke-dashoffset: 0;   opacity: 1 }
+                       48%      { stroke-dashoffset: 0;   opacity: 0 }
+                       49%, 100%{ stroke-dashoffset: 100; opacity: 0 } }
+    @keyframes drawR { 0%, 52%  { stroke-dashoffset: 100; opacity: 1 }
+                       64%, 88% { stroke-dashoffset: 0;   opacity: 1 }
+                       98%, 100%{ stroke-dashoffset: 0;   opacity: 0 } }
+    .txt { fill: #4a4d73; }
+    .txtL { animation: litL 9s ease-out infinite; }
+    .txtR { animation: litR 9s ease-out infinite; }
+    .mode { animation: litMode 9s ease-out infinite; }
+    @keyframes litL    { 0%, 8%  { fill: #4a4d73 } 18%, 38% { fill: #cfd3e5 } 48%, 100% { fill: #4a4d73 } }
+    @keyframes litR    { 0%, 58% { fill: #4a4d73 } 66%, 88% { fill: #cfd3e5 } 98%, 100% { fill: #4a4d73 } }
+    @keyframes litMode { 0%, 70% { fill: #4a4d73 } 76%, 88% { fill: #b5abfc } 98%, 100% { fill: #4a4d73 } }
+    .bound { animation: march 1.6s linear infinite; }
+    @keyframes march { to { stroke-dashoffset: -22 } }
+    @media (prefers-reduced-motion: reduce) {
+      .edge { animation: none; stroke-dashoffset: 0 }
+      .bound { animation: none }
+      .txtL, .txtR { animation: none; fill: #cfd3e5 }
+      .mode { animation: none; fill: #b5abfc }
+    }
+  </style>
+</defs>
+<rect width="1200" height="168" rx="14" fill="url(#g-sec)"/>
+<rect width="1200" height="168" rx="14" fill="url(#h-sec)"/>
+<rect x="0.5" y="0.5" width="1199" height="167" rx="14" fill="none" stroke="#2b2e46"/>
+<rect x="56" y="52" width="3" height="64" rx="1.5" fill="#9184d9"/>
+<text x="80" y="76" class="ui" font-size="23" font-weight="500" fill="#e9e9ed" letter-spacing="-0.3">Security</text>
+<text x="80" y="104" class="ui" font-size="14" fill="#8e91ad">An account is optional. The key never reaches this repository.</text>
+
+<g xml:space="preserve">
+  <text x="665" y="62" text-anchor="middle" class="mono" font-size="10" fill="#75798c" letter-spacing="0.3">this repository</text>
+  <rect x="549" y="74" width="232" height="42" rx="10" fill="#171a2a" stroke="#2b2e46" stroke-width="1.6"/>
+  <path d="M559 74H771A10 10 0 0 1 781 84V106A10 10 0 0 1 771 116H559A10 10 0 0 1 549 106V84A10 10 0 0 1 559 74Z" pathLength="100" class="edge edgeL"/>
+  <text x="569" y="99" class="mono txt txtL" font-size="10.5">exercises/  src/  notebooks/</text>
+
+  <path d="M796 56V132" class="bound" fill="none" stroke="url(#fade-sec)" stroke-width="1.4" stroke-dasharray="5 6"/>
+
+  <text x="978" y="62" text-anchor="middle" class="mono" font-size="10" fill="#75798c" letter-spacing="0.3">your machine</text>
+  <rect x="811" y="74" width="333" height="42" rx="10" fill="#171a2a" stroke="#2b2e46" stroke-width="1.6"/>
+  <path d="M821 74H1134A10 10 0 0 1 1144 84V106A10 10 0 0 1 1134 116H821A10 10 0 0 1 811 106V84A10 10 0 0 1 821 74Z" pathLength="100" class="edge edgeR"/>
+  <text x="831" y="99" class="mono txt txtR" font-size="10.5">~/.qiskit/qiskit-ibm.json  <tspan class="mode">0600, owner only</tspan></text>
+</g>
+</svg>

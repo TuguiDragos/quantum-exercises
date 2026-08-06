@@ -1,0 +1,159 @@
+name: Rotate notes
+
+# Rewrites the block between the NOTES markers in README.md with five posts from
+# the author's feed, chosen by a seeded shuffle so the set changes without ever
+# repeating inside a cycle.
+#
+# It is also the only thing in this repository that commits on a schedule, and
+# that is deliberate. GitHub disables a scheduled workflow in a public repository
+# after 60 days with no activity, and this project is meant to reach a state
+# where nobody touches it for months, which is exactly the state that would stop
+# verify.yml without a word. A commit twice a month keeps the clock from ever
+# getting close.
+#
+# Twice a month rather than daily, and the reason is margin rather than cost: a
+# run is about a minute. Sixty days is the limit, and the widest gap between the
+# 1st and the 15th is seventeen days, so two consecutive runs can fail outright
+# before the clock gets anywhere near it. Runs do fail; a GitHub incident took
+# out every job in this repository on the day this was written.
+#
+# Monthly would look tidier and halve that margin twice over: one skipped run
+# puts the gap at sixty-two days, past the limit, from a single bad morning.
+#
+# Cron has no notion of a week of the year, so "every two weeks" is not
+# expressible. Fixed days of the month are, and land close enough.
+
+on:
+  schedule:
+    - cron: "17 4 1,15 * *" # the 1st and the 15th, 04:17 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  rotate:
+    runs-on: ubuntu-latest
+    permissions:
+      # The one workflow here that writes. Everything else in this repository
+      # runs read-only, so this is the job to look at first if the question is
+      # ever "what can CI change".
+      contents: write
+    steps:
+      # Pinned by commit, like every other action in this repository. It matters
+      # most here: this is the workflow holding write access, so a moved tag
+      # would be a moved tag on the one job that can push.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Pick this round's five
+        run: |
+          cat > /tmp/rotate.mjs <<'JS'
+          import { readFileSync, writeFileSync } from "node:fs";
+
+          const FEED = "https://tuguidragos.com/rss/";
+          const decode = (s) => s
+            .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+            .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+            .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'");
+
+          const parse = (xml) => [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map((m) => {
+            const grab = (tag) => {
+              const re = new RegExp(`<${tag}>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</${tag}>`);
+              return (m[1].match(re) || [])[1] || "";
+            };
+            return { title: decode(grab("title").trim()), link: grab("link").trim() };
+          }).filter((i) => i.title && i.link);
+
+          // Ghost paginates the feed at 15 posts, so walk pages until one runs dry.
+          const items = [];
+          const links = new Set();
+          for (let page = 1; page <= 30; page++) {
+            const url = page === 1 ? FEED : `${FEED}${page}/`;
+            let res;
+            try {
+              res = await fetch(url);
+            } catch {
+              break;
+            }
+            if (!res.ok) break;
+            const batch = parse(await res.text());
+            if (batch.length === 0) break;
+            let added = 0;
+            for (const it of batch) {
+              if (links.has(it.link)) continue;
+              links.add(it.link);
+              items.push(it);
+              added++;
+            }
+            if (added === 0) break;
+          }
+
+          if (items.length === 0) {
+            console.log("Feed returned no items — leaving README untouched.");
+            process.exit(0);
+          }
+
+          const PER_DAY = 5;
+
+          const shuffle = (arr, seedStr) => {
+            const a = arr.slice();
+            let seed = 2166136261;
+            for (const ch of seedStr) {
+              seed ^= ch.charCodeAt(0);
+              seed = Math.imul(seed, 16777619) >>> 0;
+            }
+            const rand = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
+            for (let i = a.length - 1; i > 0; i--) {
+              const j = Math.floor(rand() * (i + 1));
+              [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+          };
+
+          const dayNo = Math.floor(Date.now() / 86400000);
+          const perCycle = Math.ceil(items.length / PER_DAY);
+          const cycle = Math.floor(dayNo / perCycle);
+          const slot = ((dayNo % perCycle) + perCycle) % perCycle;
+          const deck = shuffle(items, "cycle-" + cycle);
+
+          const today = [];
+          for (let k = 0; k < PER_DAY && k < deck.length; k++) {
+            today.push(deck[(slot * PER_DAY + k) % deck.length]);
+          }
+          const seen = new Set();
+          const picked = today.filter((i) => !seen.has(i.link) && seen.add(i.link));
+
+          // A square bracket in a post title would end the markdown link early and
+          // leave the rest of the title loose in the README. The titles come from a
+          // feed rather than from this repository, so they are escaped rather than
+          // trusted.
+          const esc = (s) => s.replace(/[[\]]/g, "\\$&");
+
+          const list = picked.map((i) => `- [${esc(i.title)}](${i.link})`).join("\n");
+          const file = "README.md";
+          const md = readFileSync(file, "utf8");
+          const next = md.replace(
+            /<!-- NOTES:START -->[\s\S]*?<!-- NOTES:END -->/,
+            `<!-- NOTES:START -->\n${list}\n<!-- NOTES:END -->`
+          );
+          if (next === md) {
+            console.log("No change.");
+          } else {
+            writeFileSync(file, next);
+            console.log(`Wrote ${picked.length} of ${items.length} posts (deck ${cycle}, slot ${slot + 1}/${perCycle}).`);
+          }
+          JS
+          node /tmp/rotate.mjs
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: rotate notes" \
+                       -m "Co-authored-by: Țugui Dragoș <contact@tuguidragos.com>"
+            git push
+          fi

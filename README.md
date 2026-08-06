@@ -1,15 +1,22 @@
-# quantum-exercises
+<img src="readme-assets/hero.svg" alt="quantum-exercises: from an empty laptop to a quantum circuit on real IBM hardware. A qx session runs doctor, two exercises and list, beside a panel that fills one bar per act while a ring counts toward seventeen." width="100%">
 
-[![ci](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/ci.yml/badge.svg)](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/ci.yml)
-[![weekly-verify](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/weekly-verify.yml/badge.svg)](https://github.com/TuguiDragos/quantum-exercises/actions/workflows/weekly-verify.yml)
+<p align="center">
+  <a href="https://github.com/TuguiDragos/quantum-exercises/actions/workflows/ci.yml"><img alt="ci" src="https://github.com/TuguiDragos/quantum-exercises/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/TuguiDragos/quantum-exercises/actions/workflows/weekly-verify.yml"><img alt="weekly-verify" src="https://github.com/TuguiDragos/quantum-exercises/actions/workflows/weekly-verify.yml/badge.svg" /></a>
+</p>
 
-[![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![qiskit](https://img.shields.io/badge/qiskit-2.5.1-6929C4)](https://pypi.org/project/qiskit/)
-[![qiskit-ibm-runtime](https://img.shields.io/badge/qiskit--ibm--runtime-0.48.0-6929C4)](https://pypi.org/project/qiskit-ibm-runtime/)
-[![qiskit-aer](https://img.shields.io/badge/qiskit--aer-0.17.2-6929C4)](https://pypi.org/project/qiskit-aer/)
-[![uv](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fastral-sh%2Fuv%2Fmain%2Fassets%2Fbadge%2Fv0.json)](https://github.com/astral-sh/uv)
-[![ruff](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fastral-sh%2Fruff%2Fmain%2Fassets%2Fbadge%2Fv2.json)](https://github.com/astral-sh/ruff)
-[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+<p align="center">
+  <a href="https://pypi.org/project/qiskit/"><img alt="qiskit 2.5.1" src="https://img.shields.io/badge/qiskit-2.5.1-161826?style=flat&labelColor=161826&logo=qiskit&logoColor=9184D9" /></a>
+  <a href="https://pypi.org/project/qiskit-ibm-runtime/"><img alt="qiskit-ibm-runtime 0.48.0" src="https://img.shields.io/badge/qiskit--ibm--runtime-0.48.0-161826?style=flat&labelColor=161826&logo=qiskit&logoColor=9184D9" /></a>
+  <a href="https://pypi.org/project/qiskit-aer/"><img alt="qiskit-aer 0.17.2" src="https://img.shields.io/badge/qiskit--aer-0.17.2-161826?style=flat&labelColor=161826&logo=qiskit&logoColor=9184D9" /></a>
+  <a href="https://github.com/astral-sh/uv"><img alt="uv" src="https://img.shields.io/badge/uv-161826?style=flat&labelColor=161826&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTE4NEQ5IiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTIgMy4yIDMuOCA3LjR2OS4yTDEyIDIwLjhsOC4yLTQuMlY3LjR6Ii8%2BPHBhdGggZD0iTTMuOCA3LjQgMTIgMTEuNmw4LjItNC4yTTEyIDExLjZ2OS4yIi8%2BPC9nPjwvc3ZnPg%3D%3D" /></a>
+  <a href="https://github.com/astral-sh/ruff"><img alt="ruff" src="https://img.shields.io/badge/ruff-161826?style=flat&labelColor=161826&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTE4NEQ5IiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMy42IDYuMmgxNi44TTMuNiAxMmg5LjZNMy42IDE3LjhoNiIvPjxwYXRoIGQ9Im0xNS40IDE2LjYgMi4zIDIuMyA0LjQtNC43Ii8%2BPC9nPjwvc3ZnPg%3D%3D" /></a>
+  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-161826?style=flat&labelColor=161826&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTE4NEQ5IiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTIgMy40djE3LjJNNy40IDIwLjZoOS4yTTMuOCA3LjJoMTYuNE0xMiAzLjkgMy44IDcuMk0xMiAzLjlsOC4yIDMuMyIvPjxwYXRoIGQ9Ik0zLjggNy42IDEuNSAxMy4yYTIuNyAyLjcgMCAwIDAgNC42IDB6TTIwLjIgNy42bC0yLjMgNS42YTIuNyAyLjcgMCAwIDAgNC42IDB6Ii8%2BPC9nPjwvc3ZnPg%3D%3D" /></a>
+  <a href="https://tuguidragos.com"><img alt="tuguidragos.com" src="https://img.shields.io/badge/tuguidragos.com-161826?style=flat&labelColor=161826&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTE4NEQ5IiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSI4LjYiLz48cGF0aCBkPSJNMy40IDEyaDE3LjIiLz48cGF0aCBkPSJNMTIgMy40YTEzLjQgMTMuNCAwIDAgMSAwIDE3LjIgMTMuNCAxMy40IDAgMCAxIDAtMTcuMiIvPjwvZz48L3N2Zz4%3D" /></a>
+  <a href="https://www.python.org/"><img alt="Python 3.10 | 3.11 | 3.12 | 3.13 | 3.14" src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-161826?style=flat&labelColor=161826&logo=python&logoColor=9184D9" /></a>
+</p>
+
+---
 
 Seventeen hands-on exercises that take you from an empty laptop to a quantum
 circuit on real IBM hardware, and then to a Bell test that no classical

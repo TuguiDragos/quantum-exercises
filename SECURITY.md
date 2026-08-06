@@ -1,3 +1,5 @@
+<img src="readme-assets/banner-security.svg" alt="Security: two places side by side. The repository holds exercises, source and notebooks; the credential file lives on your machine, readable by its owner alone. A broken line marks the boundary between them." width="100%">
+
 # Security
 
 ## Reporting a vulnerability

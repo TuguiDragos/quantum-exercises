@@ -1,3 +1,5 @@
+<img src="readme-assets/banner-conduct.svg" alt="Code of Conduct: Contributor Covenant 3.0. A conversation drawn back and forth between two people, with the wider group listening." width="100%">
+
 # Code of Conduct
 
 ## The short version
@@ -37,5 +39,5 @@ above.
 ## Attribution
 
 This document is adapted in spirit from the
-[Contributor Covenant](https://www.contributor-covenant.org), version 2.1,
-available at https://www.contributor-covenant.org/version/2/1/code_of_conduct/.
+[Contributor Covenant](https://www.contributor-covenant.org), version 3.0,
+available at https://www.contributor-covenant.org/version/3/0/code_of_conduct/.

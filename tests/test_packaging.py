@@ -205,6 +205,15 @@ class TestDependencyInventory:
         running = f"{sys.version_info.major}.{sys.version_info.minor}"
         if running != DOCUMENTED_INTERPRETER:
             pytest.skip(f"the count is for {DOCUMENTED_INTERPRETER}; this is {running}")
+        # Only the first two counts are properties of the lockfile. The third is a
+        # property of a machine: ipykernel pulls appnope on macOS and nowhere else,
+        # so a mac installs exactly one distribution more than Linux does. The
+        # documented figure is the Linux one, because that is what CI can hold to,
+        # and asserting it on a mac was checking a number the prose never claimed.
+        # It passed for months only because it was written on the machine it
+        # described.
+        if sys.platform != "linux":
+            pytest.skip(f"the count is for Linux; this is {sys.platform}")
         assert installed == len(list(distributions()))
 
     def test_ci_matrix_matches_the_prose(self, root: Path, inventory: str) -> None:

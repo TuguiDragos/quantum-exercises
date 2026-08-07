@@ -50,7 +50,9 @@ Development, installed by `uv sync` and not needed to take the course:
 Counting everything those pull in, `uv.lock` records 122 package entries. That is
 not the size of any one environment: the lockfile carries a separate entry per
 resolution, so numpy, scipy and six others appear more than once. It names 112
-distinct packages, and a 3.13 environment ends up with 105 installed.
+distinct packages, and a 3.13 environment on Linux ends up with 104 installed.
+A mac has exactly one more: `ipykernel` pulls `appnope` there and nowhere else,
+which is why that last figure names a platform and the other two do not.
 Two more tools are fetched by pre-commit and CI rather than installed into the
 environment: [gitleaks](https://github.com/gitleaks/gitleaks) 8.30.1 for secret
 scanning, and the hooks from

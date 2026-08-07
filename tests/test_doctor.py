@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -151,6 +152,8 @@ class TestCredentialPermissions:
         path.chmod(mode)
         return path
 
+    # _loose_permissions returns None on Windows: there are no group or other bits.
+    @pytest.mark.skipif(os.name == "nt", reason="POSIX modes")
     def test_world_readable_key_is_a_warning(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -160,6 +163,7 @@ class TestCredentialPermissions:
         assert "other local users" in check.detail
         assert "chmod 600" in check.fix
 
+    @pytest.mark.skipif(os.name == "nt", reason="POSIX modes")
     def test_group_readable_key_is_a_warning(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

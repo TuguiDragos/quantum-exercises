@@ -409,9 +409,12 @@ class TestOneSpellingForTheCommand:
         """
         from quantum_exercises import invocation
 
+        # shutil.which only matches a bare name on Windows if it ends in a PATHEXT
+        # extension, and `uv tool install` writes qx.exe there anyway.
+        name = "qx.exe" if os.name == "nt" else "qx"
         for directory in path_entries:
             directory.mkdir(parents=True, exist_ok=True)
-            executable = directory / "qx"
+            executable = directory / name
             executable.write_text("#!/bin/sh\n", encoding="utf-8")
             executable.chmod(0o755)
 

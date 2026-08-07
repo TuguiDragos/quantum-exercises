@@ -339,7 +339,7 @@ metadata; GitHub turns it into a formatted citation from the sidebar.
 
 ### The notebook
 
-Everything I learn about quantum computing, written down in order, at [tuguidragos.com](https://tuguidragos.com). Five notes, picked fresh every day:
+Everything I learn about quantum computing, written down in order, at [tuguidragos.com](https://tuguidragos.com). Five notes, picked fresh on the 1st and the 15th:
 
 <!-- NOTES:START -->
 - [My IBM Quantum node for n8n is now live](https://tuguidragos.com/ibm-quantum-node-for-n8n/)

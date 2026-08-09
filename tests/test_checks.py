@@ -229,3 +229,75 @@ class TestArtifacts:
         ]
         for artifact in artifacts:
             json.dumps({"payload": artifact.payload, "meta": artifact.meta})
+
+
+class TestChecksEdges:
+    def test_statevector_passthrough(self) -> None:
+        sv = Statevector([1, 0])
+        assert checks.as_statevector(sv) is sv
+
+    def test_as_statevector_rejects_a_stranger(self) -> None:
+        with pytest.raises(checks.CheckFailed, match="Expected a QuantumCircuit"):
+            checks.as_statevector("not a circuit")
+
+    def test_as_statevector_reports_a_mid_circuit_measurement(self) -> None:
+        qc = QuantumCircuit(1, 1)
+        qc.measure(0, 0)
+        qc.h(0)
+        with pytest.raises(checks.CheckFailed, match="cannot be turned into a statevector"):
+            checks.as_statevector(qc)
+
+    def test_operator_passthrough(self) -> None:
+        op = Operator(np.eye(2))
+        assert checks.as_operator(op) is op
+
+    def test_as_operator_rejects_a_stranger(self) -> None:
+        with pytest.raises(checks.CheckFailed, match="Expected a QuantumCircuit"):
+            checks.as_operator(3.14)
+
+    def test_target_state_from_ndarray(self) -> None:
+        qc = QuantumCircuit(1)
+        qc.x(0)
+        checks.assert_state_equiv(qc, np.array([0, 1]))
+
+    def test_target_state_from_circuit(self) -> None:
+        left = QuantumCircuit(1)
+        left.x(0)
+        checks.assert_state_equiv(left, left.copy())
+
+    def test_operator_dimension_mismatch(self) -> None:
+        qc = QuantumCircuit(1)
+        qc.h(0)
+        with pytest.raises(checks.CheckFailed, match="Wrong dimensions"):
+            checks.assert_operator_equiv(qc, Operator(np.eye(4)))
+
+    def test_operator_mismatch_mentions_endianness(self) -> None:
+        qc = QuantumCircuit(1)
+        qc.h(0)
+        with pytest.raises(checks.CheckFailed) as excinfo:
+            checks.assert_operator_equiv(qc, np.eye(2))
+        assert "little-endian" in excinfo.value.detail
+
+    def test_non_unitary_is_rejected(self) -> None:
+        with pytest.raises(checks.CheckFailed, match="not unitary"):
+            checks.assert_unitary(Operator(np.array([[1, 0], [0, 2]])))
+
+    def test_certain_outcome_that_did_not_happen(self) -> None:
+        with pytest.raises(checks.CheckFailed) as excinfo:
+            checks.assert_counts_close({"0": 900, "1": 124}, {"0": 1.0, "1": 0.0})
+        assert "predicted certain" in excinfo.value.detail
+
+    def test_impossible_outcome_that_stayed_impossible(self) -> None:
+        checks.assert_counts_close({"0": 1024}, {"0": 1.0, "1": 0.0})
+
+    def test_chi_square_rejects_empty_counts(self) -> None:
+        with pytest.raises(checks.CheckFailed, match="No shots"):
+            checks.chi_square_counts({}, {"0": 1.0})
+
+    def test_require_accepts_a_type_tuple(self) -> None:
+        module = ModuleType("m")
+        module.value = 3
+        assert checks.require(module, "value", (int, float)) == 3
+        module.wrong = "s"
+        with pytest.raises(checks.CheckFailed, match="int or float"):
+            checks.require(module, "wrong", (int, float))

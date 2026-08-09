@@ -9,6 +9,8 @@ a single DataBin field named `meas`, which is exactly what is reconstructed here
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from qiskit import QuantumCircuit
 from qiskit.primitives.containers import BitArray, DataBin, PrimitiveResult, SamplerPubResult
@@ -270,3 +272,42 @@ class TestNoiseModelIsActuallyUsed:
         circuit.measure_all()
         counts = backends.sample(circuit, selection, shots=512)
         assert set(counts) <= {"00", "11"}
+
+
+def test_normalize_counts_rejects_multiple_registers() -> None:
+    with pytest.raises(ValueError, match="several classical registers"):
+        backends._normalize_counts({"00 11": 5})
+
+
+def test_single_register_counts_rejects_an_empty_result() -> None:
+    fake = SimpleNamespace(data=SimpleNamespace(keys=lambda: []))
+    with pytest.raises(ValueError, match="no classical register"):
+        backends.single_register_counts(fake)
+
+
+def test_get_backend_without_hardware_is_a_plain_simulator() -> None:
+    selection = backends.get_backend(prefer_hardware=False)
+    assert selection.kind == "simulator"
+    assert "not requested" in selection.reason
+
+
+def test_get_backend_falls_back_when_runtime_is_absent(monkeypatch) -> None:
+    monkeypatch.delenv(backends.OFFLINE_ENV, raising=False)
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "qiskit_ibm_runtime":
+            raise ImportError("absent")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    selection = backends.get_backend()
+    assert selection.kind in ("noisy_simulator", "simulator")
+    assert "not installed" in selection.reason
+
+
+def test_selection_describe_covers_every_kind() -> None:
+    for kind in ("hardware", "noisy_simulator", "simulator"):
+        assert backends.Selection(None, kind, "n", "r").describe()

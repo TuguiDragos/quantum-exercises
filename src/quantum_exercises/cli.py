@@ -26,7 +26,7 @@ from quantum_exercises.registry import (
 )
 from quantum_exercises.runner import ran_on as run_result_ran_on
 from quantum_exercises.runner import run_exercise
-from quantum_exercises.state import State, load
+from quantum_exercises.state import State, load, locked
 
 app = typer.Typer(
     name="qx",
@@ -290,12 +290,14 @@ def run(
     ui.render_run(exercise, result, root=root)
 
     if result.passed and not solution:
-        # Re-read before writing: a run can take minutes, and another qx process
-        # that recorded progress meanwhile would be erased by this stale copy.
-        state = load(root)
-        was_complete = state.is_complete(exercise.slug)
-        state.mark_done(exercise.slug, ran_on=run_result_ran_on(result.artifacts))
-        ui.save_progress(root, state)
+        # Re-read inside the lock, not before it: a run can take minutes, and
+        # another qx process that recorded progress meanwhile would be erased by
+        # this stale copy. Re-reading alone only narrowed that window.
+        with locked(root):
+            state = load(root)
+            was_complete = state.is_complete(exercise.slug)
+            state.mark_done(exercise.slug, ran_on=run_result_ran_on(result.artifacts))
+            ui.save_progress(root, state)
         if not was_complete:
             remaining = [e for e in exercises if not state.is_complete(e.slug)]
             if remaining:
@@ -323,13 +325,14 @@ def hint(
         ui.warn(f"{exercise.slug} has no hints.")
         raise typer.Exit(code=0)
 
-    state = load(root)
-    if all_hints:
-        state.get(exercise.slug).hints_revealed = len(hints)
-        visible = len(hints)
-    else:
-        visible = state.reveal_hint(exercise.slug, len(hints))
-    ui.save_progress(root, state)
+    with locked(root):
+        state = load(root)
+        if all_hints:
+            state.get(exercise.slug).hints_revealed = len(hints)
+            visible = len(hints)
+        else:
+            visible = state.reveal_hint(exercise.slug, len(hints))
+        ui.save_progress(root, state)
 
     ui.console.print()
     for index in range(visible):
@@ -389,9 +392,11 @@ def solution(
     # Re-read after the prompt, not before it: the confirmation blocks for as long
     # as the reader takes to answer, and progress another qx process recorded in
     # that window would be erased by this stale copy.
-    state = load(root)
-    state.mark_solved(exercise.slug)
-    if ui.save_progress(root, state):
+    with locked(root):
+        state = load(root)
+        state.mark_solved(exercise.slug)
+        saved = ui.save_progress(root, state)
+    if saved:
         ui.info(f"{exercise.slug} recorded as solved. Run `{invocation()} next` to continue.")
     ui.console.print()
 
@@ -425,9 +430,11 @@ def reset(
         raise typer.Exit(code=2) from exc
 
     # Re-read after the prompt, for the same reason as `solution`.
-    state = load(root)
-    state.reset(exercise.slug)
-    if ui.save_progress(root, state):
+    with locked(root):
+        state = load(root)
+        state.reset(exercise.slug)
+        saved = ui.save_progress(root, state)
+    if saved:
         ui.success(f"{exercise.slug} restored to its starting state.")
     else:
         # The copy landed, the bookkeeping did not. Saying both happened would be

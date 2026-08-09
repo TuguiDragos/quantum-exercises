@@ -35,7 +35,14 @@ def test_template_fails(exercise: Exercise, root: Path) -> None:
 def test_solution_produces_artifacts(exercise: Exercise, root: Path) -> None:
     """Every exercise ends in something executed and shown, not just a green tick."""
     result = run_exercise(exercise, root=root, target=exercise.solution_file)
-    assert result.artifacts, f"{exercise.slug} produced no artifact to show the learner"
+    # Report the outcome, not just the empty list. An artifact list is empty either
+    # because check() returned nothing or because the run never got that far, and
+    # a bare assertion cannot tell those apart afterwards.
+    assert result.artifacts, (
+        f"{exercise.slug} produced no artifact to show the learner "
+        f"({result.outcome}): {result.message}\n{result.detail or ''}\n"
+        f"{result.stderr.strip()}"
+    )
 
 
 def test_required_files_exist(exercise: Exercise) -> None:

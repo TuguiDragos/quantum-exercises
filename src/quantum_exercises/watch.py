@@ -11,7 +11,7 @@ from quantum_exercises import theme, ui
 from quantum_exercises.registry import Exercise
 from quantum_exercises.runner import ran_on as run_result_ran_on
 from quantum_exercises.runner import run_exercise
-from quantum_exercises.state import load
+from quantum_exercises.state import load, locked
 
 # Editors save by writing a temp file and renaming it, which fires several events.
 # 200 ms of quiet is enough to collapse those into one run.
@@ -39,10 +39,13 @@ def _run_and_record(exercise: Exercise, root: Path) -> bool:
     if not result.passed:
         return False
 
-    state = load(root)
-    state.mark_done(exercise.slug, ran_on=run_result_ran_on(result.artifacts))
-    # The same helper qx run uses: a read-only clone must warn, not traceback.
-    ui.save_progress(root, state)
+    # Locked for the same reason as qx run: a watcher and a run in another
+    # terminal are exactly the two processes that used to erase each other.
+    with locked(root):
+        state = load(root)
+        state.mark_done(exercise.slug, ran_on=run_result_ran_on(result.artifacts))
+        # The same helper qx run uses: a read-only clone must warn, not traceback.
+        ui.save_progress(root, state)
     return True
 
 

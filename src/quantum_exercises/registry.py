@@ -151,7 +151,12 @@ def load_exercise(path: Path) -> Exercise:
         )
     meta = _read_meta(path)
 
-    for required in (EXERCISE_FILE, SOLUTION_FILE, CHECK_FILE):
+    # exercise.py is deliberately absent from this list. It is the one file the
+    # learner edits, so losing it is an ordinary accident, and `qx reset` restores
+    # it from template.py. Requiring it here failed every command at once,
+    # including the reset that repairs it, and left no way out of the tool. The
+    # runner reports the missing file for the one exercise it affects instead.
+    for required in (SOLUTION_FILE, CHECK_FILE):
         if not (path / required).is_file():
             raise RegistryError(f"{path.name} is missing {required}.")
 
@@ -183,6 +188,22 @@ def load_exercise(path: Path) -> Exercise:
     )
 
 
+def _is_exercise_dir(entry: Path) -> bool:
+    """Whether this directory is meant to be an exercise at all.
+
+    Numbered, or holding a meta.toml. That second test is what separates a
+    misnamed exercise from a directory that was never one: a scratch `notes/` a
+    learner leaves in exercises/ is skipped, while `3_first_circuit` still raises
+    below rather than silently dropping out of the course.
+
+    Every directory used to be treated as an exercise, so one stray folder made
+    every command exit 2.
+    """
+    if not entry.is_dir() or entry.name.startswith("."):
+        return False
+    return bool(SLUG_PATTERN.match(entry.name)) or (entry / META_FILE).is_file()
+
+
 def load_exercises(root: Path | None = None) -> list[Exercise]:
     """Return every exercise, ordered by its numeric prefix."""
     root = root or find_project_root()
@@ -191,9 +212,7 @@ def load_exercises(root: Path | None = None) -> list[Exercise]:
         raise RegistryError(f"No exercises directory at {base}.")
 
     exercises = [
-        load_exercise(entry)
-        for entry in sorted(base.iterdir())
-        if entry.is_dir() and not entry.name.startswith(".")
+        load_exercise(entry) for entry in sorted(base.iterdir()) if _is_exercise_dir(entry)
     ]
     if not exercises:
         raise RegistryError(f"No exercises found in {base}.")

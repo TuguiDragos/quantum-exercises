@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import tempfile
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,33 @@ SCHEMA_VERSION = 1
 
 # Where a state file this version cannot read is copied before being replaced.
 UNREADABLE_SUFFIX = ".unreadable"
+
+# Guards the read-modify-write below. Its own file, because the state file is
+# replaced rather than written in place, and a lock on a replaced inode is lost.
+LOCK_FILENAME = ".qx-state.lock"
+
+if os.name == "nt":  # pragma: no cover - exercised only on Windows
+    import msvcrt
+
+    def _acquire(handle: int) -> None:
+        # LK_LOCK retries once a second, ten times, then raises. Locking one byte
+        # is enough: the region may extend past the end of an empty file.
+        msvcrt.locking(handle, msvcrt.LK_LOCK, 1)
+
+    def _release(handle: int) -> None:
+        # LK_UNLCK unlocks from the current position, so rewind to what was locked.
+        os.lseek(handle, 0, os.SEEK_SET)
+        msvcrt.locking(handle, msvcrt.LK_UNLCK, 1)
+
+else:
+    import fcntl
+
+    def _acquire(handle: int) -> None:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+
+    def _release(handle: int) -> None:
+        fcntl.flock(handle, fcntl.LOCK_UN)
+
 
 Status = Literal["todo", "done", "solved"]
 
@@ -75,6 +103,26 @@ def state_path(root: Path) -> Path:
     return root / STATE_FILENAME
 
 
+def _readable_exercises(raw: object) -> dict | None:
+    """The exercises mapping out of a parsed state file, or None if unreadable.
+
+    One definition of "readable" for both callers below. load() turns None into a
+    fresh start, and _preserve_unreadable() copies the file aside before it is
+    overwritten. They used to disagree: a file whose `exercises` key held a string
+    rather than an object passed the version check, so it was destroyed without a
+    backup, and reading it raised AttributeError instead of starting fresh.
+
+    A missing or null `exercises` key is readable and simply means nothing has been
+    recorded yet, so it is not worth preserving.
+    """
+    if not isinstance(raw, dict) or raw.get("version") != SCHEMA_VERSION:
+        return None
+    entries = raw.get("exercises")
+    if entries is None:
+        return {}
+    return entries if isinstance(entries, dict) else None
+
+
 def load(root: Path) -> State:
     """Read state, treating any corruption as a fresh start rather than a crash."""
     path = state_path(root)
@@ -84,11 +132,12 @@ def load(root: Path) -> State:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return State()
-    if not isinstance(raw, dict) or raw.get("version") != SCHEMA_VERSION:
+    entries = _readable_exercises(raw)
+    if entries is None:
         return State()
 
     exercises: dict[str, ExerciseState] = {}
-    for slug, entry in (raw.get("exercises") or {}).items():
+    for slug, entry in entries.items():
         if not isinstance(entry, dict):
             continue
         status = entry.get("status", "todo")
@@ -118,7 +167,7 @@ def _preserve_unreadable(path: Path) -> Path | None:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         raw = None
-    if isinstance(raw, dict) and raw.get("version") == SCHEMA_VERSION:
+    if _readable_exercises(raw) is not None:
         return None
 
     backup = path.with_name(path.name + UNREADABLE_SUFFIX)
@@ -126,6 +175,59 @@ def _preserve_unreadable(path: Path) -> Path | None:
         shutil.copyfile(path, backup)
         return backup
     return None  # pragma: no cover - only when the copy itself fails
+
+
+def lock_path(root: Path) -> Path:
+    return root / LOCK_FILENAME
+
+
+def _open_lock(root: Path) -> int | None:
+    """Take the lock, or return None when this filesystem will not give it."""
+    try:
+        # O_RDWR, not O_RDONLY: an exclusive flock needs a writable descriptor on
+        # some systems, even though macOS allows it either way.
+        handle = os.open(lock_path(root), os.O_CREAT | os.O_RDWR, 0o600)
+    except OSError:
+        return None
+    try:
+        _acquire(handle)
+    except OSError:
+        os.close(handle)
+        return None
+    return handle
+
+
+def _close_lock(handle: int) -> None:
+    with contextlib.suppress(OSError):
+        _release(handle)
+    with contextlib.suppress(OSError):
+        os.close(handle)
+
+
+@contextlib.contextmanager
+def locked(root: Path) -> Iterator[None]:
+    """Hold the progress file for a whole read-modify-write, across qx processes.
+
+    The write itself was already atomic. The sequence around it was not: two runs
+    finishing together each read the file, each added their own exercise, and
+    whichever wrote second erased the other's. Measured at roughly one loss per
+    two runs of eight concurrent commands.
+
+    Failing to lock is not fatal. A read-only clone cannot create the file at all,
+    and some network mounts refuse the lock; recording progress unserialised is
+    better than refusing to record it, so both fall through to the old behaviour.
+
+    The kernel drops the lock when the process dies, so a crash leaves nothing
+    stale behind.
+    """
+    handle = _open_lock(root)
+    if handle is None:
+        yield
+        return
+    try:
+        yield
+    finally:
+        _close_lock(handle)
 
 
 def save(root: Path, state: State) -> Path | None:
@@ -161,12 +263,15 @@ def save(root: Path, state: State) -> Path | None:
 
 
 __all__ = [
+    "LOCK_FILENAME",
     "STATE_FILENAME",
     "UNREADABLE_SUFFIX",
     "ExerciseState",
     "State",
     "Status",
     "load",
+    "lock_path",
+    "locked",
     "save",
     "state_path",
 ]

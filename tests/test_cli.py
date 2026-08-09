@@ -132,3 +132,46 @@ class TestOutsideARepository:
         monkeypatch.setenv("QX_ROOT", str(tmp_path))
         result = _invoke("list")
         assert result.exit_code == 2
+
+
+class TestRecoveryFromADeletedFile:
+    """Deleting exercise.py used to break every command, including the repair."""
+
+    @staticmethod
+    def _delete(sandbox: Path, slug: str) -> Path:
+        target = sandbox / "exercises" / slug / "exercise.py"
+        target.unlink()
+        return target
+
+    def test_the_other_commands_keep_working(self, sandbox: Path) -> None:
+        self._delete(sandbox, "01_environment")
+        assert _invoke("list").exit_code == 0
+        assert _invoke("next").exit_code == 0
+        assert _invoke("hint", "1").exit_code == 0
+
+    def test_run_names_the_repair(self, sandbox: Path) -> None:
+        self._delete(sandbox, "01_environment")
+        result = _invoke("run", "1")
+        assert result.exit_code == 1
+        assert "does not exist" in result.stdout
+        assert "reset" in result.stdout
+
+    def test_reset_actually_repairs_it(self, sandbox: Path) -> None:
+        target = self._delete(sandbox, "01_environment")
+        assert _invoke("reset", "1", "--yes").exit_code == 0
+        assert target.is_file()
+        assert target.read_text(encoding="utf-8") == (
+            target.with_name("template.py").read_text(encoding="utf-8")
+        )
+
+    def test_one_broken_exercise_does_not_block_the_others(self, sandbox: Path) -> None:
+        self._delete(sandbox, "17_chsh")
+        shutil.copyfile(
+            sandbox / "exercises" / "01_environment" / "solution.py",
+            sandbox / "exercises" / "01_environment" / "exercise.py",
+        )
+        assert _invoke("run", "1").exit_code == 0
+
+    def test_a_stray_directory_does_not_break_anything(self, sandbox: Path) -> None:
+        (sandbox / "exercises" / "my_notes").mkdir()
+        assert _invoke("list").exit_code == 0

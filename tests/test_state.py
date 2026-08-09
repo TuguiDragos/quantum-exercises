@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from quantum_exercises import state as state_module
 
 
@@ -93,3 +95,134 @@ def test_ran_on_is_recorded(tmp_path: Path) -> None:
     state.mark_done("11_real_hardware", ran_on="hardware")
     state_module.save(tmp_path, state)
     assert state_module.load(tmp_path).get("11_real_hardware").ran_on == "hardware"
+
+
+@pytest.mark.parametrize("value", ["nope", 123, True, [1, 2]])
+def test_state_load_survives_a_wrong_typed_exercises_key(tmp_path: Path, value) -> None:
+    """load() promises corruption is a fresh start, never a crash."""
+    state_module.state_path(tmp_path).write_text(
+        json.dumps({"version": state_module.SCHEMA_VERSION, "exercises": value}),
+        encoding="utf-8",
+    )
+    assert state_module.load(tmp_path).exercises == {}
+
+
+def test_state_load_skips_a_non_dict_entry(tmp_path: Path) -> None:
+    state_module.state_path(tmp_path).write_text(
+        json.dumps(
+            {
+                "version": state_module.SCHEMA_VERSION,
+                "exercises": {"01_environment": "wrong", "02_dictionaries": {"status": "done"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = state_module.load(tmp_path)
+    assert loaded.get("01_environment").status == "todo"
+    assert loaded.get("02_dictionaries").status == "done"
+
+
+@pytest.mark.parametrize("payload", ['{"version": 1}', '{"version": 1, "exercises": null}'])
+def test_a_file_with_nothing_recorded_is_readable(tmp_path: Path, payload: str) -> None:
+    """No exercises key at all is empty progress, not corruption worth preserving."""
+    state_module.state_path(tmp_path).write_text(payload, encoding="utf-8")
+    assert state_module.load(tmp_path).exercises == {}
+    assert state_module.save(tmp_path, state_module.State()) is None
+
+
+def test_unparseable_json_is_preserved_before_being_replaced(tmp_path: Path) -> None:
+    state_module.state_path(tmp_path).write_text("{ not json", encoding="utf-8")
+    preserved = state_module.save(tmp_path, state_module.State())
+    assert preserved is not None
+    assert preserved.read_text(encoding="utf-8") == "{ not json"
+
+
+def test_save_preserves_an_unreadable_file(tmp_path: Path) -> None:
+    path = state_module.state_path(tmp_path)
+    path.write_text(json.dumps({"version": 999, "exercises": {}}), encoding="utf-8")
+    preserved = state_module.save(tmp_path, state_module.State())
+    assert preserved is not None and preserved.exists()
+    assert json.loads(preserved.read_text(encoding="utf-8"))["version"] == 999
+
+
+def test_save_cleans_up_when_the_write_fails(tmp_path: Path, monkeypatch) -> None:
+    def boom(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(state_module.os, "replace", boom)
+    with pytest.raises(OSError):
+        state_module.save(tmp_path, state_module.State())
+    assert [p for p in tmp_path.iterdir() if p.name.startswith(".qx-state-")] == []
+
+
+class TestLocking:
+    """The lock exists because the read-modify-write around the write was not atomic."""
+
+    def test_lock_file_is_created_and_kept(self, tmp_path: Path) -> None:
+        with state_module.locked(tmp_path):
+            pass
+        assert state_module.lock_path(tmp_path).is_file()
+
+    def test_the_lock_is_released_afterwards(self, tmp_path: Path) -> None:
+        for _ in range(3):
+            with state_module.locked(tmp_path):
+                pass
+
+    def test_an_exception_inside_still_releases(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError), state_module.locked(tmp_path):
+            raise ValueError("boom")
+        with state_module.locked(tmp_path):
+            pass
+
+    def test_a_filesystem_that_refuses_the_lock_still_records(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Losing progress is worse than recording it unserialised."""
+
+        def refuse(handle: int) -> None:
+            raise OSError("flock not supported here")
+
+        monkeypatch.setattr(state_module, "_acquire", refuse)
+        with state_module.locked(tmp_path):
+            state = state_module.State()
+            state.mark_done("01_environment")
+            state_module.save(tmp_path, state)
+        assert state_module.load(tmp_path).is_complete("01_environment")
+
+    def test_a_root_that_cannot_hold_the_lock_file_still_yields(self, tmp_path: Path) -> None:
+        missing = tmp_path / "not-there"
+        with state_module.locked(missing):
+            pass
+        assert not missing.exists()
+
+    def test_concurrent_updates_do_not_erase_each_other(self, tmp_path: Path) -> None:
+        """The regression test for the defect: eight writers, eight entries.
+
+        Without the lock this lost roughly one entry every other run.
+        """
+        import subprocess
+        import sys
+        import textwrap
+
+        writer = textwrap.dedent(
+            """
+            import sys
+            from pathlib import Path
+            from quantum_exercises.state import load, locked, save
+
+            root, slug = Path(sys.argv[1]), sys.argv[2]
+            with locked(root):
+                state = load(root)
+                state.mark_done(slug)
+                save(root, state)
+            """
+        )
+        slugs = [f"{n:02d}_probe" for n in range(1, 9)]
+        processes = [
+            subprocess.Popen([sys.executable, "-c", writer, str(tmp_path), slug]) for slug in slugs
+        ]
+        for process in processes:
+            assert process.wait(timeout=60) == 0
+
+        recorded = state_module.load(tmp_path)
+        assert sorted(recorded.exercises) == sorted(slugs)

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from rich.console import Console
 
-from quantum_exercises import ui
+from quantum_exercises import registry, ui
 
 
 def _console_with_encoding(encoding: str) -> Console:
@@ -133,3 +134,65 @@ class TestMetadataOnlyArtifacts:
         rendered = console.file.buffer.getvalue().decode("utf-8")
         assert "┌" not in rendered, "a metadata-only artifact drew a box"
         assert "PASS" in rendered
+
+
+def test_safe_replaces_unencodable_characters(monkeypatch) -> None:
+    monkeypatch.setattr(ui.console, "file", SimpleNamespace(encoding="ascii"))
+    assert "?" in ui._safe("box → drawing")
+
+
+def test_supports_blocks_without_an_encoding(monkeypatch) -> None:
+    monkeypatch.setattr(ui.console, "file", SimpleNamespace(encoding=None))
+    assert ui._supports_blocks() is True
+
+
+def test_supports_blocks_on_a_legacy_code_page(monkeypatch) -> None:
+    monkeypatch.setattr(ui.console, "file", SimpleNamespace(encoding="cp437"))
+    assert ui._supports_blocks() is False
+
+
+def test_save_progress_reports_an_unwritable_root(tmp_path: Path, monkeypatch) -> None:
+    from quantum_exercises.state import State
+
+    monkeypatch.setattr(
+        "quantum_exercises.ui.save",
+        lambda root, state: (_ for _ in ()).throw(OSError(13, "Permission denied")),
+    )
+    assert ui.save_progress(tmp_path, State()) is False
+
+
+def test_save_progress_warns_about_a_preserved_file(tmp_path: Path, monkeypatch) -> None:
+    from quantum_exercises.state import State
+
+    monkeypatch.setattr(
+        "quantum_exercises.ui.save", lambda root, state: tmp_path / ".qx-state.json.unreadable"
+    )
+    assert ui.save_progress(tmp_path, State()) is True
+
+
+def test_display_path_falls_back_to_absolute(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    other = Path("/usr/local/share/qx/exercise.py")
+    assert ui._display_path(other) == str(other.resolve())
+
+
+def test_render_failure_handles_a_path_outside_the_root(tmp_path: Path, root: Path) -> None:
+    from quantum_exercises.runner import RunResult
+
+    exercise = registry.load_exercises(root)[0]
+    result = RunResult(outcome="error", message="boom", line=3)
+    ui.render_run(exercise, result, root=tmp_path)  # root unrelated to the exercise path
+
+
+def test_render_artifact_falls_back_to_text() -> None:
+    panel = ui.render_artifact({"kind": "mystery", "caption": "c", "payload": {"a": 1}})
+    assert panel is not None
+
+
+def test_render_counts_with_all_zero_values() -> None:
+    assert ui.render_counts({"00": 0, "11": 0}, "empty") is not None
+
+
+def test_bar_clamps_out_of_range_fractions() -> None:
+    assert ui._bar(-1.0).strip() == ""
+    assert ui._bar(2.0).count("█") == ui.BAR_WIDTH

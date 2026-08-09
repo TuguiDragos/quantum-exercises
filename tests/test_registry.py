@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from quantum_exercises import registry
 from quantum_exercises.registry import (
     DEFAULT_TIMEOUT,
     Exercise,
@@ -163,3 +164,111 @@ class TestNumericLookup:
 
     def test_plain_digits_still_work(self, exercises: list[Exercise]) -> None:
         assert resolve("1", exercises).number == 1
+
+
+def test_holds_exercises_survives_an_unreadable_directory(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / "exercises").mkdir()
+    monkeypatch.setattr(
+        Path, "iterdir", lambda self: (_ for _ in ()).throw(OSError("permission denied"))
+    )
+    assert registry._holds_exercises(tmp_path) is False
+
+
+def test_find_project_root_gives_up_with_guidance(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("QX_ROOT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(registry, "_holds_exercises", lambda directory: False)
+    with pytest.raises(registry.RegistryError, match="Could not find the exercises"):
+        registry.find_project_root()
+
+
+def test_qx_root_without_an_exercises_directory(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("QX_ROOT", str(tmp_path))
+    with pytest.raises(registry.RegistryError, match="no exercises/ directory"):
+        registry.find_project_root()
+
+
+def test_missing_meta_is_named(tmp_path: Path) -> None:
+    directory = tmp_path / "01_probe"
+    directory.mkdir()
+    with pytest.raises(registry.RegistryError, match="missing meta.toml"):
+        registry.load_exercise(directory)
+
+
+def test_empty_exercises_directory(tmp_path: Path) -> None:
+    (tmp_path / "exercises").mkdir()
+    with pytest.raises(registry.RegistryError, match="No exercises found"):
+        registry.load_exercises(tmp_path)
+
+
+def test_no_exercises_directory_at_all(tmp_path: Path) -> None:
+    with pytest.raises(registry.RegistryError, match="No exercises directory"):
+        registry.load_exercises(tmp_path)
+
+
+def test_duplicate_numbers_are_rejected(tmp_path: Path, root: Path) -> None:
+    import shutil
+
+    base = tmp_path / "exercises"
+    base.mkdir()
+    source = root / "exercises" / "01_environment"
+    shutil.copytree(source, base / "01_environment")
+    shutil.copytree(source, base / "01_duplicate")
+    with pytest.raises(registry.RegistryError, match="Duplicate exercise numbers"):
+        registry.load_exercises(tmp_path)
+
+
+class TestStrayDirectories:
+    """A folder a learner leaves in exercises/ used to break every command."""
+
+    @pytest.mark.parametrize("name", ["my_notes", "__pycache__", "scratch", ".hidden"])
+    def test_a_directory_that_is_not_an_exercise_is_skipped(
+        self, tmp_path: Path, name: str
+    ) -> None:
+        base = tmp_path / "exercises"
+        _write_exercise(base, "01_demo")
+        (base / name).mkdir()
+        assert [e.slug for e in load_exercises(tmp_path)] == ["01_demo"]
+
+    def test_a_loose_file_is_skipped(self, tmp_path: Path) -> None:
+        base = tmp_path / "exercises"
+        _write_exercise(base, "01_demo")
+        (base / "README.txt").write_text("notes\n", encoding="utf-8")
+        assert len(load_exercises(tmp_path)) == 1
+
+    def test_a_misnamed_exercise_still_raises_rather_than_vanishing(self, tmp_path: Path) -> None:
+        """Carrying a meta.toml is what marks it as a broken exercise, not a stray."""
+        base = tmp_path / "exercises"
+        _write_exercise(base, "01_demo")
+        _write_exercise(base, "3_wrong_prefix")
+        with pytest.raises(RegistryError, match="not a valid exercise directory name"):
+            load_exercises(tmp_path)
+
+    def test_a_hidden_directory_is_skipped_even_with_meta(self, tmp_path: Path) -> None:
+        base = tmp_path / "exercises"
+        _write_exercise(base, "01_demo")
+        _write_exercise(base, ".backup")
+        assert [e.slug for e in load_exercises(tmp_path)] == ["01_demo"]
+
+
+class TestMissingExerciseFile:
+    """exercise.py is the learner's file, so losing it must stay recoverable."""
+
+    def test_the_exercise_still_loads(self, tmp_path: Path) -> None:
+        path = _write_exercise(tmp_path / "exercises", "01_demo")
+        (path / "exercise.py").unlink()
+        assert load_exercise(path).slug == "01_demo"
+
+    def test_the_rest_of_the_course_is_unaffected(self, tmp_path: Path) -> None:
+        base = tmp_path / "exercises"
+        _write_exercise(base, "01_demo")
+        second = _write_exercise(base, "02_other")
+        (second / "exercise.py").unlink()
+        assert len(load_exercises(tmp_path)) == 2
+
+    @pytest.mark.parametrize("filename", ["solution.py", "check.py"])
+    def test_repository_files_are_still_mandatory(self, tmp_path: Path, filename: str) -> None:
+        path = _write_exercise(tmp_path / "exercises", "01_demo")
+        (path / filename).unlink()
+        with pytest.raises(RegistryError, match=f"missing {filename}"):
+            load_exercise(path)

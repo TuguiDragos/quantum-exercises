@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
 import pytest
 
+from quantum_exercises import runner
 from quantum_exercises.registry import Exercise, load_exercise
 from quantum_exercises.runner import MAX_CAPTURED_BYTES, ran_on, run_exercise
 
@@ -233,3 +235,26 @@ class TestRanOn:
 
     def test_tolerates_junk_entries(self) -> None:
         assert ran_on(["not a dict", {}, {"meta": {}}]) is None
+
+
+def test_read_payload_rejects_malformed_json(tmp_path: Path) -> None:
+    path = tmp_path / "result.json"
+    path.write_text("{broken", encoding="utf-8")
+    assert runner._read_payload(path) is None
+    path.write_text('["a list, not a dict"]', encoding="utf-8")
+    assert runner._read_payload(path) is None
+
+
+def test_bounded_reader_survives_a_closed_stream() -> None:
+    stream = io.BytesIO(b"hello")
+    stream.close()
+    reader = runner._BoundedReader(stream)
+    reader.start()
+    reader.join(timeout=5)
+    assert reader.text() == ""
+
+
+def test_ran_on_ignores_junk_artifacts() -> None:
+    artifacts = [{"meta": None}, "not a dict", {"meta": {"ran_on": "hardware"}}]
+    assert runner.ran_on(artifacts) == "hardware"
+    assert runner.ran_on([{"meta": {}}]) is None

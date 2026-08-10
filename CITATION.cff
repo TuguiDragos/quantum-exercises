@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this project, please cite it as below."
 title: "quantum-exercises: hands-on Qiskit exercises, from an empty laptop to real IBM hardware"
 abstract: >-
-  A command line course of seventeen exercises in quantum computing with Qiskit,
+  A command line course of twenty exercises in quantum computing with Qiskit,
   taking a learner from an unprepared machine to a circuit executed on real IBM
   hardware, and on to a CHSH test that exceeds the classical bound. Answers are verified by inspecting the Qiskit objects a learner's
   code produces rather than by comparing source text or program output: states
@@ -24,8 +24,8 @@ contact:
     given-names: "Dragos"
     email: contact@tuguidragos.com
     website: "https://tuguidragos.com"
-version: 0.5.2
-date-released: "2026-08-09"
+version: 0.6.0
+date-released: "2026-08-10"
 license: MIT
 license-url: "https://github.com/TuguiDragos/quantum-exercises/blob/main/LICENSE"
 url: "https://github.com/TuguiDragos/quantum-exercises"

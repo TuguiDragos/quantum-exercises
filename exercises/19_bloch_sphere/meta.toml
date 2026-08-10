@@ -1,0 +1,4 @@
+title = "The picture behind the numbers"
+act = "Act IV - Expectation values, and a real Bell test"
+summary = "Three expectation values turn a qubit into a point on a sphere, which is where global phase visibly stops mattering and the half angle finally makes sense."
+hardware = false

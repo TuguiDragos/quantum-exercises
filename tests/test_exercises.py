@@ -8,6 +8,7 @@ goes red.
 from __future__ import annotations
 
 import ast
+import re
 import subprocess
 from pathlib import Path
 
@@ -224,3 +225,57 @@ def test_check_never_compares_counts_for_equality(exercise: Exercise) -> None:
         f"{exercise.slug}/check.py compares counts for equality: {offenders}. "
         "Use assert_counts_support, assert_counts_close or assert_counts_distribution."
     )
+
+
+def test_every_cross_reference_points_at_an_exercise_that_exists(
+    exercises: list[Exercise], root: Path
+) -> None:
+    """The READMEs refer to each other by number, and inserting one shifts them all."""
+    numbers = {e.number for e in exercises}
+    sources = [
+        *root.glob("exercises/*/README.md"),
+        *root.glob("exercises/*/hints.md"),
+        *root.glob("exercises/*/*.py"),
+        *root.glob("notebooks/*.ipynb"),
+        root / "README.md",
+    ]
+    dangling = []
+    for path in sources:
+        for match in re.finditer(
+            r"(?i)\bexercises?\s+(\d{1,2})\b", path.read_text(encoding="utf-8")
+        ):
+            if int(match.group(1)) not in numbers:
+                dangling.append(f"{path.relative_to(root)} -> exercise {match.group(1)}")
+    assert not dangling, f"references to exercises that do not exist: {dangling}"
+
+
+def test_readme_table_matches_the_exercises(exercises: list[Exercise], root: Path) -> None:
+    """The table in the main README is written by hand and drifts silently."""
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    rows = dict(re.findall(r"^\| (\d{2}) \| ([^|]+?) \|", readme, re.MULTILINE))
+    for exercise in exercises:
+        key = f"{exercise.number:02d}"
+        assert key in rows, f"the README table has no row for {exercise.slug}"
+        assert rows[key].strip() == exercise.title, (
+            f"README row {key} says {rows[key].strip()!r}, "
+            f"{exercise.slug}/meta.toml says {exercise.title!r}"
+        )
+    assert len(rows) == len(exercises), (
+        f"the README table has {len(rows)} rows for {len(exercises)} exercises"
+    )
+
+
+def test_acts_are_contiguous_and_headed_in_the_readme(
+    exercises: list[Exercise], root: Path
+) -> None:
+    """An act split in two would put the same heading twice in `qx list`."""
+    order: list[str] = []
+    for exercise in exercises:
+        if not order or order[-1] != exercise.act:
+            order.append(exercise.act)
+    assert len(order) == len(set(order)), f"an act is split into separate blocks: {order}"
+
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    for act in order:
+        stem = act.split(" - ")[0]
+        assert f"**{stem} - " in readme, f"the README has no heading for {stem}"

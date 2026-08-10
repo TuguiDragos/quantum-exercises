@@ -165,7 +165,10 @@ class TestRecoveryFromADeletedFile:
         )
 
     def test_one_broken_exercise_does_not_block_the_others(self, sandbox: Path) -> None:
-        self._delete(sandbox, "17_chsh")
+        """Break the last exercise, then work on the first. Found by name, not by
+        number, so inserting an exercise cannot quietly turn this into a no-op."""
+        last = sorted(p.name for p in (sandbox / "exercises").iterdir() if p.is_dir())[-1]
+        self._delete(sandbox, last)
         shutil.copyfile(
             sandbox / "exercises" / "01_environment" / "solution.py",
             sandbox / "exercises" / "01_environment" / "exercise.py",

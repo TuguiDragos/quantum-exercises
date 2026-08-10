@@ -19,7 +19,7 @@ nothing here rules out the two qubits having simply agreed in advance.
 
 What no pair of envelopes can reproduce is the pattern that appears when the two
 qubits are measured along **different** axes. That is Bell's theorem, it is why
-this state carries his name, and exercise 17 is where you actually measure it.
+this state carries his name, and exercise 20 is where you actually measure it.
 
 ## The endianness trap
 
@@ -56,7 +56,7 @@ qx run 11
 
 ## Looking ahead
 
-Point 3 is true for a perfect simulator. On real hardware in exercise 13 you will
+Point 3 is true for a perfect simulator. On real hardware in exercise 14 you will
 see `01` and `10` anyway, at a few percent. Those are not a mistake in your
-circuit and not a violation of the physics. They are noise, and exercise 14 is
+circuit and not a violation of the physics. They are noise, and exercise 15 is
 about reading them honestly.

@@ -18,7 +18,7 @@
 
 ---
 
-Seventeen hands-on exercises that take you from an empty laptop to a quantum
+Twenty hands-on exercises that take you from an empty laptop to a quantum
 circuit on real IBM hardware, and then to a Bell test that no classical
 explanation survives.
 
@@ -168,7 +168,7 @@ and `qx run 11_bell_entanglement` are the same thing.
 If you skipped the install step, everything still works as `uv run qx <command>`
 from inside the repository, and the tool prints whichever form applies to you.
 
-## The seventeen exercises
+## The twenty exercises
 
 **Act I - reaching a first result**
 
@@ -195,9 +195,11 @@ from inside the repository, and the tool prints whichever form applies to you.
 
 | # | Exercise | What you come away with |
 |---|---|---|
-| 12 | Code from 2021 that no longer runs | Migrate real 0.x code to 2.x. This is the skill that unblocks every old tutorial you will ever find |
-| 13 | A Bell state on a real machine | Transpile to the backend's instruction set and run, on a QPU if you have one |
-| 14 | Reading a noisy result honestly | Hardware gives outcomes the theory forbids. Quantify that instead of assuming your circuit is broken |
+| 12 | Why the simulator runs out | Every qubit doubles the memory. Find the size where a laptop stops being able to check your answer |
+| 13 | Code from 2021 that no longer runs | Migrate real 0.x code to 2.x. This is the skill that unblocks every old tutorial you will ever find |
+| 14 | A Bell state on a real machine | Transpile to the backend's instruction set and run, on a QPU if you have one |
+| 15 | Reading a noisy result honestly | Hardware gives outcomes the theory forbids. Quantify that instead of assuming your circuit is broken |
+| 16 | Correcting what readout got wrong | Measure how the device misreads, invert it, and win back most of the gap. Error mitigation, by hand |
 
 **Act IV - expectation values, and a real Bell test**
 
@@ -208,9 +210,10 @@ deliberately did not claim to have run.
 
 | # | Exercise | What you come away with |
 |---|---|---|
-| 15 | The Estimator, and what it returns | Expectation values instead of shots, computed two ways and shown to agree |
-| 16 | A device that only measures Z | Hardware reads one axis. Measuring any other means rotating the state first |
-| 17 | CHSH, the experiment that settles it | Measure along different axes and reach S = 2.83, past the 2 that any pre-agreed answer is stuck below |
+| 17 | The Estimator, and what it returns | Expectation values instead of shots, computed two ways and shown to agree |
+| 18 | A device that only measures Z | Hardware reads one axis. Measuring any other means rotating the state first |
+| 19 | The picture behind the numbers | Three expectation values put the qubit on a sphere, where global phase visibly stops mattering |
+| 20 | CHSH, the experiment that settles it | Measure along different axes and reach S = 2.83, past the 2 that any pre-agreed answer is stuck below |
 
 ## How answers are checked
 
@@ -282,7 +285,7 @@ the cause: pick the kernel inside `.venv` from the picker in the top right.
 
 ## Running on real hardware
 
-Exercise 13 is the only one that can reach out to IBM, and it degrades
+Exercise 14 is the only one that can reach out to IBM, and it degrades
 gracefully:
 
 1. a real QPU, if you have an account and one is reachable
@@ -292,10 +295,10 @@ gracefully:
 
 Whichever it used is printed with the result and recorded in `qx list`.
 
-![Exercise 13 run on ibm_fez, a real IBM QPU. The histogram shows 1024 shots: 00 at 48.8 percent, 11 at 44.9 percent, and 01 and 10 together at 6.25 percent. The summary reports the circuit as submitted, its ISA form, and that the disagreeing shots are noise rather than a bug.](readme-assets/08-real-hardware.png)
+![Exercise 14 run on ibm_fez, a real IBM QPU. The histogram shows 1024 shots: 00 at 48.8 percent, 11 at 44.9 percent, and 01 and 10 together at 6.25 percent. The summary reports the circuit as submitted, its ISA form, and that the disagreeing shots are noise rather than a bug.](readme-assets/08-real-hardware.png)
 
 Those `01` and `10` shots are the point of the exercise that follows. An ideal
-Bell state forbids them; a real machine produces them anyway, and exercise 14 is
+Bell state forbids them; a real machine produces them anyway, and exercise 15 is
 about quantifying that instead of assuming your circuit is broken.
 
 To set up an account:
@@ -311,7 +314,7 @@ be readable only by you.
 To force the offline path even when you do have an account:
 
 ```bash
-QX_OFFLINE=1 qx run 13
+QX_OFFLINE=1 qx run 14
 ```
 
 CI always sets `QX_OFFLINE`, so no automated run can ever spend your free QPU

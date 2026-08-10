@@ -1,0 +1,4 @@
+title = "Why the simulator runs out"
+act = "Act III - The real world"
+summary = "A classical register of n bits costs n bits. Simulating n qubits costs 2^n amplitudes. Find the size where a laptop stops being able to check your answer."
+hardware = false

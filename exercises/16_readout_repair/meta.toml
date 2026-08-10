@@ -1,0 +1,4 @@
+title = "Correcting what readout got wrong"
+act = "Act III - The real world"
+summary = "Measure how the device misreads, then undo it. The cheapest member of the error mitigation family, built by hand out of a 4 by 4 matrix."
+hardware = false

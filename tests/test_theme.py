@@ -18,6 +18,7 @@ import pytest
 from rich.color import ANSI_COLOR_NAMES
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.style import Style
 from rich.theme import Theme
 
 from quantum_exercises import theme, ui
@@ -77,7 +78,15 @@ def _parse_sgr(data: bytes) -> tuple[set[tuple[int, int, int]], set[int], set[in
 
 @pytest.fixture
 def captured(monkeypatch: pytest.MonkeyPatch) -> Console:
-    """A console that emits truecolour into a buffer, styled like the real one."""
+    """A console that emits truecolour into a buffer, styled like the real one.
+
+    The style cache is emptied first. rich hands out one Style object per colour
+    and that object remembers the ANSI it emitted the first time, so a console
+    built earlier in the session with a narrower colour system leaves codes behind
+    that this one would then repeat. Forcing truecolour here is only true of the
+    console, not of the cache it reads.
+    """
+    Style.parse.cache_clear()
     stream = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
     console = Console(
         file=stream,

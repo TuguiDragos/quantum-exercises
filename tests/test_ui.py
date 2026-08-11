@@ -37,6 +37,20 @@ class TestBar:
                     f"{encoding} at {fraction}"
                 )
 
+    def test_width_holds_for_every_fraction(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A bar that is one cell short or long breaks the alignment of `qx list`.
+
+        Swept rather than sampled: the partial cell is picked by rounding, so the
+        interesting fractions are the ones between the five above.
+        """
+        for encoding in ("utf-8", "ascii"):
+            monkeypatch.setattr(ui, "console", _console_with_encoding(encoding))
+            for width in (1, 7, 20, 34):
+                for step in range(201):
+                    fraction = step / 200
+                    rendered = ui._bar(fraction, width=width, track=ui._TRACK)
+                    assert len(rendered) == width, f"{encoding} w={width} at {fraction}"
+
     def test_clamps_out_of_range_values(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(ui, "console", _console_with_encoding("utf-8"))
         assert len(ui._bar(-5.0, width=8)) == 8
@@ -141,14 +155,38 @@ def test_safe_replaces_unencodable_characters(monkeypatch) -> None:
     assert "?" in ui._safe("box → drawing")
 
 
+def test_safe_passes_text_through_without_an_encoding(monkeypatch) -> None:
+    """An in-memory buffer has no encoding to fail against, so nothing is replaced."""
+    monkeypatch.setattr(ui.console, "file", SimpleNamespace(encoding=None))
+    assert ui._safe("box → drawing") == "box → drawing"
+
+
 def test_supports_blocks_without_an_encoding(monkeypatch) -> None:
     monkeypatch.setattr(ui.console, "file", SimpleNamespace(encoding=None))
     assert ui._supports_blocks() is True
 
 
-def test_supports_blocks_on_a_legacy_code_page(monkeypatch) -> None:
-    monkeypatch.setattr(ui.console, "file", SimpleNamespace(encoding="cp437"))
-    assert ui._supports_blocks() is False
+@pytest.mark.parametrize(
+    ("encoding", "supported"),
+    [
+        ("utf-8", True),
+        # The default code page of a legacy Windows console. It carries both of
+        # the characters the bar draws, and only failed this before because the
+        # question asked about a ramp of partial cells the bar no longer uses.
+        ("cp437", True),
+        ("cp850", True),
+        ("latin-1", False),
+        ("ascii", False),
+    ],
+)
+def test_supports_blocks_asks_only_about_what_is_drawn(
+    monkeypatch, encoding: str, supported: bool
+) -> None:
+    monkeypatch.setattr(ui.console, "file", SimpleNamespace(encoding=encoding))
+    assert ui._supports_blocks() is supported
+    # Whatever the answer, the bar has to be encodable in that terminal.
+    monkeypatch.setattr(ui, "console", _console_with_encoding(encoding))
+    ui._bar(0.5, width=10, track=ui._TRACK).encode(encoding)
 
 
 def test_save_progress_reports_an_unwritable_root(tmp_path: Path, monkeypatch) -> None:
@@ -187,6 +225,30 @@ def test_render_failure_handles_a_path_outside_the_root(tmp_path: Path, root: Pa
 def test_render_artifact_falls_back_to_text() -> None:
     panel = ui.render_artifact({"kind": "mystery", "caption": "c", "payload": {"a": 1}})
     assert panel is not None
+
+
+@pytest.mark.parametrize(
+    "artifact",
+    [
+        {"kind": "matrix", "caption": "m", "payload": [1, 2, 3]},
+        {"kind": "statevector", "caption": "s", "payload": [1, 2]},
+        {"kind": "counts", "caption": "c", "payload": {"00": "many"}},
+        {
+            "kind": "statevector",
+            "caption": "s",
+            "payload": [[0.0, 0.0]],
+            "meta": {"num_qubits": "x"},
+        },
+    ],
+    ids=["matrix-rows", "statevector-scalars", "counts-strings", "meta-not-a-number"],
+)
+def test_a_misshapen_payload_is_shown_rather_than_raised(artifact: dict) -> None:
+    """The check already passed. A bad artifact must not turn that into a traceback.
+
+    Every case here raised TypeError or ValueError out of the renderer and reached
+    the learner's terminal as one.
+    """
+    assert ui.render_artifact(artifact) is not None
 
 
 def test_render_counts_with_all_zero_values() -> None:

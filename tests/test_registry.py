@@ -121,6 +121,34 @@ class TestMalformedExercises:
         path = _write_exercise(tmp_path / "exercises", "01_demo")
         assert load_exercise(path).timeout == DEFAULT_TIMEOUT
 
+    def test_a_valid_timeout_is_honoured(self, tmp_path: Path) -> None:
+        meta = 'title = "T"\nact = "Act I"\nsummary = "S"\ntimeout = 45\n'
+        path = _write_exercise(tmp_path / "exercises", "01_demo", meta=meta)
+        assert load_exercise(path).timeout == 45
+
+    # load_exercises() reads every exercise, so one bad value used to take down
+    # every command at once with a raw ValueError. A zero or negative one parsed
+    # fine and produced "did not finish within -5 seconds".
+    @pytest.mark.parametrize(
+        ("value", "shown"),
+        [
+            ('"60"', "'60'"),  # a string, which int() would have accepted
+            ("true", "True"),  # bool is a subclass of int, so it needs excluding by hand
+            ("0", "0"),
+            ("-5", "-5"),
+            ("1.5", "1.5"),
+        ],
+    )
+    def test_a_bad_timeout_is_named_rather_than_crashing(
+        self, tmp_path: Path, value: str, shown: str
+    ) -> None:
+        meta = f'title = "T"\nact = "Act I"\nsummary = "S"\ntimeout = {value}\n'
+        path = _write_exercise(tmp_path / "exercises", "01_demo", meta=meta)
+        with pytest.raises(RegistryError, match="must be a positive whole number") as excinfo:
+            load_exercise(path)
+        # The offending value is quoted back, or the reader has to go hunting.
+        assert shown in str(excinfo.value)
+
 
 class TestResolve:
     def test_by_number(self, exercises: list[Exercise]) -> None:

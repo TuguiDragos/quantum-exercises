@@ -1,6 +1,6 @@
 [project]
 name = "quantum-exercises"
-version = "0.6.0"
+version = "0.7.0"
 description = "Hands-on quantum computing exercises for Qiskit, from an empty laptop to real IBM hardware"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -71,6 +71,22 @@ addopts = "-q --strict-markers"
 markers = [
     "hardware: needs a real IBM Quantum account and consumes QPU quota (deselected by default)",
 ]
+
+# coverage is deliberately not a dependency. CI adds it for one command with
+# `uv run --with`, so uv.lock and the package counts in CONTRIBUTING stay as they
+# are. Settings still live here, because that is where coverage looks.
+[tool.coverage.run]
+source = ["quantum_exercises"]
+# Every answer is checked in a worker subprocess, and worker.py runs nowhere else,
+# so without this it would measure as untouched. Needs coverage 7.10 or newer.
+patch = ["subprocess"]
+parallel = true
+
+[tool.coverage.report]
+precision = 1
+show_missing = true
+# The suite reaches every line today. Anything less is a line nothing exercises.
+fail_under = 100
 
 [tool.ruff]
 line-length = 100

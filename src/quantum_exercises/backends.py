@@ -13,7 +13,10 @@ Order of preference:
 
 from __future__ import annotations
 
+import contextlib
+import logging
 import os
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -51,6 +54,42 @@ def offline() -> bool:
     return bool(os.environ.get(OFFLINE_ENV))
 
 
+@contextlib.contextmanager
+def quiet_runtime() -> Iterator[list[str]]:
+    """Collect the runtime client's own log lines rather than letting them print.
+
+    It logs at WARNING while doing ordinary things, such as naming the instance it
+    picked, and those lines land raw wherever the client is built: a timestamp, a
+    module path and a paragraph of advice, in the middle of a table or on top of a
+    question. Collecting them means the one fact worth keeping can be said in the
+    tool's own words, and the rest is dropped.
+
+    Lives here rather than in doctor because it belongs to the client, and every
+    caller that builds one in this process needs it.
+    """
+    logger = logging.getLogger("qiskit_ibm_runtime")
+    collected: list[str] = []
+
+    class _Collect(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            collected.append(record.getMessage())
+
+    handler = _Collect()
+    # The client attaches its own StreamHandler to this logger at import and sets
+    # propagate to False itself, so adding a handler beside it silences nothing and
+    # cutting propagation silences nothing either. Its handlers come off for the
+    # length of the call and go back exactly as they were, list included.
+    existing = logger.handlers[:]
+    propagated = logger.propagate
+    logger.handlers = [handler]
+    logger.propagate = False
+    try:
+        yield collected
+    finally:
+        logger.handlers = existing
+        logger.propagate = propagated
+
+
 def _noisy_simulator(reason: str) -> Selection:
     from qiskit_aer import AerSimulator
 
@@ -60,8 +99,18 @@ def _noisy_simulator(reason: str) -> Selection:
         fake = getattr(fake_provider, FAKE_BACKEND)()
         backend = AerSimulator.from_backend(fake)
         return Selection(backend, "noisy_simulator", f"aer({FAKE_BACKEND})", reason)
-    except Exception:  # noqa: BLE001 - fall through to the noiseless simulator
-        return Selection(AerSimulator(), "simulator", "aer", reason)
+    except Exception as exc:  # noqa: BLE001 - fall through to the noiseless simulator
+        # Say that the noise went missing. This branch hands back a noiseless
+        # simulator while keeping the reason it was given, which explains only why
+        # the run is not on hardware. The reader was left with an exercise about
+        # noise that had none, and nothing on screen connecting the two.
+        return Selection(
+            AerSimulator(),
+            "simulator",
+            "aer",
+            f"{reason}; {FAKE_BACKEND} would not load either "
+            f"({type(exc).__name__}: {exc}), so there is no noise model",
+        )
 
 
 def get_backend(*, min_num_qubits: int = 2, prefer_hardware: bool = True) -> Selection:
@@ -82,7 +131,11 @@ def get_backend(*, min_num_qubits: int = 2, prefer_hardware: bool = True) -> Sel
     try:
         service = QiskitRuntimeService()
     except Exception as exc:  # noqa: BLE001 - AccountNotFoundError and friends
-        return _noisy_simulator(f"no usable IBM account ({type(exc).__name__})")
+        # The message, not just the class. A revoked key raises InvalidAccountError,
+        # whose text says which token to go and look at; naming the class alone left
+        # the reader with a word and no next step, while the branch below this one
+        # had been reporting both all along.
+        return _noisy_simulator(f"no usable IBM account ({type(exc).__name__}: {exc})")
 
     try:
         backend = service.least_busy(
@@ -95,6 +148,40 @@ def get_backend(*, min_num_qubits: int = 2, prefer_hardware: bool = True) -> Sel
         return _noisy_simulator("no operational QPU was available")
 
     return Selection(backend, "hardware", backend.name, "least busy operational QPU")
+
+
+@dataclass
+class Queue:
+    """What the least busy QPU looks like right now, before anything is sent."""
+
+    name: str
+    pending: int
+
+
+def queue_peek(*, min_num_qubits: int = 2) -> Queue | None:
+    """The least busy QPU and how many jobs are waiting on it.
+
+    Asks only for status, so it costs no QPU time and commits to nothing. Returns
+    None whenever hardware is out of reach, which is every case where there is
+    nothing to decide: offline, no account, no network, no operational QPU.
+    """
+    if offline():
+        return None
+    try:
+        from qiskit_ibm_runtime import QiskitRuntimeService
+
+        # Quiet, because this one runs in the terminal the reader is looking at.
+        # `get_backend` builds the same client inside the worker, whose output the
+        # runner pipes, so only this call ever put the client's log on screen.
+        with quiet_runtime():
+            backend = QiskitRuntimeService().least_busy(
+                min_num_qubits=min_num_qubits, operational=True, simulator=False
+            )
+            if backend is None:
+                return None
+            return Queue(backend.name, int(backend.status().pending_jobs))
+    except Exception:  # noqa: BLE001 - a peek that fails is simply no answer
+        return None
 
 
 def to_isa(circuit, backend, *, optimization_level: int = 1):
@@ -170,10 +257,13 @@ __all__ = [
     "FAKE_BACKEND",
     "OFFLINE_ENV",
     "Kind",
+    "Queue",
     "Selection",
     "get_backend",
     "noise_model",
     "offline",
+    "queue_peek",
+    "quiet_runtime",
     "sample",
     "single_register_counts",
     "to_isa",

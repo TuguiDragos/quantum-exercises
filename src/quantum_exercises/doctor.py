@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import stat
 import sys
@@ -18,6 +19,7 @@ from pathlib import Path
 from typing import Literal
 
 from quantum_exercises import invocation
+from quantum_exercises.backends import quiet_runtime
 
 CREDENTIALS_PATH = Path.home() / ".qiskit" / "qiskit-ibm.json"
 
@@ -135,15 +137,20 @@ def check_visualization() -> Check:
     return Check("Qiskit visualization extra", "ok", "matplotlib and pylatexenc present")
 
 
-def check_credentials() -> Check:
-    """Inspect the saved IBM account locally. Never reads or prints the token."""
+def check_credentials(*, tested_online: bool = False) -> Check:
+    """Inspect the saved IBM account locally. Never reads or prints the token.
+
+    `tested_online` only decides whether to point at the command that does test it.
+    A row saying to run --online, printed directly above the row --online just
+    produced, sends the reader off to do what they have already done.
+    """
     if not CREDENTIALS_PATH.is_file():
         return Check(
             "IBM Quantum account",
             "warn",
             "no saved account",
             "Optional. Every exercise runs on a local simulator without one. To use real "
-            "hardware, get an API key from https://quantum.cloud.ibm.com and run "
+            "hardware, create an API key at https://cloud.ibm.com/iam/apikeys and run "
             f"`{invocation()} doctor --save-account`.",
         )
 
@@ -210,7 +217,17 @@ def check_credentials() -> Check:
             "kept whatever umask was in force when qiskit wrote them.",
         )
 
-    return Check("IBM Quantum account", "ok", "; ".join(accounts))
+    # Says what was established, not more. Everything above reads the file, so a
+    # revoked key passes all of it and a bare "ok" reads as "this works".
+    # Named as a whole command: `--online` alone sent a reader to `qx --online`.
+    if tested_online:
+        return Check("IBM Quantum account", "ok", f"{'; '.join(accounts)}; saved")
+    return Check(
+        "IBM Quantum account",
+        "ok",
+        f"{'; '.join(accounts)}; saved, not tested against IBM "
+        f"(`{invocation()} doctor --online` does that)",
+    )
 
 
 def _loose_permissions() -> str | None:
@@ -230,6 +247,20 @@ def _loose_permissions() -> str | None:
     return None
 
 
+def _instance_from(logged: list[str]) -> str | None:
+    """The instance the client settled on, if it said so.
+
+    Read out of the log because the service exposes no public attribute for it,
+    and it is the one number that decides whose quota a run spends. A wording
+    change upstream loses the clause and nothing else.
+    """
+    for message in logged:
+        found = re.search(r"Loading instance:\s*([^,]+),\s*plan:\s*(\S+)", message)
+        if found:
+            return f"{found.group(1).strip()} ({found.group(2).strip()} plan)"
+    return None
+
+
 def check_online() -> Check:
     """Contact IBM and list backends. Costs no QPU time, but needs the network."""
     try:
@@ -242,23 +273,26 @@ def check_online() -> Check:
             "Run `uv sync`.",
         )
 
-    try:
-        service = QiskitRuntimeService()
-        backends = service.backends(operational=True, simulator=False)
-    except Exception as exc:  # noqa: BLE001 - any failure is reported, never fatal
-        return Check(
-            "IBM Quantum connection",
-            "warn",
-            f"could not reach IBM ({type(exc).__name__}: {exc})",
-            "Check your network and that the saved account is still valid.",
-        )
+    with quiet_runtime() as logged:
+        try:
+            service = QiskitRuntimeService()
+            backends = service.backends(operational=True, simulator=False)
+        except Exception as exc:  # noqa: BLE001 - any failure is reported, never fatal
+            return Check(
+                "IBM Quantum connection",
+                "warn",
+                f"could not reach IBM ({type(exc).__name__}: {exc})",
+                "Check your network and that the saved account is still valid.",
+            )
 
     if not backends:
         return Check(
             "IBM Quantum connection", "warn", "connected, but no operational QPU is visible"
         )
     names = ", ".join(f"{b.name} ({b.num_qubits}q)" for b in backends[:4])
-    return Check("IBM Quantum connection", "ok", f"{len(backends)} QPUs available: {names}")
+    instance = _instance_from(logged)
+    where = f" on {instance}" if instance else ""
+    return Check("IBM Quantum connection", "ok", f"{len(backends)} QPUs{where}: {names}")
 
 
 def check_exercises(root: Path | None) -> Check:
@@ -290,7 +324,7 @@ def run_checks(root: Path | None, *, online: bool = False) -> list[Check]:
         check_smoke(),
         check_visualization(),
         check_exercises(root),
-        check_credentials(),
+        check_credentials(tested_online=online),
     ]
     if online:
         checks.append(check_online())

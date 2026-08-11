@@ -26,6 +26,30 @@ def test_round_trip(tmp_path: Path) -> None:
     assert reloaded.get("02_dictionaries").hints_revealed == 1
 
 
+@pytest.mark.parametrize("status", ["todo", "done", "solved"])
+@pytest.mark.parametrize("hints", [0, 1, 3])
+@pytest.mark.parametrize("ran_on", [None, "hardware", "noisy_simulator", "simulator"])
+def test_every_state_a_run_can_produce_survives_the_round_trip(
+    tmp_path: Path, status: str, hints: int, ran_on: str | None
+) -> None:
+    """Saving and loading must return what went in, for every combination qx writes.
+
+    The file is the only memory the tool has, so a field that does not survive is
+    progress quietly lost.
+    """
+    state = state_module.State()
+    entry = state.get("07_probe")
+    entry.status = status
+    entry.hints_revealed = hints
+    entry.ran_on = ran_on
+    entry.completed_at = None if status == "todo" else "2026-08-11T09:00:00+00:00"
+
+    state_module.save(tmp_path, state)
+    reloaded = state_module.load(tmp_path).get("07_probe")
+
+    assert reloaded == entry
+
+
 def test_solved_survives_a_later_pass(tmp_path: Path) -> None:
     """Revealing the answer is not undone by passing the check afterwards."""
     state = state_module.State()
@@ -39,6 +63,33 @@ def test_hint_counter_stops_at_the_total(tmp_path: Path) -> None:
     for _ in range(10):
         state.reveal_hint("01_environment", total=3)
     assert state.get("01_environment").hints_revealed == 3
+
+
+def test_a_counter_larger_than_the_hints_is_capped(tmp_path: Path) -> None:
+    """The caller indexes a list with this number, so it must never exceed its length.
+
+    Reached without anyone editing anything: reveal all three hints of an exercise,
+    then let the exercise lose one. `qx hint` printed two panels and then raised
+    IndexError on the third.
+    """
+    state = state_module.State()
+    state.get("01_environment").hints_revealed = 99
+    assert state.reveal_hint("01_environment", total=3) == 3
+    assert state.reveal_hint("01_environment", total=0) == 0
+
+
+def test_a_boolean_hint_counter_reads_as_none_revealed(tmp_path: Path) -> None:
+    """bool is a subclass of int, so `true` used to mean one hint had been seen."""
+    state_module.state_path(tmp_path).write_text(
+        json.dumps(
+            {
+                "version": state_module.SCHEMA_VERSION,
+                "exercises": {"01_environment": {"status": "todo", "hints_revealed": True}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert state_module.load(tmp_path).get("01_environment").hints_revealed == 0
 
 
 def test_reset_clears_everything_for_one_exercise(tmp_path: Path) -> None:
@@ -90,6 +141,38 @@ def test_save_leaves_no_temporary_files(tmp_path: Path) -> None:
     assert leftovers == []
 
 
+@pytest.mark.parametrize("value", [{"a": 1}, ["hardware"], 3, True])
+def test_a_ran_on_that_is_not_a_string_is_dropped(tmp_path: Path, value) -> None:
+    """`qx list` looks this value up in a dict, so an unhashable one raised there.
+
+    load() promises corruption becomes a fresh start rather than a crash, and both
+    of these fields used to be taken exactly as written.
+    """
+    state_module.state_path(tmp_path).write_text(
+        json.dumps(
+            {
+                "version": state_module.SCHEMA_VERSION,
+                "exercises": {"14_real_hardware": {"status": "done", "ran_on": value}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert state_module.load(tmp_path).get("14_real_hardware").ran_on is None
+
+
+def test_a_completed_at_that_is_not_a_string_is_dropped(tmp_path: Path) -> None:
+    state_module.state_path(tmp_path).write_text(
+        json.dumps(
+            {
+                "version": state_module.SCHEMA_VERSION,
+                "exercises": {"01_environment": {"status": "done", "completed_at": 5}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert state_module.load(tmp_path).get("01_environment").completed_at is None
+
+
 def test_ran_on_is_recorded(tmp_path: Path) -> None:
     state = state_module.State()
     state.mark_done("11_real_hardware", ran_on="hardware")
@@ -128,6 +211,33 @@ def test_a_file_with_nothing_recorded_is_readable(tmp_path: Path, payload: str) 
     state_module.state_path(tmp_path).write_text(payload, encoding="utf-8")
     assert state_module.load(tmp_path).exercises == {}
     assert state_module.save(tmp_path, state_module.State()) is None
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        ("{ not json", True),
+        ('{"version": 999, "exercises": {}}', True),
+        ('{"version": 1, "exercises": "wrong"}', True),
+        ('{"version": 1, "exercises": {}}', False),
+        ('{"version": 1}', False),
+    ],
+)
+def test_unreadable_reports_what_load_silently_discards(
+    tmp_path: Path, payload: str, expected: bool
+) -> None:
+    """load() starts fresh on a damaged file, and used to do it without a word.
+
+    Saving already says so. Reading did not, so every exercise came back as
+    unfinished and nothing on screen explained it.
+    """
+    state_module.state_path(tmp_path).write_text(payload, encoding="utf-8")
+    assert state_module.unreadable(tmp_path) is expected
+
+
+def test_a_missing_state_file_is_not_unreadable(tmp_path: Path) -> None:
+    """Nothing recorded yet is the ordinary case, not damage."""
+    assert state_module.unreadable(tmp_path) is False
 
 
 def test_unparseable_json_is_preserved_before_being_replaced(tmp_path: Path) -> None:

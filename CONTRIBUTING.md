@@ -68,7 +68,7 @@ ordering comes from the numeric prefix, and the test suite enforces everything
 else.
 
 ```
-exercises/18_your_topic/
+exercises/21_your_topic/
 ├── meta.toml       # title, act, summary; optional hardware and timeout
 ├── README.md       # the teaching text
 ├── exercise.py     # what the learner edits
@@ -81,7 +81,7 @@ exercises/18_your_topic/
 `template.py` starts as a byte-identical copy of `exercise.py`:
 
 ```bash
-cp exercises/18_your_topic/exercise.py exercises/18_your_topic/template.py
+cp exercises/21_your_topic/exercise.py exercises/21_your_topic/template.py
 ```
 
 ### Writing `check.py`
@@ -118,6 +118,33 @@ second exception, you almost certainly want a different exercise instead.
 Artifacts cross a process boundary as JSON, so their payloads must be
 JSON-serializable. The helpers in `checks.py` already handle that for states,
 matrices and counts.
+
+### Wrong answers, in `tests/test_diagnostics.py`
+
+Passing the solution and failing the template says nothing about the branches
+between them, and those branches are the reason a `check.py` is worth writing. So
+every misconception a check names gets a case there, and a new exercise with no
+cases fails the suite.
+
+A case is one line. It starts from that exercise's own `solution.py` and appends
+an override, so the answer is correct except for the single thing being tested,
+and it keeps working when the solution is rewritten:
+
+```python
+case(
+    "11_bell_entanglement",
+    "label-read-big-endian",
+    'label_q0_only = "10"',
+    "qubit 0 is the RIGHTMOST character",
+)
+```
+
+The last argument is matched against the message and its detail together. Match on
+the sentence that names the mistake, not on a number that may drift.
+
+`check()` is called in-process there rather than through the runner, so a case
+costs milliseconds. The subprocess path has its own tests in
+`tests/test_runner.py`.
 
 ### Error messages
 
@@ -180,10 +207,32 @@ For every exercise:
 - the solution produces at least one artifact
 - there are exactly three hints
 - `meta.toml` is complete
+- the diagnoses it promises are reached, in `tests/test_diagnostics.py`
 
-`ci.yml` has three jobs. `test` runs the suite once per interpreter in the matrix.
+`ci.yml` has five jobs. `test` runs the suite once per interpreter in the matrix.
 `lint` runs `ruff check` and `ruff format --check` as two steps on 3.13. `secrets`
-runs gitleaks over the tree and uses no Python at all.
+runs gitleaks over the tree and uses no Python at all. `coverage` runs the suite
+once more under coverage and fails below 100% of `src/`. `install` installs the
+tool the way the README tells a reader to, then runs it from outside the
+repository, which is the only check that the editable install still finds the
+exercises from any directory.
+
+`coverage` needs two settings, and both live in `[tool.coverage]` in
+`pyproject.toml`. `patch = ["subprocess"]` measures the worker, which runs in a
+child process and would otherwise read as untouched; it needs coverage 7.10 or
+newer. `fail_under = 100` is the gate itself.
+
+coverage is not a dependency. The job adds it for its own commands with
+`uv run --with coverage`, so `uv.lock` and the package counts above stay as they
+are. To run the same gate locally:
+
+```bash
+uv run --with coverage python -m coverage run -m pytest -q
+```
+
+```bash
+uv run --with coverage python -m coverage combine && uv run --with coverage python -m coverage report
+```
 
 The triggers are every pull request and every push to `main`. A push to a side
 branch runs nothing until a pull request exists for it.

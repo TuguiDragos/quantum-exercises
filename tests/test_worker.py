@@ -89,6 +89,49 @@ def test_main_always_writes_a_verdict(tmp_path: Path) -> None:
     assert json.loads(out.read_text(encoding="utf-8"))["outcome"] == "pass"
 
 
+def test_main_reports_its_own_failure_rather_than_dying(tmp_path: Path, monkeypatch) -> None:
+    """The parent reads a file. No file at all is reported to the learner as a crash.
+
+    So the last resort has to be a written verdict, even when the runner itself is
+    what broke.
+    """
+    directory = _exercise_dir(tmp_path, "def check(mod):\n    return None\n")
+    out = tmp_path / "result.json"
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("the runner itself broke")
+
+    monkeypatch.setattr(worker_module, "run", boom)
+    assert worker_module.main([str(directory), str(out)]) == worker_module.EXIT_OK
+
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["outcome"] == "internal_error"
+    assert "the runner itself broke" in payload["message"]
+    assert payload["error_type"] == "RuntimeError"
+
+
+def test_a_file_python_cannot_import_is_an_import_error(tmp_path: Path) -> None:
+    """No importer claims an unknown extension, so the spec comes back as None."""
+    odd = tmp_path / "answer.txt"
+    odd.write_text("answer = 42\n", encoding="utf-8")
+    with pytest.raises(ImportError, match="Could not load"):
+        worker_module._load_module(odd, "qx_probe_unimportable")
+
+
+def test_a_syntax_error_reports_its_own_line(tmp_path: Path) -> None:
+    """A SyntaxError never reaches a frame inside the learner's file.
+
+    The file failed to compile, so no frame of it was ever executed and walking
+    the traceback finds nothing. The exception carries the line instead.
+    """
+    source = tmp_path / "broken.py"
+    source.write_text("answer = 1\nresult = (42\n", encoding="utf-8")
+    try:
+        compile(source.read_text(encoding="utf-8"), str(source), "exec")
+    except SyntaxError as exc:
+        assert worker_module._user_line(exc, source) == 2
+
+
 def test_normalize_artifacts_accepts_none_and_a_single_artifact() -> None:
     assert worker_module._normalize_artifacts(None) == []
     assert worker_module._normalize_artifacts(Artifact("text", "c", "p"))[0]["kind"] == "text"

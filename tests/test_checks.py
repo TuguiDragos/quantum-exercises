@@ -172,6 +172,83 @@ class TestChiSquare:
         statistic, _, _ = checks.chi_square_counts({"0": 1000, "1": 24}, {"0": 1.0})
         assert math.isinf(statistic)
 
+    def test_an_outcome_predicted_impossible_that_stayed_impossible_costs_nothing(self) -> None:
+        """p = 0 contributes no chi-square term when the outcome never occurred.
+
+        Dividing by its expected count would be a division by zero, so the term is
+        skipped rather than computed. Only an outcome that did occur is infinite.
+        """
+        statistic, _, dof = checks.chi_square_counts({"0": 1024, "1": 0}, {"0": 1.0, "1": 0.0})
+        assert statistic == pytest.approx(0.0, abs=1e-9)
+        assert math.isfinite(statistic)
+        # "1" is predicted, so it counts toward the outcomes even at zero shots.
+        assert dof == 1
+
+
+class TestInvariants:
+    """Properties that must hold across the whole input space, not at sampled points.
+
+    Swept rather than randomised, so a failure names the same case every time.
+    """
+
+    SAMPLES = [
+        {"0": 512, "1": 512},
+        {"0": 1, "1": 1023},
+        {"0": 1024},
+        {"00": 250, "01": 250, "10": 250, "11": 274},
+        {"00": 1, "01": 2, "10": 3, "11": 4090},
+        {f"{n:03b}": n + 1 for n in range(8)},
+    ]
+
+    @pytest.mark.parametrize("counts", SAMPLES)
+    def test_a_prediction_that_matches_exactly_is_never_rejected(self, counts: dict) -> None:
+        """The tolerance may be as tight as you like; zero deviation must pass it."""
+        shots = sum(counts.values())
+        exact = {outcome: value / shots for outcome, value in counts.items()}
+        checks.assert_counts_close(counts, exact)
+        checks.assert_counts_distribution(counts, exact)
+
+    @pytest.mark.parametrize("counts", SAMPLES)
+    def test_chi_square_is_zero_on_a_perfect_fit(self, counts: dict) -> None:
+        shots = sum(counts.values())
+        exact = {outcome: value / shots for outcome, value in counts.items()}
+        statistic, _, _ = checks.chi_square_counts(counts, exact)
+        assert statistic == pytest.approx(0.0, abs=1e-9)
+
+    def test_chi_square_grows_as_the_sample_drifts(self) -> None:
+        """Drift one way from a perfect fit and the statistic can only rise.
+
+        A test that fell as the answer got worse would pass wrong answers at some
+        distance and reject them at others.
+        """
+        expected = {"0": 0.5, "1": 0.5}
+        shots = 1000
+        previous = -1.0
+        for moved in range(0, 401, 20):
+            counts = {"0": shots // 2 + moved, "1": shots // 2 - moved}
+            statistic, _, _ = checks.chi_square_counts(counts, expected)
+            assert statistic >= previous, f"fell at {moved} shots of drift"
+            previous = statistic
+
+    @pytest.mark.parametrize("shots", [64, 1024, 8192])
+    def test_the_four_sigma_band_widens_with_the_sample(self, shots: int) -> None:
+        """More shots means a tighter band in proportion, which is the point of it.
+
+        The check is on the proportion, so the same absolute drift has to become
+        less acceptable as the sample grows.
+        """
+        expected = {"0": 0.5, "1": 0.5}
+        band = 0
+        while band <= shots // 2:
+            counts = {"0": shots // 2 + band, "1": shots // 2 - band}
+            try:
+                checks.assert_counts_close(counts, expected)
+            except checks.CheckFailed:
+                break
+            band += 1
+        # 4 sigma on a fair coin is 2 * sqrt(shots), give or take the integer step.
+        assert abs(band - 2 * math.sqrt(shots)) <= 2, f"band {band} at {shots} shots"
+
 
 class TestShots:
     def test_matching_total(self) -> None:

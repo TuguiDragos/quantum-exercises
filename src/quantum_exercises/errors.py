@@ -108,7 +108,7 @@ def translate(exc: BaseException) -> Translation | None:
         _v1_result_api,
         _databin_field,
         _circuit_attribute,
-        _no_account,
+        _account_problem,
         _name_error,
     ):
         result = rule(exc)
@@ -348,14 +348,28 @@ def _circuit_attribute(exc: BaseException) -> Translation | None:
     )
 
 
-def _no_account(exc: BaseException) -> Translation | None:
-    if type(exc).__name__ != "AccountNotFoundError":
-        return None
-    return Translation(
-        "No IBM Quantum account is saved on this machine.",
-        f"Run `{invocation()} doctor` to see the setup steps. This exercise falls back to "
-        "a local simulator, so you can still finish it without an account.",
-    )
+def _account_problem(exc: BaseException) -> Translation | None:
+    """Two ways an account fails, and they need different advice.
+
+    Matched by class name rather than by import, so this module never depends on
+    qiskit-ibm-runtime being installed.
+    """
+    name = type(exc).__name__
+    if name == "AccountNotFoundError":
+        return Translation(
+            "No IBM Quantum account is saved on this machine.",
+            f"Run `{invocation()} doctor` to see the setup steps. This exercise falls back to "
+            "a local simulator, so you can still finish it without an account.",
+        )
+    if name == "InvalidAccountError":
+        return Translation(
+            "The saved IBM Quantum account is no longer accepted.",
+            f"The file is there and well formed, which is why `{invocation()} doctor` reports "
+            "it as saved: that check never contacts IBM. The key behind it has expired or been "
+            f"revoked. Get a new one and run `{invocation()} doctor --save-account`, then "
+            f"confirm with `{invocation()} doctor --online`.",
+        )
+    return None
 
 
 def _name_error(exc: BaseException) -> Translation | None:

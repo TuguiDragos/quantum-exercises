@@ -58,6 +58,18 @@ class TestTranslations:
         exc = type("AccountNotFoundError", (Exception,), {})()
         assert "No IBM Quantum account is saved" in errors.translate(exc).message
 
+    def test_a_saved_account_that_is_no_longer_accepted(self) -> None:
+        """A revoked key is not a missing account, and the fix is a different one.
+
+        This is the likelier of the two: a key expires on its own, while a missing
+        file is something the reader can see.
+        """
+        exc = type("InvalidAccountError", (Exception,), {})("Unable to retrieve instances.")
+        translation = errors.translate(exc)
+        assert "no longer accepted" in translation.message
+        assert "--save-account" in translation.hint
+        assert "--online" in translation.hint
+
     def test_name_error_for_a_removed_symbol(self) -> None:
         exc = NameError("name 'execute' is not defined")
         assert "removed in Qiskit 1.0" in errors.translate(exc).message
@@ -101,3 +113,12 @@ class TestTranslations:
 
     def test_nothing_matches(self) -> None:
         assert errors.translate(ZeroDivisionError("division by zero")) is None
+
+    def test_an_attribute_error_about_something_else_is_left_alone(self) -> None:
+        """Four rules inspect an AttributeError. None of them may claim this one.
+
+        Every AttributeError reaches the QuantumCircuit rule last, so a rule that
+        matched too loosely would answer here with advice about gate methods.
+        """
+        exc = AttributeError("'list' object has no attribute 'push'")
+        assert errors.translate(exc) is None

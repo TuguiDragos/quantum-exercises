@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="512" viewBox="0 0 1200 512" role="img" aria-labelledby="ht hd">
 <title id="ht">quantum-exercises</title>
-<desc id="hd">A qx session: doctor reports a ready environment, exercise 11 returns a near-even split across two measured outcomes, exercise 13 agrees on 960 of 1024 shots, and list shows eleven of seventeen done. Beside it a light panel names each act as its bar begins to load and turns a ring up to seventeen.</desc>
+<desc id="hd">A qx session: doctor reports a ready environment, exercise 11 returns a near-even split across two measured outcomes, exercise 14 agrees on 960 of 1024 shots, and list shows eleven of twenty done. Beside it a light panel names each act as its bar begins to load and turns a ring up to twenty.</desc>
 <defs>
   <linearGradient id="ground" x1="0" y1="0" x2="1200" y2="512" gradientUnits="userSpaceOnUse">
     <stop offset="0" stop-color="#1a1d2e"></stop><stop offset="1" stop-color="#121422"></stop>
@@ -34,9 +34,9 @@
     .ring { stroke-dashoffset: 113.10; animation: count 9s cubic-bezier(.4, 0, .2, 1) infinite }
     @keyframes count {
       0%, 5%    { stroke-dashoffset: 113.10; opacity: 1 }
-      17%, 22%  { stroke-dashoffset: 79.83 }
-      34%, 39%  { stroke-dashoffset: 39.92 }
-      48%, 53%  { stroke-dashoffset: 19.96 }
+      17%, 22%  { stroke-dashoffset: 84.82 }
+      34%, 39%  { stroke-dashoffset: 50.89 }
+      48%, 53%  { stroke-dashoffset: 22.62 }
       62%, 90%  { stroke-dashoffset: 0; opacity: 1 }
       97%, 100% { stroke-dashoffset: 0; opacity: 0 }
     }
@@ -135,21 +135,21 @@
 
     <circle cx="876" cy="289" r="3.6" fill="#6b5cc4" opacity="0.6"></circle>
     <text x="892" y="292.5" font-size="10" fill="#1a1d2e" opacity="0.55">ACT III</text>
-    <line x1="944" y1="289" x2="986" y2="289" stroke="#1a1d2e" stroke-opacity="0.18" stroke-width="6" stroke-linecap="round"></line>
-    <line x1="944" y1="289" x2="986" y2="289" class="bar b3" pathLength="100" fill="none" stroke="#6b5cc4" stroke-width="6" stroke-linecap="round"></line>
+    <line x1="944" y1="289" x2="1014" y2="289" stroke="#1a1d2e" stroke-opacity="0.18" stroke-width="6" stroke-linecap="round"></line>
+    <line x1="944" y1="289" x2="1014" y2="289" class="bar b3" pathLength="100" fill="none" stroke="#6b5cc4" stroke-width="6" stroke-linecap="round"></line>
 
     <circle cx="876" cy="321" r="3.6" fill="#6b5cc4" opacity="0.6"></circle>
     <text x="892" y="324.5" font-size="10" fill="#1a1d2e" opacity="0.55">ACT IV</text>
-    <line x1="944" y1="321" x2="986" y2="321" stroke="#1a1d2e" stroke-opacity="0.18" stroke-width="6" stroke-linecap="round"></line>
-    <line x1="944" y1="321" x2="986" y2="321" class="bar b4" pathLength="100" fill="none" stroke="#6b5cc4" stroke-width="6" stroke-linecap="round"></line>
+    <line x1="944" y1="321" x2="1000" y2="321" stroke="#1a1d2e" stroke-opacity="0.18" stroke-width="6" stroke-linecap="round"></line>
+    <line x1="944" y1="321" x2="1000" y2="321" class="bar b4" pathLength="100" fill="none" stroke="#6b5cc4" stroke-width="6" stroke-linecap="round"></line>
 
     <circle cx="1096" cy="313" r="19.8" fill="#ffffff" fill-opacity="0.82"></circle>
     <circle cx="1096" cy="313" r="18" fill="none" stroke="#1a1d2e" stroke-opacity="0.13" stroke-width="3"></circle>
     <circle cx="1096" cy="313" r="18" class="ring" fill="none" stroke="#6b5cc4" stroke-width="3" stroke-linecap="round" stroke-dasharray="113.10" stroke-dashoffset="0" transform="rotate(-90 1096 313)"></circle>
     <text x="1096" y="317.6" text-anchor="middle" font-size="13" fill="#6b5cc4" class="n n1" opacity="0">5</text>
     <text x="1096" y="317.6" text-anchor="middle" font-size="13" fill="#6b5cc4" class="n n2" opacity="0">11</text>
-    <text x="1096" y="317.6" text-anchor="middle" font-size="13" fill="#6b5cc4" class="n n3" opacity="0">14</text>
-    <text x="1096" y="317.6" text-anchor="middle" font-size="13" fill="#6b5cc4" class="n n4" opacity="1">17</text>
+    <text x="1096" y="317.6" text-anchor="middle" font-size="13" fill="#6b5cc4" class="n n3" opacity="0">16</text>
+    <text x="1096" y="317.6" text-anchor="middle" font-size="13" fill="#6b5cc4" class="n n4" opacity="1">20</text>
   </g>
 </g>
 
@@ -174,14 +174,14 @@
   <text x="100" y="262">  <tspan fill="#b5abfc">PASS</tspan>  <tspan fill="#cfd3e5">11_bell_entanglement</tspan></text>
 
   <text x="84" y="290" font-size="16" fill="#9184d9">$</text>
-  <text x="100" y="290" font-size="16" fill="#e9e9ed">qx run 13</text>
+  <text x="100" y="290" font-size="16" fill="#e9e9ed">qx run 14</text>
   <text x="100" y="310">  backend             <tspan fill="#cfd3e5">ibm_fez</tspan></text>
   <text x="100" y="330">  agreed (00 or 11)   <tspan fill="#cfd3e5">960 of 1024</tspan>   <tspan fill="#cfd3e5">93.75%</tspan></text>
-  <text x="100" y="350">  <tspan fill="#b5abfc">PASS</tspan>  <tspan fill="#cfd3e5">13_real_hardware</tspan></text>
+  <text x="100" y="350">  <tspan fill="#b5abfc">PASS</tspan>  <tspan fill="#cfd3e5">14_real_hardware</tspan></text>
 
   <text x="84" y="378" font-size="16" fill="#9184d9">$</text>
   <text x="100" y="378" font-size="16" fill="#e9e9ed">qx list</text>
-  <text x="100" y="398">  progress  <tspan fill="#9184d9">███████████</tspan><tspan fill="#343856">░░░░░░</tspan>  <tspan fill="#cfd3e5">11/17</tspan></text>
+  <text x="100" y="398">  progress  <tspan fill="#9184d9">███████████</tspan><tspan fill="#343856">░░░░░░░░░</tspan>  <tspan fill="#cfd3e5">11/20</tspan></text>
 
   <text x="84" y="426" font-size="16" fill="#9184d9">$</text>
 </g>

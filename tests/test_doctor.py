@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -61,6 +62,27 @@ class TestCredentials:
         # The whole point: diagnosis must never echo the key.
         assert secret not in check.detail
         assert secret not in (check.fix or "")
+
+    def test_the_ok_does_not_claim_the_key_still_works(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Every test above this one reads the file. None of them asks IBM.
+
+        A key that has since been revoked passes all of them, so an unqualified ok
+        beside the account name reads as a promise this check never made.
+        """
+        path = tmp_path / "qiskit-ibm.json"
+        path.write_text(
+            json.dumps({"acct": {"channel": "ibm_quantum_platform", "token": "b" * 44}}),
+            encoding="utf-8",
+        )
+        path.chmod(0o600)
+        monkeypatch.setattr(doctor, "CREDENTIALS_PATH", path)
+
+        check = doctor.check_credentials()
+        assert check.status == "ok"
+        assert "not tested" in check.detail
+        assert "--online" in check.detail
 
     def test_retired_channel_is_a_failure(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -198,6 +220,104 @@ def test_check_online_reports_available_qpus(monkeypatch) -> None:
     check = doctor.check_online()
     assert check.status == "ok"
     assert "ibm_probe" in check.detail
+
+
+class TestOnlineNoise:
+    """The runtime client logs at WARNING while doing ordinary things.
+
+    Two paragraphs of it, with a timestamp and a module path, used to land in the
+    middle of the doctor table. That is library noise in a tool whose whole claim
+    is that you never have to read any.
+    """
+
+    @staticmethod
+    def _service(monkeypatch, messages: list[str]) -> None:
+        def talkative(*args, **kwargs):
+            logger = logging.getLogger("qiskit_ibm_runtime")
+            for message in messages:
+                logger.warning(message)
+            return SimpleNamespace(
+                backends=lambda **k: [SimpleNamespace(name="ibm_probe", num_qubits=156)]
+            )
+
+        module = ModuleType("qiskit_ibm_runtime")
+        module.QiskitRuntimeService = talkative
+        monkeypatch.setitem(sys.modules, "qiskit_ibm_runtime", module)
+
+    def test_the_clients_warnings_never_reach_the_screen(self, monkeypatch) -> None:
+        """Proved against a real handler on the root logger, which is what prints.
+
+        Asserting on captured stdout proves nothing here: under pytest the root
+        logger has no stream handler, so the line would go nowhere either way.
+        """
+        import io
+
+        stream = io.StringIO()
+        printer = logging.StreamHandler(stream)
+        root = logging.getLogger()
+        root.addHandler(printer)
+        previous = root.level
+        root.setLevel(logging.WARNING)
+        try:
+            self._service(monkeypatch, ["Instance was not set at service instantiation."])
+            doctor.check_online()
+        finally:
+            root.removeHandler(printer)
+            root.setLevel(previous)
+
+        assert stream.getvalue() == "", f"the client printed: {stream.getvalue()!r}"
+
+    def test_it_silences_the_handler_the_client_attaches_to_itself(self, monkeypatch) -> None:
+        """The setup the library really has, which the root-logger test above misses.
+
+        qiskit_ibm_runtime calls setup_logger on import: a StreamHandler on its own
+        logger, and propagate already False. Nothing higher up is involved, so
+        cutting propagation and adding a second handler leaves the first one
+        printing, which is exactly what `qx doctor --online` did.
+        """
+        import io
+
+        stream = io.StringIO()
+        logger = logging.getLogger("qiskit_ibm_runtime")
+        printer = logging.StreamHandler(stream)
+        printer.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+        handlers = logger.handlers[:]
+        propagate, level = logger.propagate, logger.level
+        logger.handlers = [printer]
+        logger.propagate = False
+        logger.setLevel(logging.WARNING)
+        try:
+            self._service(monkeypatch, ["Instance was not set at service instantiation."])
+            check = doctor.check_online()
+        finally:
+            logger.handlers = handlers
+            logger.propagate = propagate
+            logger.setLevel(level)
+
+        assert stream.getvalue() == "", f"the client printed: {stream.getvalue()!r}"
+        assert check.status == "ok"
+
+    def test_the_instance_it_settled_on_is_reported_in_our_own_words(self, monkeypatch) -> None:
+        self._service(monkeypatch, ["Loading instance: open-instance, plan: open"])
+        check = doctor.check_online()
+        assert check.status == "ok"
+        assert "open-instance (open plan)" in check.detail
+        assert "Loading instance" not in check.detail
+
+    def test_a_silent_client_simply_omits_the_clause(self, monkeypatch) -> None:
+        """Upstream may reword or drop that line. Losing it must cost the clause only."""
+        self._service(monkeypatch, [])
+        check = doctor.check_online()
+        assert check.status == "ok"
+        assert "ibm_probe" in check.detail
+        assert " on " not in check.detail
+
+    def test_the_logger_is_left_as_it_was_found(self, monkeypatch) -> None:
+        logger = logging.getLogger("qiskit_ibm_runtime")
+        before = (logger.propagate, len(logger.handlers))
+        self._service(monkeypatch, ["Loading instance: open-instance, plan: open"])
+        doctor.check_online()
+        assert (logger.propagate, len(logger.handlers)) == before
 
 
 def test_check_online_with_no_operational_qpu(monkeypatch) -> None:
@@ -366,3 +486,44 @@ def test_check_online_without_the_runtime_package(monkeypatch) -> None:
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
     assert doctor.check_online().status == "fail"
+
+
+class TestAccountRowWording:
+    """The row has to name a command someone can actually type."""
+
+    def test_it_names_the_whole_command_not_the_bare_flag(self, monkeypatch, tmp_path) -> None:
+        """`--online` alone reads as an option of qx, which sent a reader to `qx --online`."""
+        creds = tmp_path / "qiskit-ibm.json"
+        creds.write_text('{"default": {"channel": "ibm_quantum_platform"}}', encoding="utf-8")
+        creds.chmod(0o600)  # a loose mode is reported first and would hide the wording
+        monkeypatch.setattr(doctor, "CREDENTIALS_PATH", creds)
+
+        detail = doctor.check_credentials().detail
+        assert "doctor --online" in detail
+        assert "(--online does that)" not in detail
+
+    def test_the_pointer_is_dropped_once_online_has_run(self, monkeypatch, tmp_path) -> None:
+        creds = tmp_path / "qiskit-ibm.json"
+        creds.write_text('{"default": {"channel": "ibm_quantum_platform"}}', encoding="utf-8")
+        creds.chmod(0o600)  # a loose mode is reported first and would hide the wording
+        monkeypatch.setattr(doctor, "CREDENTIALS_PATH", creds)
+
+        detail = doctor.check_credentials(tested_online=True).detail
+        assert "--online" not in detail
+        assert detail.endswith("saved")
+
+    def test_run_checks_passes_the_flag_through(self, monkeypatch, tmp_path) -> None:
+        creds = tmp_path / "qiskit-ibm.json"
+        creds.write_text('{"default": {"channel": "ibm_quantum_platform"}}', encoding="utf-8")
+        creds.chmod(0o600)  # a loose mode is reported first and would hide the wording
+        monkeypatch.setattr(doctor, "CREDENTIALS_PATH", creds)
+        module = ModuleType("qiskit_ibm_runtime")
+        module.QiskitRuntimeService = lambda *a, **k: SimpleNamespace(
+            backends=lambda **k: [SimpleNamespace(name="ibm_probe", num_qubits=156)]
+        )
+        monkeypatch.setitem(sys.modules, "qiskit_ibm_runtime", module)
+
+        offline = {c.name: c.detail for c in doctor.run_checks(None)}
+        online = {c.name: c.detail for c in doctor.run_checks(None, online=True)}
+        assert "--online" in offline["IBM Quantum account"]
+        assert "--online" not in online["IBM Quantum account"]

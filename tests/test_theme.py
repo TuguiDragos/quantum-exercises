@@ -236,3 +236,56 @@ class TestBarColouring:
         names = {PALETTE_RGB[rgb] for rgb in truecolour if rgb in PALETTE_RGB}
         assert "ACCENT" in names, "the filled part should carry the accent"
         assert "MUTED" in names, "the empty track should be muted, not accented"
+
+    # The two shapes the tool actually draws: a histogram row and the progress bar.
+    @pytest.mark.parametrize(("width", "track"), [(34, " "), (28, ui._TRACK)])
+    @pytest.mark.parametrize("numerator", range(0, 21))
+    def test_the_colour_changes_exactly_where_the_fill_ends(
+        self, captured: Console, width: int, track: str, numerator: int
+    ) -> None:
+        """Off by one here paints a cell of track in the fill colour, or the reverse.
+
+        The count is worked out here rather than read back off the bar. Deriving it
+        from _bar would only prove the drawing agrees with itself, and a bar that
+        filled one cell too many would satisfy that happily.
+        """
+        fraction = numerator / 20
+        filled = int(fraction * width)
+        drawn = ui._bar(fraction, width=width, track=track)
+        assert drawn.count(ui._FULL) == filled, f"{drawn!r} does not fill {filled} cells"
+
+        captured.print(ui._bar_text(fraction, width=width, track=track))
+        emitted = _emitted(captured).decode("utf-8")
+
+        def sgr(colour: str) -> str:
+            red, green, blue = (int(colour[i : i + 2], 16) for i in (1, 3, 5))
+            return f"\x1b[38;2;{red};{green};{blue}m"
+
+        # Whatever rich does with spans, the visible run of fill has to be this long
+        # and the track has to be recoloured the moment it stops.
+        if filled:
+            assert sgr(theme.ACCENT) in emitted
+            assert ui._FULL * filled in emitted
+        if filled < width:
+            assert sgr(theme.MUTED) in emitted, "the track must not stay in the fill colour"
+            assert ui._FULL * (filled + 1) not in emitted, "one cell too many is filled"
+
+
+class TestStatusColours:
+    """Three states, three appearances. Two of them used to look identical."""
+
+    def test_every_status_is_told_apart_from_the_others(self) -> None:
+        styles = {label: style for label, (_, style) in ui.STATUS_STYLE.items()}
+        assert len(set(styles.values())) == 3, (
+            f"two statuses share a style, so `qx list` cannot show them apart: {styles}"
+        )
+
+    def test_solved_reads_between_todo_and_done(self) -> None:
+        """It counts toward the progress bar, so it must not look unstarted.
+
+        It was reached by revealing the answer, so it does not get the weight
+        that `done` carries either.
+        """
+        assert theme.ACCENT in theme.STATUS_SOLVED, "solved counts as finished"
+        assert theme.ACCENT not in theme.STATUS_TODO, "todo does not"
+        assert "bold" in theme.STATUS_DONE and "bold" not in theme.STATUS_SOLVED

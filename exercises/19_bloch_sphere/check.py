@@ -178,6 +178,8 @@ def _check_polar(bloch_vector, angles) -> None:
                     "of the vector rather than going back through the amplitudes."
                 ),
             )
+        # Kept for an angle small enough that its degree form is still under pi.
+        # For every angle in RY_ANGLES the range guard in _angles answers first.
         if math.isclose(got_theta, math.degrees(theta), abs_tol=1e-6):
             raise CheckFailed(
                 f"`angles` gave theta = {got_theta:.4f}, which is {theta:.4f} in degrees.",
@@ -282,6 +284,16 @@ def _angles(angles, vector, name) -> tuple[float, float]:
             )
     theta, phi = (float(component) for component in value)
     if theta < -1e-9 or theta > math.pi + 1e-9:
+        # An answer in degrees lands here, not in the rule below in _check_polar:
+        # every angle this exercise asks about is past pi once converted, so the
+        # range guard reaches it first. Saying "the pair is swapped" to someone who
+        # only forgot the units sends them to rewrite the wrong line.
+        # The 2*pi floor keeps a merely out of range radian out of this branch.
+        if theta > 2 * math.pi and math.radians(theta) <= math.pi:
+            raise CheckFailed(
+                f"`angles` gave theta = {theta:.4f} for {name}, which is that angle in degrees.",
+                detail="math.acos already returns radians. Nothing needs converting.",
+            )
         raise CheckFailed(
             f"`angles` gave theta = {theta:.6f} for {name}, which is outside 0 to pi.",
             detail=(

@@ -88,11 +88,17 @@ class State:
         self.exercises[slug] = ExerciseState()
 
     def reveal_hint(self, slug: str, total: int) -> int:
-        """Advance the hint counter and return the 1-based index now visible."""
+        """Advance the hint counter and return how many hints are now visible.
+
+        Never more than there are. The caller indexes a list with this, and a
+        counter larger than the list crashed it with an IndexError. That happened
+        to anyone who had revealed every hint of an exercise that later lost one,
+        with nothing edited by hand.
+        """
         entry = self.get(slug)
         if entry.hints_revealed < total:
             entry.hints_revealed += 1
-        return entry.hints_revealed
+        return min(entry.hints_revealed, total)
 
 
 def _now() -> str:
@@ -144,13 +150,39 @@ def load(root: Path) -> State:
         if status not in ("todo", "done", "solved"):
             status = "todo"
         hints = entry.get("hints_revealed", 0)
+        # bool is a subclass of int, so `true` would have counted as one revealed
+        # hint. Registry rejects it the same way for timeout.
+        readable_hints = isinstance(hints, int) and not isinstance(hints, bool) and hints >= 0
+        # Both fields are declared str or None and both used to be taken as read.
+        # `qx list` looks ran_on up in a dict, so a value of any unhashable type
+        # raised TypeError there rather than starting fresh the way load promises.
+        completed_at = entry.get("completed_at")
+        ran_on = entry.get("ran_on")
         exercises[str(slug)] = ExerciseState(
             status=status,
-            hints_revealed=int(hints) if isinstance(hints, int) and hints >= 0 else 0,
-            completed_at=entry.get("completed_at"),
-            ran_on=entry.get("ran_on"),
+            hints_revealed=int(hints) if readable_hints else 0,
+            completed_at=completed_at if isinstance(completed_at, str) else None,
+            ran_on=ran_on if isinstance(ran_on, str) else None,
         )
     return State(version=SCHEMA_VERSION, exercises=exercises)
+
+
+def unreadable(root: Path) -> bool:
+    """Whether a state file exists that this version cannot read.
+
+    load() turns that into a fresh start, which is the right call, but it is a
+    silent one: every exercise came back as unfinished with nothing on screen to
+    say why, and the file still sitting there intact. Saving already warns; this
+    lets reading do the same.
+    """
+    path = state_path(root)
+    if not path.is_file():
+        return False
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return True
+    return _readable_exercises(raw) is None
 
 
 def _preserve_unreadable(path: Path) -> Path | None:
@@ -274,4 +306,5 @@ __all__ = [
     "locked",
     "save",
     "state_path",
+    "unreadable",
 ]

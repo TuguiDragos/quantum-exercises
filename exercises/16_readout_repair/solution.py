@@ -7,7 +7,12 @@ LABELS = ("00", "01", "10", "11")
 
 
 def prepare(label):
-    """Given in exercise.py: exercise 11's endianness rule, nothing more."""
+    """A circuit preparing that computational basis state, measured.
+
+    Given: this is exercise 11's endianness rule and nothing else. The label
+    "01" means qubit 0 was measured as 1, so the character on the RIGHT is the
+    one that decides whether qubit 0 gets flipped.
+    """
     qc = QuantumCircuit(2)
     if label[1] == "1":
         qc.x(0)

@@ -1,4 +1,4 @@
-<img src="readme-assets/hero.svg" alt="quantum-exercises: from an empty laptop to a quantum circuit on real IBM hardware. A qx session runs doctor, two exercises and list, beside a panel that fills one bar per act while a ring counts toward seventeen." width="100%">
+<img src="readme-assets/hero.svg" alt="quantum-exercises: from an empty laptop to a quantum circuit on real IBM hardware. A qx session runs doctor, two exercises and list, beside a panel that fills one bar per act while a ring counts toward twenty." width="100%">
 
 <p align="center">
   <a href="https://github.com/TuguiDragos/quantum-exercises/actions/workflows/ci.yml"><img alt="ci" src="https://github.com/TuguiDragos/quantum-exercises/actions/workflows/ci.yml/badge.svg" /></a>
@@ -114,10 +114,14 @@ cd quantum-exercises
 uv tool install --editable .
 ```
 
-That last command takes about a second. It resolves the dependency ranges declared
-in `pyproject.toml` and puts `qx` on your PATH, so every command below works from
-any directory. `--editable` keeps it pointed at this clone, so it follows your
-edits and finds the exercises wherever you run it from.
+The first run downloads about 350 MB, mostly Qiskit and its scientific stack, so
+give it a minute or two on a normal connection. It is not stuck. Afterwards uv has
+everything cached and the same command finishes in about a second.
+
+It resolves the dependency ranges declared in `pyproject.toml` and puts `qx` on
+your PATH, so every command below works from any directory. `--editable` keeps it
+pointed at this clone, so it follows your edits and finds the exercises wherever
+you run it from.
 
 If you want the exact versions this repository is tested against rather than a
 fresh resolution, use `uv sync --locked` instead: `uv tool install` does not read
@@ -129,14 +133,30 @@ fresh resolution, use `uv sync --locked` instead: `uv tool install` does not rea
 qx doctor
 ```
 
-![qx doctor listing nine checks, all reading ok: Python, uv, the Qiskit SDK, the Aer simulator, the IBM Runtime client, a circuit smoke test, the visualization extra, the exercises, and the IBM Quantum account.](readme-assets/04-qx-doctor.png)
-
 Every check names the problem and the fix when something is wrong. The circuit
 smoke test actually builds a Hadamard and samples it, so an install that imports
 but cannot execute is caught here rather than three exercises later.
 
+**`qx doctor` never touches the network.** It reads your machine: interpreter,
+packages, exercises, and whether an account file exists. That is enough to start
+the course, and it is why the account row says `saved` rather than `works`. A key
+IBM revoked yesterday still sits in that file today.
+
+The one command that does ask IBM adds a tenth row to the same table:
+
+```bash
+qx doctor --online
+```
+
+![qx doctor --online listing ten checks, all reading ok: Python, uv, the Qiskit SDK, the Aer simulator, the IBM Runtime client, a circuit smoke test, the visualization extra, twenty exercises, the saved IBM Quantum account, and a live connection reporting three QPUs on the open plan.](readme-assets/04-qx-doctor.png)
+
+That last row signs in with the saved key and lists the QPUs your plan can reach.
+Use it when you want to know the key is still good before spending a queue slot on
+it. It costs no QPU time, it needs an account, and it is the only part of `doctor`
+that can fail because of your network rather than your laptop.
+
 An IBM Quantum account is **optional**. Every exercise runs on a local simulator
-without one.
+without one, and plain `qx doctor` reports that as a note rather than a problem.
 
 ### 4. Start
 
@@ -164,6 +184,27 @@ that file, fill in the TODOs, save, and run `qx run`.
 Leave the number off and the command picks the first exercise you have not
 finished. Numbers, slugs and fragments all work, so `qx run 11`, `qx run bell`
 and `qx run 11_bell_entanglement` are the same thing.
+
+You never have to come back here for that list. Typing `qx` on its own prints it:
+
+```bash
+qx
+```
+
+The same list, plus a short note on where to begin and how to set up an IBM
+account, comes from **`qx --help`**. Note the `qx` in front: `--help` alone is not
+a command, and your shell will answer `command not found`.
+
+```bash
+qx --help
+```
+
+Every command explains its own options the same way, and that is where the flags
+not listed above live, including the two that set up an account:
+
+```bash
+qx doctor --help
+```
 
 If you skipped the install step, everything still works as `uv run qx <command>`
 from inside the repository, and the tool prints whichever form applies to you.
@@ -295,7 +336,26 @@ gracefully:
 
 Whichever it used is printed with the result and recorded in `qx list`.
 
-![Exercise 14 run on ibm_fez, a real IBM QPU. The histogram shows 1024 shots: 00 at 48.8 percent, 11 at 44.9 percent, and 01 and 10 together at 6.25 percent. The summary reports the circuit as submitted, its ISA form, and that the disagreeing shots are noise rather than a bug.](readme-assets/08-real-hardware.png)
+Before anything is sent, `qx run 14` asks IBM which QPU is free and shows you the
+answer:
+
+```
+  least busy  ibm_marrakesh   1 job(s) ahead of you
+  all of them https://quantum.cloud.ibm.com/computers
+
+  Send it now? Answering no changes nothing and costs nothing [y/N]:
+```
+
+That question costs no QPU time, and answering no costs nothing either. Say yes
+and `qx` waits for the result for up to three hours, which is what a real queue
+can take. Ctrl-C stops the waiting, not the job: the job keeps running at IBM and
+its result stays in your account on
+[IBM Quantum Platform](https://quantum.cloud.ibm.com).
+
+The question is skipped whenever there is nothing to decide: no account, no
+network, `QX_OFFLINE` set, or output piped somewhere instead of a terminal.
+
+![Exercise 14 run on ibm_marrakesh, a real IBM QPU. The queue question is answered yes, then the histogram shows 1024 shots: 00 at 49.0 percent, 11 at 48.4 percent, and 01 and 10 together at 2.54 percent. The summary reports the circuit as submitted, its ISA form, and that the disagreeing shots are noise rather than a bug.](readme-assets/08-real-hardware.png)
 
 Those `01` and `10` shots are the point of the exercise that follows. An ideal
 Bell state forbids them; a real machine produces them anyway, and exercise 15 is
@@ -307,9 +367,27 @@ To set up an account:
 qx doctor --save-account
 ```
 
+It asks for two things, and only the first is required.
+
+| Field | Where it comes from |
+|---|---|
+| **API key** | [IBM Cloud, Manage &rsaquo; Access (IAM) &rsaquo; API keys](https://cloud.ibm.com/iam/apikeys). Create one, and copy it straight away: it is shown once and never again. |
+| **Instance CRN** | Optional. Press Enter and the account uses whichever instance it finds. Fill it in only if you have several and want one of them by default. Your instances are listed on [IBM Quantum Platform](https://quantum.cloud.ibm.com). |
+
+The key is read without echo, so it never appears on screen or in your shell
+history. If the terminal cannot suppress echo, `qx` refuses to read it at all
+rather than printing it.
+
 Qiskit stores the key unencrypted at `~/.qiskit/qiskit-ibm.json`, outside this
 repository, so it cannot be committed by accident, and `qx` tightens the file to
 be readable only by you.
+
+If a key later stops working, `qx doctor` will still say the account is saved,
+because that check only reads the file. The one that asks IBM is:
+
+```bash
+qx doctor --online
+```
 
 To force the offline path even when you do have an account:
 

@@ -48,7 +48,7 @@ When you do use it:
   doctor` reports the account label and channel only.
 
 If you believe a key was exposed, revoke it at
-<https://quantum.cloud.ibm.com> and save a new one.
+<https://cloud.ibm.com/iam/apikeys>, where it was created, and save a new one.
 
 ### 2. It executes Python from the repository you cloned
 

@@ -74,7 +74,10 @@ BAR_TRACK = MUTED
 # Exercise status.
 STATUS_TODO = DETAIL
 STATUS_DONE = f"bold {ACCENT}"
-STATUS_SOLVED = TEXT_DIM  # reached, but by revealing the answer
+# Reached, but by revealing the answer: the accent without the weight that `done`
+# carries. It used to share a colour with `todo`, which read as not started even
+# though a solved exercise counts toward the total in the bar below the list.
+STATUS_SOLVED = ACCENT
 
 # Environment checks.
 CHECK_OK = ACCENT

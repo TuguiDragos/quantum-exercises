@@ -66,6 +66,144 @@ class TestHintGuards:
         assert result.exit_code == 0
         assert "has no hints" in result.stdout
 
+    def test_an_exercise_that_lost_a_hint_does_not_crash(self, sandbox: Path) -> None:
+        """Reveal every hint, then take one away. This used to raise IndexError.
+
+        Nothing here is hand edited. The counter was honest when it was written,
+        and the exercise changed underneath it.
+        """
+        import json
+
+        hints = sandbox / "exercises" / "01_environment" / "hints.md"
+        hints.write_text(hints.read_text(encoding="utf-8").split("## Hint 3")[0], encoding="utf-8")
+        (sandbox / ".qx-state.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "exercises": {"01_environment": {"status": "todo", "hints_revealed": 3}},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = _invoke("hint", "1")
+        assert result.exit_code == 0, result.output
+        assert result.exception is None
+        assert "hint 2 of 2" in result.stdout
+        assert "That was the last hint" in result.stdout
+
+
+class TestHardwareConfirmation:
+    """A queue is measured in hours. Joining one should be a decision, not a surprise."""
+
+    @staticmethod
+    def _peek(monkeypatch, queue) -> None:
+        monkeypatch.setattr("quantum_exercises.backends.queue_peek", lambda **k: queue)
+        monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True, raising=False)
+
+    def test_a_simulator_exercise_is_never_interrupted(self, sandbox: Path, monkeypatch) -> None:
+        """Only the hardware exercise has anything to ask about."""
+        asked = []
+        monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: asked.append(True))
+        monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True, raising=False)
+        _invoke("run", "1")
+        assert asked == []
+
+    def test_a_pipe_is_never_asked(self, sandbox: Path, monkeypatch) -> None:
+        """A script or a CI job must behave exactly as it did before."""
+        asked = []
+        monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: asked.append(True))
+        monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: False, raising=False)
+        assert cli._confirm_hardware(_hardware_exercise(sandbox)) is None
+        assert asked == []
+
+    def test_the_queue_and_a_link_are_shown_before_the_question(
+        self, sandbox: Path, monkeypatch, capsys
+    ) -> None:
+        from quantum_exercises.backends import Queue
+
+        self._peek(monkeypatch, Queue("ibm_marrakesh", 6))
+        monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: True)
+
+        window = cli._confirm_hardware(_hardware_exercise(sandbox))
+        shown = capsys.readouterr().out
+        assert "ibm_marrakesh" in shown
+        assert "6 job" in shown
+        assert cli.COMPUTERS_URL in shown
+        assert window == cli.HARDWARE_WINDOW_SECONDS
+        assert window == 3 * 60 * 60, "the window has to outlast a real queue"
+
+    def test_no_leaves_everything_untouched(self, sandbox: Path, monkeypatch) -> None:
+        from quantum_exercises.backends import Queue
+
+        self._peek(monkeypatch, Queue("ibm_marrakesh", 400))
+        monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: False)
+
+        with pytest.raises(cli.typer.Exit) as exit_info:
+            cli._confirm_hardware(_hardware_exercise(sandbox))
+        assert exit_info.value.exit_code == 0, "declining is not a failure"
+
+    def test_unreachable_hardware_asks_nothing(self, sandbox: Path, monkeypatch) -> None:
+        """Offline, no account, no network: there is no decision to put to anyone."""
+        asked = []
+        self._peek(monkeypatch, None)
+        monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: asked.append(True))
+        assert cli._confirm_hardware(_hardware_exercise(sandbox)) is None
+        assert asked == []
+
+
+def _hardware_exercise(sandbox: Path):
+    from quantum_exercises.registry import load_exercises
+
+    return next(e for e in load_exercises(sandbox) if e.hardware)
+
+
+class TestDamagedProgressFile:
+    """Starting fresh is right. Doing it in silence is what left readers guessing."""
+
+    def test_every_command_says_the_file_could_not_be_read(self, sandbox: Path) -> None:
+        (sandbox / ".qx-state.json").write_text("{ not json at all", encoding="utf-8")
+        for command in (["list"], ["next"], ["hint", "1"]):
+            result = _invoke(*command)
+            assert result.exit_code == 0, result.output
+            assert "could not be read" in result.stdout, f"qx {' '.join(command)} said nothing"
+            assert "has not been touched" in result.stdout
+
+    def test_a_healthy_file_says_nothing(self, sandbox: Path) -> None:
+        import json
+
+        (sandbox / ".qx-state.json").write_text(
+            json.dumps({"version": 1, "exercises": {}}), encoding="utf-8"
+        )
+        assert "could not be read" not in _invoke("list").stdout
+
+
+class TestOptionHelp:
+    """A flag whose surprise is not in its help is a surprise the reader meets late."""
+
+    @staticmethod
+    def _help(*args: str) -> str:
+        """Help text with the wrapping taken out: typer breaks it across the box."""
+        return " ".join(_invoke(*args, "--help").stdout.replace("│", " ").split()).lower()
+
+    def test_timeout_names_its_unit(self) -> None:
+        assert "in seconds" in self._help("run")
+
+    def test_the_solution_flag_admits_it_records_nothing(self) -> None:
+        assert "records no progress" in self._help("run")
+
+    def test_the_top_level_help_says_how_to_reach_hardware(self) -> None:
+        """Account setup lived only under `doctor --help`, which you had to guess at.
+
+        Someone who does not know the flag exists has no way to find it, and the
+        command list alone never mentioned an account or a key.
+        """
+        top = self._help()
+        assert "cloud.ibm.com/iam/apikeys" in top, "nothing says where a key comes from"
+        assert "--save-account" in top
+        assert "--online" in top
+        assert "qx next" in top, "nothing says where to begin"
+
 
 class TestSolutionAndResetRefusals:
     def test_declining_the_solution_reveals_nothing(self, sandbox: Path) -> None:
@@ -187,6 +325,45 @@ class TestSaveAccount:
         assert calls[0]["token"] == "SECRET-TOKEN-123"
         assert calls[0]["channel"] == "ibm_quantum_platform"
 
+    def test_permissions_that_cannot_be_tightened_are_reported(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """The key is on disk either way, so this warns rather than failing the save.
+
+        Saying nothing would leave a clear-text key world readable on a shared
+        machine with nothing on screen to say so.
+        """
+        self._fake_runtime(monkeypatch, lambda **kw: None)
+        monkeypatch.setattr("getpass.getpass", lambda prompt="": "tok")
+        monkeypatch.setattr("builtins.input", lambda prompt="": "")
+        monkeypatch.setattr(doctor_module, "CREDENTIALS_PATH", tmp_path / ".qiskit" / "c.json")
+        monkeypatch.setattr(cli, "_restrict_credentials_permissions", lambda: False)
+
+        result = _invoke("doctor", "--save-account")
+        assert result.exit_code == 0
+        assert "Account saved" in result.stdout
+        assert "Could not restrict permissions" in result.stdout
+
+    def test_the_instance_prompt_says_what_skipping_it_means(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """ "Press Enter to skip" said it was allowed, never what it did.
+
+        The client resolves the instance itself when the field is empty, which is
+        the answer nearly every reader needs, and it was only in qiskit's docstring.
+        """
+        prompts: list[str] = []
+        self._fake_runtime(monkeypatch, lambda **kw: None)
+        monkeypatch.setattr("getpass.getpass", lambda prompt="": "tok")
+        monkeypatch.setattr("builtins.input", lambda prompt="": prompts.append(prompt) or "")
+        monkeypatch.setattr(doctor_module, "CREDENTIALS_PATH", tmp_path / ".qiskit" / "c.json")
+
+        result = _invoke("doctor", "--save-account")
+        assert "optional" in prompts[0].lower()
+        # And the panel above it says who would want to fill it in.
+        assert "optional" in result.stdout.lower()
+        assert "several" in result.stdout
+
     def test_an_instance_crn_is_passed_through(self, tmp_path: Path, monkeypatch) -> None:
         calls = []
         self._fake_runtime(monkeypatch, lambda **kw: calls.append(kw))
@@ -256,6 +433,23 @@ class TestEntryPoint:
         cli.main()
         assert called == [True]
 
+    def test_the_module_runs_as_a_script(self) -> None:
+        """`python -m quantum_exercises.cli` is the route that skips the console script.
+
+        It is what someone reaches for when `qx` is not on PATH, and the only thing
+        holding it up is the `__main__` guard at the bottom of cli.py.
+        """
+        import subprocess
+
+        finished = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            [sys.executable, "-m", "quantum_exercises.cli", "version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert finished.returncode == 0, finished.stderr
+        assert "quantum-exercises" in finished.stdout
+
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX modes only")
 def test_prepare_credentials_file_creates_it_owner_only(tmp_path: Path, monkeypatch) -> None:
@@ -315,3 +509,66 @@ def test_restrict_reports_failure(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(doctor_module, "CREDENTIALS_PATH", target)
     monkeypatch.setattr(cli.os, "chmod", lambda *a, **k: (_ for _ in ()).throw(OSError("nope")))
     assert cli._restrict_credentials_permissions() is False
+
+
+class TestTyperChrome:
+    """Typer draws --help and every usage error itself, outside ui.py and theme.py.
+
+    Left alone it uses named colours and rounded corners, so a mistyped option was
+    answered in a red rounded box beside tables this project squares on purpose.
+    """
+
+    def test_every_panel_typer_draws_has_square_corners(self) -> None:
+        from rich import box
+        from typer import rich_utils
+
+        panel = rich_utils.Panel("body")
+        assert panel.box is box.SQUARE
+
+    def test_an_explicit_box_still_wins(self) -> None:
+        """setdefault, not an override: a caller asking for a box must get it."""
+        from rich import box
+        from typer import rich_utils
+
+        assert rich_utils.Panel("body", box=box.HEAVY).box is box.HEAVY
+
+    def test_no_style_typer_prints_names_a_colour_outside_the_palette(self) -> None:
+        from typer import rich_utils
+
+        from quantum_exercises import theme
+
+        allowed = {
+            theme.ACCENT,
+            theme.TEXT,
+            theme.TEXT_DIM,
+            theme.MUTED,
+            theme.OUTLINE,
+            theme.BACKGROUND,
+            theme.SURFACE,
+        }
+        for name in dir(rich_utils):
+            if not name.startswith("STYLE_"):
+                continue
+            value = getattr(rich_utils, name)
+            if not isinstance(value, str) or not value:
+                continue
+            words = [w for w in value.split() if w not in ("bold", "italic", "dim", "on")]
+            for word in words:
+                assert word in allowed, f"{name} = {value!r} names {word!r}"
+
+    def test_the_help_suggestion_is_not_left_blue(self) -> None:
+        from typer import rich_utils
+
+        from quantum_exercises import theme
+
+        assert "[blue]" not in rich_utils.RICH_HELP
+        assert theme.ACCENT in rich_utils.RICH_HELP
+        # The placeholders survive, or the sentence formats into a traceback.
+        assert "{command_path}" in rich_utils.RICH_HELP
+        assert "{help_option}" in rich_utils.RICH_HELP
+
+    def test_a_mistyped_option_names_the_command_that_has_it(self) -> None:
+        """`--online` belongs to doctor. The error must not be the only thing said."""
+        result = _invoke("--online")
+        assert result.exit_code != 0
+        assert "No such option" in result.output

@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 import warnings
 from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich import box
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
+from typer import rich_utils
 
 from quantum_exercises import __version__, invocation, theme, ui
 from quantum_exercises.registry import (
@@ -26,11 +29,88 @@ from quantum_exercises.registry import (
 )
 from quantum_exercises.runner import ran_on as run_result_ran_on
 from quantum_exercises.runner import run_exercise
-from quantum_exercises.state import State, load, locked
+from quantum_exercises.state import STATE_FILENAME, State, load, locked
+from quantum_exercises.state import unreadable as state_unreadable
+
+
+class _SquarePanel(Panel):
+    """Rich's Panel with the corners this project draws everywhere else."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        kwargs.setdefault("box", box.SQUARE)
+        super().__init__(*args, **kwargs)
+
+
+def _theme_typer() -> None:
+    """Put typer's own chrome on the palette the rest of the tool uses.
+
+    Typer draws `--help` and every usage error itself, in named colours and with
+    rounded corners, so a mistyped option answered in a red rounded box next to
+    tables this project squares on purpose. Its panels take no box argument, so
+    the class it calls is swapped for one that squares them; the styles are plain
+    module constants, read when a panel is drawn, so assigning them is enough.
+    """
+    rich_utils.Panel = _SquarePanel
+    rich_utils.STYLE_USAGE = theme.HEADING
+    rich_utils.STYLE_USAGE_COMMAND = theme.COMMAND
+    rich_utils.STYLE_HELPTEXT_FIRST_LINE = theme.BODY
+    rich_utils.STYLE_HELPTEXT = theme.BODY
+    rich_utils.STYLE_OPTION = theme.FIGURE
+    rich_utils.STYLE_SWITCH = theme.FIGURE
+    rich_utils.STYLE_NEGATIVE_OPTION = theme.FIGURE
+    rich_utils.STYLE_NEGATIVE_SWITCH = theme.FIGURE
+    rich_utils.STYLE_TYPES = theme.DETAIL
+    rich_utils.STYLE_TYPES_SEPARATOR = theme.DETAIL
+    rich_utils.STYLE_OPTION_HELP = theme.BODY
+    rich_utils.STYLE_OPTION_DEFAULT = theme.DETAIL
+    rich_utils.STYLE_OPTION_ENVVAR = theme.DETAIL
+    rich_utils.STYLE_REQUIRED_SHORT = theme.FIGURE
+    rich_utils.STYLE_REQUIRED_LONG = theme.DETAIL
+    # Nothing is deprecated yet. Set anyway, so the first thing that is does not
+    # arrive wearing the one colour this palette does not have.
+    rich_utils.STYLE_DEPRECATED = theme.DETAIL
+    rich_utils.STYLE_DEPRECATED_COMMAND = theme.DETAIL
+    rich_utils.STYLE_OPTIONS_PANEL_BORDER = theme.BORDER
+    rich_utils.STYLE_COMMANDS_PANEL_BORDER = theme.BORDER
+    rich_utils.STYLE_COMMANDS_TABLE_FIRST_COLUMN = theme.COMMAND
+    # The one border the palette raises: an error is the result of the command.
+    rich_utils.STYLE_ERRORS_PANEL_BORDER = theme.BORDER_ACTIVE
+    rich_utils.STYLE_ERRORS_SUGGESTION = theme.DETAIL
+    rich_utils.STYLE_ABORTED = theme.DETAIL
+    # The one colour typer writes into a string instead of a constant. Replaced
+    # rather than rewritten, so a translated sentence keeps its wording.
+    rich_utils.RICH_HELP = rich_utils.RICH_HELP.replace("[blue]", f"[{theme.ACCENT}]")
+
+
+_theme_typer()
+
+
+# The epilog answers the two questions the command list cannot: where to begin,
+# and how to reach real hardware. Account setup lived only under `doctor --help`,
+# so a reader who did not already know the flag had nowhere to find it.
+# Written as unbroken paragraphs: the help renderer wraps to the terminal, and a
+# newline of ours in the middle of a sentence shows up as one there too.
+# Typer renders this as rich markup, which accents anything that looks like an
+# option on its own. The command in front of the option is not one, so it is
+# marked by hand, or half of each pair would be lit and half would not.
+def _typed(command: str) -> str:
+    return f"[{theme.ACCENT}]{command}[/]"
+
+
+EPILOG = (
+    f"Start with {_typed('qx next')}. Every command takes an exercise number, slug or"
+    f" fragment, and picks the first unfinished one when you leave it out, so"
+    f" {_typed('qx run 11')}, {_typed('qx run bell')} and {_typed('qx run')} are all valid.\n\n"
+    "Real IBM hardware is optional, and only exercise 14 reaches for it: everything"
+    " runs on a local simulator without an account. To use one, create an API key at"
+    f" https://cloud.ibm.com/iam/apikeys, then {_typed('qx doctor --save-account')} to store"
+    f" it and {_typed('qx doctor --online')} to check that IBM still accepts it."
+)
 
 app = typer.Typer(
     name="qx",
     help="Hands-on Qiskit exercises, from an empty laptop to real IBM hardware.",
+    epilog=EPILOG,
     no_args_is_help=True,
     add_completion=False,
 )
@@ -50,6 +130,12 @@ def _context() -> tuple[Path, list[Exercise], State]:
     except RegistryError as exc:
         ui.error(str(exc))
         raise typer.Exit(code=2) from exc
+
+    if state_unreadable(root):
+        ui.warn(
+            f"{STATE_FILENAME} could not be read, so everything below shows as unfinished. "
+            "Your file has not been touched; it is copied aside the next time progress is saved."
+        )
     return root, exercises, load(root)
 
 
@@ -150,9 +236,13 @@ def _save_account() -> None:
     ui.console.print(
         Panel(
             Text(
-                "Get an API key from https://quantum.cloud.ibm.com\n"
+                "Create an API key at https://cloud.ibm.com/iam/apikeys and copy it "
+                "straight away: it is shown once.\n"
                 "The key is stored unencrypted in ~/.qiskit/qiskit-ibm.json, so only do this "
-                "on a machine you trust.",
+                "on a machine you trust.\n\n"
+                "You will be asked for an instance CRN after the key. It is optional: left "
+                "empty, the account uses whichever instance it finds. Fill it in only if you "
+                "have several and want one of them by default.",
             ),
             title="save IBM Quantum account",
             **ui.panel(),
@@ -176,7 +266,7 @@ def _save_account() -> None:
         ui.warn("No key entered, nothing was saved.")
         raise typer.Exit(code=1)
 
-    instance = input("Instance CRN (press Enter to skip): ").strip() or None
+    instance = input("Instance CRN (optional, Enter to let the account choose): ").strip() or None
 
     prepared = _prepare_credentials_file()
 
@@ -271,10 +361,14 @@ def next_exercise() -> None:
 def run(
     name: Annotated[str | None, typer.Argument(help="Exercise number, slug, or fragment.")] = None,
     timeout: Annotated[
-        int | None, typer.Option("--timeout", help="Override the per-exercise time limit.")
+        int | None,
+        typer.Option("--timeout", help="Override the per-exercise time limit, in seconds."),
     ] = None,
     solution: Annotated[
-        bool, typer.Option("--solution", help="Run solution.py instead of your file.")
+        bool,
+        typer.Option(
+            "--solution", help="Run solution.py instead of your file. Records no progress."
+        ),
     ] = False,
 ) -> None:
     """Check an exercise. With no argument, checks the next unfinished one."""
@@ -284,6 +378,9 @@ def run(
 
     root, exercises, state = _context()
     exercise = _pick(name, exercises, state)
+
+    if timeout is None:
+        timeout = _confirm_hardware(exercise)
 
     target = exercise.solution_file if solution else exercise.exercise_file
     result = run_exercise(exercise, root=root, target=target, timeout=timeout)
@@ -309,6 +406,52 @@ def run(
                 ui.success("That was the last one. All exercises complete.")
 
     raise typer.Exit(code=0 if result.passed else 1)
+
+
+# A queue is measured in hours, and the per-exercise limit is measured for a
+# simulator. Waiting this long is only ever entered on purpose, by answering yes.
+HARDWARE_WINDOW_SECONDS = 3 * 60 * 60
+COMPUTERS_URL = "https://quantum.cloud.ibm.com/computers"
+
+
+def _confirm_hardware(exercise: Exercise) -> int | None:
+    """Show the queue and ask before joining it. Returns the time limit to use.
+
+    None means nothing changes: the exercise keeps its own limit. Only a yes turns
+    the limit into a window long enough for a real queue.
+
+    Silent unless there is a decision to make. No account, no network, QX_OFFLINE
+    or a pipe instead of a terminal all fall through, so scripts and CI behave
+    exactly as before.
+    """
+    if not exercise.hardware or not sys.stdin.isatty():
+        return None
+
+    from quantum_exercises.backends import queue_peek
+
+    ui.info("Asking IBM which QPU is free. This sends no job.")
+    queue = queue_peek()
+    if queue is None:
+        return None
+
+    hours = HARDWARE_WINDOW_SECONDS // 3600
+    ui.console.print()
+    ui.console.print(
+        Text("  least busy  ", style=theme.DETAIL)
+        + Text(queue.name, style=theme.FIGURE)
+        + Text(f"   {queue.pending} job(s) ahead of you", style=theme.BODY)
+    )
+    ui.console.print(
+        Text("  all of them ", style=theme.DETAIL) + Text(COMPUTERS_URL, style=theme.PATH)
+    )
+    ui.console.print()
+
+    if not typer.confirm("  Send it now? Answering no changes nothing and costs nothing"):
+        ui.info(f"Nothing sent. Come back with `{invocation()} run {exercise.number}` any time.")
+        raise typer.Exit(code=0)
+
+    ui.info(f"Waiting for the result, up to {hours} hours. Ctrl-C stops waiting, not the job.")
+    return HARDWARE_WINDOW_SECONDS
 
 
 @app.command()

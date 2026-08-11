@@ -36,14 +36,16 @@ TABLE_BOX = box.SQUARE
 
 BAR_WIDTH = 34
 
-# Eight-step block ramp, so a bar can render fractions of a cell.
-_BLOCKS = " ▏▎▍▌▋▊▉█"
+# One glyph for the fill, one for the track. The bar used to end in a partial
+# cell from the U+258x family, which reads as a fraction of a cell but is drawn by
+# the font at its own height: next to a full block that the font insets, the last
+# cell of the bar stood taller than the rest of it. A whole cell is 1/34 of the
+# bar, and the exact figure is printed beside it, so nothing is lost by rounding.
 _FULL = "█"
 _TRACK = "░"
 
 # Plain replacements for terminals whose encoding cannot carry the blocks above,
 # which is still the default on some Windows consoles.
-_ASCII_BLOCKS = "        #"
 _ASCII_FULL = "#"
 _ASCII_TRACK = "."
 
@@ -58,13 +60,15 @@ def _supports_blocks() -> bool:
     """Can the current output encoding actually carry the block characters?
 
     Checked per call rather than at import: the stream is swapped out under tests
-    and when output is piped.
+    and when output is piped. It asks about exactly the two characters the bar
+    draws; asking about a wider set sent terminals to the ASCII bar over glyphs
+    they were never going to be shown.
     """
     encoding = getattr(console.file, "encoding", None)
     if not encoding:
         return True  # no encoding to fail against, for example an in-memory buffer
     try:
-        (_BLOCKS + _TRACK).encode(encoding)
+        (_FULL + _TRACK).encode(encoding)
     except (UnicodeEncodeError, LookupError):
         return False
     return True
@@ -83,27 +87,14 @@ def _effective_track(track: str) -> str:
 
 
 def _bar(fraction: float, width: int = BAR_WIDTH, track: str = " ") -> str:
-    """Render a proportion as a bar with sub-character resolution where possible."""
+    """Render a proportion as a bar of whole cells."""
     fraction = max(0.0, min(1.0, fraction))
-    unicode_ok = _supports_blocks()
-    ramp = _BLOCKS if unicode_ok else _ASCII_BLOCKS
-    full = _FULL if unicode_ok else _ASCII_FULL
+    full = _FULL if _supports_blocks() else _ASCII_FULL
     track = _effective_track(track)
 
-    exact = fraction * width
-    filled_cells = int(exact)
-    remainder = exact - filled_cells
-
-    # Any partial cell that is blank must add nothing, or it punches a hole
-    # between the filled part and the track. That is ramp[0] in both ramps, and
-    # ramp[1..7] in the ASCII one, which has no sub-character glyphs to offer.
-    step = round(remainder * 8)
-    partial = ramp[step] if step > 0 and filled_cells < width else ""
-    if not partial.strip():
-        partial = ""
-
-    filled = full * filled_cells + partial
-    return filled + track * (width - len(filled))
+    # Rounded down, so the bar never fills before the work does.
+    filled_cells = int(fraction * width)
+    return full * filled_cells + track * (width - filled_cells)
 
 
 def panel(*, border: str = theme.BORDER_ACTIVE, heavy: bool = False, raised: bool = False) -> dict:
@@ -227,13 +218,21 @@ def render_artifact(artifact: dict):
     meta = artifact.get("meta") or {}
 
     caption = _safe(caption)
-    if kind == "counts" and isinstance(payload, dict):
-        return render_counts(payload, caption)
-    if kind == "statevector" and isinstance(payload, list):
-        num_qubits = int(meta.get("num_qubits") or max(1, int(math.log2(max(len(payload), 1)))))
-        return render_statevector(payload, caption, num_qubits)
-    if kind == "matrix" and isinstance(payload, list):
-        return render_matrix(payload, caption)
+    # The kind and the outer type are checked below, the shape inside is not: a
+    # matrix whose rows are numbers, or a statevector of scalars, reaches the
+    # renderer and raises. That is an exercise author's mistake arriving after the
+    # learner's answer already passed, so it falls back to the text panel rather
+    # than ending a successful run in a traceback.
+    try:
+        if kind == "counts" and isinstance(payload, dict):
+            return render_counts(payload, caption)
+        if kind == "statevector" and isinstance(payload, list):
+            num_qubits = int(meta.get("num_qubits") or max(1, int(math.log2(max(len(payload), 1)))))
+            return render_statevector(payload, caption, num_qubits)
+        if kind == "matrix" and isinstance(payload, list):
+            return render_matrix(payload, caption)
+    except (TypeError, ValueError):
+        pass
     return Panel(Text(_safe(str(payload))), title=caption, **panel(raised=True))
 
 

@@ -145,7 +145,72 @@ class TestBackendSelection:
         selection = backends.get_backend()
         assert selection.kind == "noisy_simulator"
         assert "AccountNotFoundError" in selection.reason
+        assert "no account here" in selection.reason, "the message is the actionable half"
         assert not selection.is_hardware
+
+
+class TestQueuePeek:
+    """Looking at the queue must never be the thing that submits, or that fails."""
+
+    def test_offline_never_reaches_the_network(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(backends.OFFLINE_ENV, "1")
+
+        def forbidden(*args, **kwargs):
+            raise AssertionError("a peek must not contact IBM while offline")
+
+        monkeypatch.setattr("qiskit_ibm_runtime.QiskitRuntimeService", forbidden)
+        assert backends.queue_peek() is None
+
+    def test_it_reports_the_least_busy_and_its_depth(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        backend = SimpleNamespace(name="ibm_probe", status=lambda: SimpleNamespace(pending_jobs=6))
+        service = SimpleNamespace(least_busy=lambda **kwargs: backend)
+        monkeypatch.delenv(backends.OFFLINE_ENV, raising=False)
+        monkeypatch.setattr("qiskit_ibm_runtime.QiskitRuntimeService", lambda *a, **k: service)
+
+        queue = backends.queue_peek()
+        assert queue == backends.Queue("ibm_probe", 6)
+
+    def test_no_operational_qpu_is_no_answer(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        service = SimpleNamespace(least_busy=lambda **kwargs: None)
+        monkeypatch.delenv(backends.OFFLINE_ENV, raising=False)
+        monkeypatch.setattr("qiskit_ibm_runtime.QiskitRuntimeService", lambda *a, **k: service)
+        assert backends.queue_peek() is None
+
+    @pytest.mark.parametrize("failure", [RuntimeError("no network"), ValueError("odd reply")])
+    def test_a_peek_that_fails_is_simply_no_answer(
+        self, monkeypatch: pytest.MonkeyPatch, failure: Exception
+    ) -> None:
+        """It runs before a decision, so it may never become the reason for one."""
+
+        def broken(*args, **kwargs):
+            raise failure
+
+        monkeypatch.delenv(backends.OFFLINE_ENV, raising=False)
+        monkeypatch.setattr("qiskit_ibm_runtime.QiskitRuntimeService", broken)
+        assert backends.queue_peek() is None
+
+
+class TestBackendSelectionContinued:
+    def test_a_revoked_key_says_what_ibm_said(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The class name alone leaves a reader with a word and no next step.
+
+        This is what a key that has expired or been revoked produces, and the
+        sentence IBM returns with it is the one that says what to go and fix.
+        """
+        from qiskit_ibm_runtime.accounts import InvalidAccountError
+
+        told = "Unable to retrieve instances. Please check that you are using a valid API token."
+
+        def refused(*args, **kwargs):
+            raise InvalidAccountError(told)
+
+        monkeypatch.delenv(backends.OFFLINE_ENV, raising=False)
+        monkeypatch.setattr("qiskit_ibm_runtime.QiskitRuntimeService", refused)
+
+        selection = backends.get_backend()
+        assert selection.kind == "noisy_simulator"
+        assert "InvalidAccountError" in selection.reason
+        assert "valid API token" in selection.reason
 
     def test_exhausted_quota_falls_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A valid account with no QPU time left must not break the exercise."""
@@ -311,3 +376,63 @@ def test_get_backend_falls_back_when_runtime_is_absent(monkeypatch) -> None:
 def test_selection_describe_covers_every_kind() -> None:
     for kind in ("hardware", "noisy_simulator", "simulator"):
         assert backends.Selection(None, kind, "n", "r").describe()
+
+
+class TestPeekIsQuiet:
+    """The peek runs in the reader's own terminal, not in the piped worker.
+
+    Every other construction of the client happens inside the run subprocess, whose
+    output the runner captures. This one prints where the question is about to be
+    asked, so the client's log landed on top of it: three WARNING lines with
+    timestamps and module paths, then "Send it now?".
+    """
+
+    @staticmethod
+    def _talkative(monkeypatch: pytest.MonkeyPatch) -> None:
+        import logging
+
+        def service(*args, **kwargs):
+            logger = logging.getLogger("qiskit_ibm_runtime")
+            logger.warning("Instance was not set at service instantiation. Free and trial ...")
+            logger.warning("Loading instance: open-instance, plan: open")
+            backend = SimpleNamespace(
+                name="ibm_marrakesh", status=lambda: SimpleNamespace(pending_jobs=6)
+            )
+            return SimpleNamespace(least_busy=lambda **k: backend)
+
+        monkeypatch.delenv(backends.OFFLINE_ENV, raising=False)
+        monkeypatch.setattr("qiskit_ibm_runtime.QiskitRuntimeService", service)
+
+    def test_the_client_log_never_reaches_the_screen(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Against the handler the client really installs: its own, propagate off."""
+        import io
+        import logging
+
+        stream = io.StringIO()
+        logger = logging.getLogger("qiskit_ibm_runtime")
+        printer = logging.StreamHandler(stream)
+        printer.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+        handlers = logger.handlers[:]
+        propagate, level = logger.propagate, logger.level
+        logger.handlers = [printer]
+        logger.propagate = False
+        logger.setLevel(logging.WARNING)
+        try:
+            self._talkative(monkeypatch)
+            queue = backends.queue_peek()
+        finally:
+            logger.handlers = handlers
+            logger.propagate = propagate
+            logger.setLevel(level)
+
+        assert stream.getvalue() == "", f"the client printed: {stream.getvalue()!r}"
+        assert queue == backends.Queue("ibm_marrakesh", 6)
+
+    def test_the_logger_is_left_as_it_was_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import logging
+
+        logger = logging.getLogger("qiskit_ibm_runtime")
+        before = (logger.propagate, list(logger.handlers))
+        self._talkative(monkeypatch)
+        backends.queue_peek()
+        assert (logger.propagate, list(logger.handlers)) == before

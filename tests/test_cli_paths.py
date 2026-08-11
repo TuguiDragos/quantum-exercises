@@ -572,3 +572,46 @@ class TestTyperChrome:
         result = _invoke("--online")
         assert result.exit_code != 0
         assert "No such option" in result.output
+
+    def test_typer_renders_in_the_same_colour_system_as_the_rest(self) -> None:
+        """Not cosmetic: rich hands both consoles the same Style object.
+
+        Style.parse is cached, and a Style remembers the ANSI it emitted the first
+        time anything rendered it. Let typer negotiate a narrower system than ours
+        and the first `--help` freezes the palette at those codes for every later
+        print in the process, ours included.
+        """
+        from typer import rich_utils
+
+        from quantum_exercises import ui
+
+        assert ui.console.color_system == rich_utils.COLOR_SYSTEM
+
+    def test_the_trap_that_makes_the_guard_above_necessary(self) -> None:
+        """Reproduces the rich behaviour, so the guard is not folklore.
+
+        One Style object is handed to every console, and it keeps the ANSI it
+        emitted the first time. A narrower console rendering first therefore
+        decides the codes for a wider one that comes after. Nothing here can
+        switch that off, which is why the two colour systems are made to agree.
+        Should rich ever stop caching, this fails and the guard can be relaxed.
+        """
+        from rich.color import ColorSystem
+        from rich.style import Style
+
+        from quantum_exercises import theme
+
+        Style.parse.cache_clear()
+        try:
+            first = Style.parse(theme.ACCENT)
+            assert Style.parse(theme.ACCENT) is first, "one object per colour, for every console"
+
+            narrow = first.render("x", color_system=ColorSystem.STANDARD)
+            wide = first.render("x", color_system=ColorSystem.TRUECOLOR)
+            assert wide == narrow, (
+                "rich no longer freezes a Style's codes; the colour system guard "
+                "above is no longer load bearing"
+            )
+        finally:
+            # Or every later assertion on exact codes inherits what was just cached.
+            Style.parse.cache_clear()

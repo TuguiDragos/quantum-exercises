@@ -49,8 +49,16 @@ def _theme_typer() -> None:
     tables this project squares on purpose. Its panels take no box argument, so
     the class it calls is swapped for one that squares them; the styles are plain
     module constants, read when a panel is drawn, so assigning them is enough.
+
+    Its console is pinned to the same colour system as ours for a reason that is
+    not cosmetic. rich caches Style.parse, so both consoles get the *same* Style
+    object for a given colour, and a Style caches the ANSI it emitted the first
+    time anything rendered it. Let typer negotiate a narrower system on its own
+    and every later print of that colour, ours included, is stuck with the codes
+    it settled on. Sharing a palette means sharing the cache entries.
     """
     rich_utils.Panel = _SquarePanel
+    rich_utils.COLOR_SYSTEM = ui.console.color_system
     rich_utils.STYLE_USAGE = theme.HEADING
     rich_utils.STYLE_USAGE_COMMAND = theme.COMMAND
     rich_utils.STYLE_HELPTEXT_FIRST_LINE = theme.BODY

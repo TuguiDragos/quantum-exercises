@@ -214,7 +214,22 @@ class TestDependencyInventory:
         # described.
         if sys.platform != "linux":
             pytest.skip(f"the count is for Linux; this is {sys.platform}")
-        assert installed == len(list(distributions()))
+
+        # Counted against the lock rather than against everything importable. The
+        # coverage job runs the suite under `uv run --with coverage`, which puts a
+        # package in the environment that `uv sync` never installs, and a bare
+        # count read that as the documented figure being wrong. Anything not in
+        # uv.lock was injected for the run, so it is not part of what is claimed.
+        def canonical(name: str) -> str:
+            return re.sub(r"[-_.]+", "-", name).lower()
+
+        locked_names = {canonical(entry["name"]) for entry in locked["package"]}
+        from_lock = [
+            dist
+            for dist in distributions()
+            if canonical(dist.metadata["Name"] or "") in locked_names
+        ]
+        assert installed == len(from_lock)
 
     def test_ci_matrix_matches_the_prose(self, root: Path, inventory: str) -> None:
         stated = set(

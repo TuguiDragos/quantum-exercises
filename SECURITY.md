@@ -56,10 +56,11 @@ This is the part worth thinking about, because it is not obvious.
 
 `qx run` imports two files: your `exercise.py`, and the exercise's `check.py`.
 With `--solution` the first of those is the exercise's `solution.py` instead, which
-is repository code like `check.py`. Both run as ordinary Python in a child process. That child inherits your
-environment, your filesystem and your network access. It is **not a sandbox**,
-and it is not trying to be: `exercise.py` is code you wrote yourself, and
-`check.py` is repository code reviewed like any other source file.
+is repository code like `check.py`. Both run as ordinary Python in a child
+process. That child inherits your environment, your filesystem and your network
+access. It is **not a sandbox**, and it is not trying to be: `exercise.py` is
+code you wrote yourself, and `check.py` is repository code reviewed like any
+other source file.
 
 The consequence: **a `check.py` from a repository you clone can read
 `~/.qiskit/qiskit-ibm.json` and send it anywhere.** Verified, not theoretical.
@@ -131,6 +132,22 @@ against hardware can carry job identifiers.
 `ci.yml` and `verify.yml` set `QX_OFFLINE=1`, and so does the test suite.
 Nothing automated can submit a job or spend someone's free QPU minutes.
 `rotate-notes.yml` runs no Python and never loads qiskit at all.
+
+That is the outer guard. The inner one does not depend on remembering to set
+anything: the parent hands the child an offline environment for any run of
+exercise 14 that reached no one to ask, and `qx run` is the only caller that can
+ask at all. A run with no terminal, and `qx watch`, which asks nothing on any
+run, both stay on the local simulator and say so. A scripted `qx run 14` on a
+machine with a saved account therefore spends nothing, which before this was
+exactly how a stray editor task could have joined a real queue.
+
+One case is deliberately left open, and it is worth stating rather than glossing.
+When the run **is** interactive but the queue cannot be read at all, there is no
+queue to show you and so no question to put; the run then proceeds as it always
+did, and the worker reports which backend it settled on and why. Someone sitting
+at a terminal who typed `qx run 14` is not ambushed by that. The ambush this
+guards against is the one with nobody at the keyboard, and that case has no
+terminal by definition.
 
 That third workflow is the only one here holding `contents: write`. It rewrites
 the block between the NOTES markers in `README.md` from the author's public feed

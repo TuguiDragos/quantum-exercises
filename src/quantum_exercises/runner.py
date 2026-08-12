@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Literal
 
 from quantum_exercises import invocation
+from quantum_exercises.backends import OFFLINE_ENV
 from quantum_exercises.registry import Exercise
 
 Outcome = Literal["pass", "fail", "error", "internal_error", "timeout", "crash"]
@@ -88,8 +89,8 @@ class _BoundedReader(threading.Thread):
         return body
 
 
-def _child_env() -> dict[str, str]:
-    return {
+def _child_env(exercise: Exercise, *, allow_hardware: bool) -> dict[str, str]:
+    env = {
         **os.environ,
         # PYTHONSAFEPATH keeps the working directory off sys.path on 3.11 and up.
         # worker.py drops it explicitly as well, which covers 3.10.
@@ -108,6 +109,13 @@ def _child_env() -> dict[str, str]:
         "NO_COLOR": "1",
         "PYTHONUTF8": "1",
     }
+    if exercise.hardware and not allow_hardware:
+        # Nobody agreed to this run reaching a QPU, so the child is kept off one.
+        # The decision belongs to the caller: `qx run` sets it from the question
+        # it asked, and everything else, watch mode included, gets the safe
+        # answer by default. An existing QX_OFFLINE is never cleared here.
+        env[OFFLINE_ENV] = "1"
+    return env
 
 
 def _spawn_kwargs() -> dict:
@@ -160,8 +168,14 @@ def run_exercise(
     root: Path,
     target: Path | None = None,
     timeout: int | None = None,
+    allow_hardware: bool = False,
 ) -> RunResult:
-    """Run one exercise in a child process and return a structured verdict."""
+    """Run one exercise in a child process and return a structured verdict.
+
+    ``allow_hardware`` defaults to False so that a caller which has not thought
+    about it cannot spend someone's QPU quota. Only `qx run`, holding an answer
+    to the question it asked, passes True.
+    """
     target = target or exercise.exercise_file
     if not target.is_file():
         return RunResult(
@@ -194,7 +208,7 @@ def run_exercise(
             stdin=subprocess.DEVNULL,  # exercise code must not eat the user's typing
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env=_child_env(),
+            env=_child_env(exercise, allow_hardware=allow_hardware),
             **_spawn_kwargs(),
         )
 

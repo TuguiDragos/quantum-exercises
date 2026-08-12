@@ -7,7 +7,7 @@ from pathlib import Path
 from rich.text import Text
 from watchfiles import watch
 
-from quantum_exercises import theme, ui
+from quantum_exercises import invocation, theme, ui
 from quantum_exercises.registry import Exercise
 from quantum_exercises.runner import ran_on as run_result_ran_on
 from quantum_exercises.runner import run_exercise
@@ -30,6 +30,14 @@ def _announce(exercise: Exercise, root: Path) -> None:
         + Text(str(exercise.exercise_file.relative_to(root)), style=theme.PATH)
         + Text("   save to re-run, Ctrl-C to stop", style=theme.DETAIL)
     )
+    if exercise.hardware:
+        # Watch mode re-runs on every save and asks nothing, so it never reaches a
+        # QPU. Said here because the panel below only reports which backend was
+        # used, not why this mode could not have picked the other one.
+        ui.info(
+            "Watch mode re-runs on every save, so it stays on a local simulator. "
+            f"Use `{invocation()} run {exercise.number}` to send this one to a QPU."
+        )
 
 
 def _run_and_record(exercise: Exercise, root: Path) -> bool:

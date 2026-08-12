@@ -46,7 +46,7 @@ If you would rather not lean on the import at all, `-(-n // BITS_PER_BYTE)` does
 the same thing: negating twice around a floor division turns it into a ceiling.
 
 Do not use `round`. It rounds to nearest, so nine bits would come back as one
-byte and the two smallest cases in the checker would disagree with you.
+byte rather than two, and most of the checker's cases would disagree with you.
 
 Once all three pass, read the ratio column in the first artifact. That number is
 the reason this exercise sits where it does in the course.

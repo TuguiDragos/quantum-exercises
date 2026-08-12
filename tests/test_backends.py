@@ -251,23 +251,59 @@ class TestBackendSelectionContinued:
             name = "ibm_fez"
             num_qubits = 156
 
+        asked: dict = {}
+
         class ServiceWithQPU:
             def __init__(self, *args, **kwargs) -> None:
                 pass
 
             def least_busy(self, **kwargs):
-                assert kwargs["operational"] is True
-                assert kwargs["simulator"] is False
+                asked.update(kwargs)
                 return FakeQPU()
 
         monkeypatch.delenv(backends.OFFLINE_ENV, raising=False)
         monkeypatch.setattr("qiskit_ibm_runtime.QiskitRuntimeService", ServiceWithQPU)
 
         selection = backends.get_backend(min_num_qubits=2)
+
+        # Recorded and checked out here rather than asserted inside the fake.
+        # get_backend wraps that call in `except Exception`, so an assertion in
+        # there is swallowed and comes back as "could not reach a QPU".
+        assert asked["operational"] is True
+        assert asked["simulator"] is False
+        # Passed on as well: dropping it would offer a one-qubit QPU for a
+        # two-qubit circuit, and the failure would land at submission time.
+        assert asked["min_num_qubits"] == 2
         assert selection.kind == "hardware"
         assert selection.is_hardware
         assert selection.name == "ibm_fez"
         assert "real QPU" in selection.describe()
+
+    @pytest.mark.hardware
+    def test_a_bell_pair_on_a_real_qpu(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The one test that reaches IBM. Deselected by default; opt in with -m hardware.
+
+        Everything above this reaches the hardware branch through a fake, which
+        proves the code path and nothing about IBM still answering the way it is
+        called here. This is the test that would notice, and it costs real queue
+        time, so it is never part of an ordinary run.
+        """
+        from qiskit import QuantumCircuit
+
+        monkeypatch.delenv(backends.OFFLINE_ENV, raising=False)
+        selection = backends.get_backend(min_num_qubits=2)
+        if not selection.is_hardware:
+            pytest.skip(f"no QPU within reach: {selection.reason}")
+
+        circuit = QuantumCircuit(2)
+        circuit.h(0)
+        circuit.cx(0, 1)
+        circuit.measure_all()
+        counts = backends.sample(backends.to_isa(circuit, selection.backend), selection, shots=1024)
+
+        assert sum(counts.values()) == 1024
+        agreed = counts.get("00", 0) + counts.get("11", 0)
+        assert agreed / 1024 > 0.6, f"{selection.name} gave {counts}"
 
     def test_prefer_hardware_false_skips_the_service(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def explode(*args, **kwargs):

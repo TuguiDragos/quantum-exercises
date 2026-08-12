@@ -88,7 +88,7 @@ def check(mod):
             detail=(
                 f"Counts: {dict(sorted(counts.items()))}\n"
                 "A Bell state should give almost entirely 00 and 11. Around 50% suggests the "
-                "cx is missing, so the qubits were never entangled."
+                "cx is missing, so what ran was not the Bell state you built."
             ),
         )
 

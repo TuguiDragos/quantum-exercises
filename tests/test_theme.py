@@ -76,8 +76,7 @@ def _parse_sgr(data: bytes) -> tuple[set[tuple[int, int, int]], set[int], set[in
     return truecolour, legacy, indexed
 
 
-@pytest.fixture
-def captured(monkeypatch: pytest.MonkeyPatch) -> Console:
+def _truecolour_console() -> Console:
     """A console that emits truecolour into a buffer, styled like the real one.
 
     The style cache is emptied first. rich hands out one Style object per colour
@@ -85,17 +84,30 @@ def captured(monkeypatch: pytest.MonkeyPatch) -> Console:
     built earlier in the session with a narrower colour system leaves codes behind
     that this one would then repeat. Forcing truecolour here is only true of the
     console, not of the cache it reads.
+
+    `no_color=False` is the other half, and it is about the machine running the
+    tests rather than about rich. A reader who keeps NO_COLOR set, which is an
+    ordinary preference and one this tool is right to honour, got a console that
+    emitted no codes at all here, and every assertion on an exact colour failed.
+    Forty-three of them. The flag is passed explicitly because rich reads that
+    variable when the console is built, and it outranks both arguments above.
     """
     Style.parse.cache_clear()
     stream = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
-    console = Console(
+    return Console(
         file=stream,
         force_terminal=True,
         color_system="truecolor",
+        no_color=False,
         width=100,
         highlight=False,
         theme=Theme(theme.RICH_OVERRIDES),
     )
+
+
+@pytest.fixture
+def captured(monkeypatch: pytest.MonkeyPatch) -> Console:
+    console = _truecolour_console()
     monkeypatch.setattr(ui, "console", console)
     return console
 
@@ -114,6 +126,25 @@ def _assert_palette_only(console: Console, what: str) -> None:
     assert not strangers, f"{what} emitted colours outside the palette: {sorted(strangers)}"
     assert not legacy, f"{what} emitted named SGR colours: {sorted(legacy)}"
     assert not indexed, f"{what} emitted 256-colour codes: {sorted(indexed)}"
+
+
+def test_the_console_under_test_emits_colour_even_where_the_reader_wants_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """NO_COLOR is an ordinary thing to have set, and this tool honours it.
+
+    Every assertion in this file reads exact codes back, so a console that
+    honoured it here would report the palette as broken on the machines of the
+    people most likely to care about terminal output. It did, on all forty-three
+    of them, and the failure said nothing about the cause.
+    """
+    monkeypatch.setenv("NO_COLOR", "1")
+    console = _truecolour_console()
+
+    console.print("swatch", style=theme.ACCENT)
+
+    truecolour, _, _ = _parse_sgr(_emitted(console))
+    assert truecolour, "the console these tests measure emitted no colour at all"
 
 
 class TestNothingOutsideThemeNamesAColour:

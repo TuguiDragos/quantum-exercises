@@ -23,6 +23,10 @@ ORDER_CASES = [(0.3, 1.1), (0.0, math.pi / 2), (-0.7, 0.2)]
 # Pairs for the correlation check. E(a, b) = cos(a - b) for this state.
 CORRELATION_CASES = [(0.0, 0.0), (A0, B0), (A1, B1), (0.4, -1.3), (2.0, 2.0)]
 
+# A second set of angles for chsh, deliberately nowhere near the optimum. S comes
+# out at nothing memorable there, which is the point: see _check_chsh_off_optimum.
+OFF_OPTIMUM = (0.3, 1.4, 0.9, -0.2)
+
 
 def check(mod):
     joint_observable = _callable(mod, "joint_observable")
@@ -103,6 +107,7 @@ def _check_chsh(chsh, correlation):
     value = _number(chsh, (A0, A1, B0, B1), "chsh at the optimal angles")
 
     if math.isclose(value, TSIRELSON, abs_tol=1e-4):
+        _check_chsh_off_optimum(chsh)
         return
 
     # At these angles every correlation is +-cos(pi/4), so across all sixteen ways of
@@ -135,6 +140,31 @@ def _check_chsh(chsh, correlation):
             f"{correlation(A1, B0):+.4f}, {correlation(A1, B1):+.4f}.\n"
             "Check the argument order too: chsh(a0, a1, b0, b1) takes Alice's two angles "
             "first, then Bob's."
+        ),
+    )
+
+
+def _check_chsh_off_optimum(chsh):
+    """One angle set cannot tell the arithmetic apart from the answer.
+
+    2*sqrt(2) is the number the exercise puts in front of the reader, so a chsh
+    that ignores its arguments and returns it passed at the optimal angles alone.
+    Here S is nothing in particular, which only the real combination produces.
+    """
+    a0, a1, b0, b1 = OFF_OPTIMUM
+    want = math.cos(a0 - b0) + math.cos(a0 - b1) + math.cos(a1 - b0) - math.cos(a1 - b1)
+    value = _number(chsh, OFF_OPTIMUM, f"chsh({a0}, {a1}, {b0}, {b1})")
+
+    if math.isclose(value, want, abs_tol=1e-4):
+        return
+
+    raise CheckFailed(
+        f"chsh({a0}, {a1}, {b0}, {b1}) gave {value:+.6f}, expected {want:+.6f}.",
+        detail=(
+            "The optimal angles came out right, so the combination itself is fine. "
+            "This is a different set of angles, where S is nothing memorable.\n"
+            "chsh() has to work S out from the four angles it is handed, rather than "
+            "from the ones in the exercise text. 2*sqrt(2) is only the answer for those."
         ),
     )
 

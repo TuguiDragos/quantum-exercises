@@ -9,7 +9,10 @@ from quantum_exercises.checks import (
     require_circuit,
 )
 
-EXPECTED_SHOTS = 1024
+# Deliberately not the sampler's own default of 1024. At that figure, leaving
+# `shots=SHOTS` off the run entirely gave the right answer by coincidence and the
+# shot count below could never catch it.
+EXPECTED_SHOTS = 2048
 
 
 def check(mod):
@@ -67,13 +70,14 @@ def check(mod):
         raise CheckFailed(
             f"Only {sorted(counts)} came out of the measurement; {sorted(missing)} never appeared.",
             detail=(
-                "A Hadamard on a qubit in state 0 gives an even superposition, so over 1024 "
-                "shots both outcomes should show up roughly 512 times each. Check that the "
-                "Hadamard is still applied before the measurement."
+                f"A Hadamard on a qubit in state 0 gives an even superposition, so over "
+                f"{EXPECTED_SHOTS} shots both outcomes should show up roughly "
+                f"{EXPECTED_SHOTS // 2} times each. Check that the Hadamard is still applied "
+                "before the measurement."
             ),
         )
 
-    # 4 sigma over 1024 shots is about plus or minus 64 counts, comfortably wide
+    # 4 sigma over 2048 shots is about plus or minus 90 counts, comfortably wide
     # for an honest answer and still tight enough to catch a wrong circuit.
     assert_counts_close(counts, {"0": 0.5, "1": 0.5})
 

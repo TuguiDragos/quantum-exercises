@@ -8,6 +8,7 @@ goes red.
 from __future__ import annotations
 
 import ast
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -16,6 +17,7 @@ import pytest
 
 from quantum_exercises.registry import Exercise, load_hints
 from quantum_exercises.runner import run_exercise
+from quantum_exercises.worker import MAX_ARTIFACT_CHARS
 
 
 def test_solution_passes(exercise: Exercise, root: Path) -> None:
@@ -43,6 +45,17 @@ def test_solution_produces_artifacts(exercise: Exercise, root: Path) -> None:
         f"{exercise.slug} produced no artifact to show the learner "
         f"({result.outcome}): {result.message}\n{result.detail or ''}\n"
         f"{result.stderr.strip()}"
+    )
+
+    # The worker bounds what a verdict may carry, so an exercise approaching that
+    # bound would silently arrive clipped. Asserted on the same run rather than in
+    # a test of its own, which would mean starting all twenty workers again.
+    blob = json.dumps(result.artifacts)
+    assert "further characters were cut" not in blob, f"{exercise.slug} had an artifact clipped"
+    assert "artifacts too large" not in blob, f"{exercise.slug} had its artifacts replaced"
+    assert len(blob) < MAX_ARTIFACT_CHARS // 4, (
+        f"{exercise.slug} produces {len(blob)} characters of artifacts, near enough the "
+        f"{MAX_ARTIFACT_CHARS} a verdict may carry to be worth raising the limit"
     )
 
 

@@ -16,10 +16,11 @@ qc.h(0)  # qubit 0 into superposition
 qc.cx(0, 1)  # qubit 1 flips when qubit 0 is 1
 ```
 
-The `cx` is what entangles them. Without it you would have two independent qubits
-and all four outcomes would appear. Note what it does not do: qubit 0 has no
-definite value when `cx` runs, so nothing is copied onto qubit 1. Copying a
-superposition is exactly what the no-cloning theorem forbids.
+The `cx` is what entangles them. Drop it and qubit 1 is never touched at all: it
+stays `0`, you see only `00` and `01`, and knowing one qubit tells you nothing
+about the other. The `cx` is what ties the two together. Note what it does not do:
+qubit 0 has no definite value when `cx` runs, so nothing is copied onto qubit 1.
+Copying a superposition is exactly what the no-cloning theorem forbids.
 
 For the bitstring: qubit 0 is the **rightmost** character. So "qubit 0 is 1" means
 the right character is `1`, and "qubit 1 is 0" means the left character is `0`.

@@ -1,6 +1,6 @@
 [project]
 name = "quantum-exercises"
-version = "0.7.1"
+version = "0.7.2"
 description = "Hands-on quantum computing exercises for Qiskit, from an empty laptop to real IBM hardware"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -67,7 +67,10 @@ packages = ["src/quantum_exercises"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --strict-markers"
+# The -m is what makes "deselected by default" true. Without it the marker was a
+# label and nothing else, so the first test to carry one would have run in CI and
+# spent someone's QPU quota. Opt in with `uv run pytest -m hardware`.
+addopts = "-q --strict-markers -m 'not hardware'"
 markers = [
     "hardware: needs a real IBM Quantum account and consumes QPU quota (deselected by default)",
 ]
@@ -81,6 +84,11 @@ source = ["quantum_exercises"]
 # so without this it would measure as untouched. Needs coverage 7.10 or newer.
 patch = ["subprocess"]
 parallel = true
+# Branches as well as lines. A line count cannot see an `if` whose false arm is
+# never taken, which is where a guard quietly stops guarding. Declared here
+# rather than as a flag on the CI command, so the command CONTRIBUTING gives a
+# reader to run locally measures exactly what the gate measures.
+branch = true
 
 [tool.coverage.report]
 precision = 1

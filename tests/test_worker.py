@@ -143,3 +143,120 @@ def test_a_nested_payload_survives_json(tmp_path: Path) -> None:
         out, {"outcome": "pass", "artifacts": [{"kind": "counts", "payload": {"00": 5}}]}
     )
     assert json.loads(out.read_text(encoding="utf-8"))["artifacts"][0]["payload"] == {"00": 5}
+
+
+class TestVerdictBounds:
+    """The verdict file is the other way out of this process, so it has a size too.
+
+    Clipping used to reach the top-level strings and nothing else, so an artifact
+    payload travelled whole: a check returning a megabyte of text put all of it in
+    the parent's memory and then on the terminal.
+    """
+
+    def test_a_giant_artifact_payload_is_clipped(self, tmp_path: Path) -> None:
+        huge = "A" * (worker_module.MAX_FIELD_CHARS * 3)
+        out = tmp_path / "r.json"
+        worker_module._write(
+            out,
+            {
+                "outcome": "pass",
+                "artifacts": [{"kind": "text", "caption": "c", "payload": huge, "meta": {}}],
+            },
+        )
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        shown = payload["artifacts"][0]["payload"]
+        assert payload["outcome"] == "pass", "a long artifact is not a failed answer"
+        assert "further characters were cut" in shown
+        assert len(shown) < worker_module.MAX_FIELD_CHARS + 200
+
+    def test_artifacts_too_large_as_a_whole_are_replaced(self, tmp_path: Path) -> None:
+        """Clipping strings cannot shrink a dict of two hundred thousand keys."""
+        out = tmp_path / "r.json"
+        worker_module._write(
+            out,
+            {
+                "outcome": "pass",
+                "artifacts": [
+                    {
+                        "kind": "counts",
+                        "caption": "c",
+                        "payload": {str(index): index for index in range(200_000)},
+                        "meta": {},
+                    }
+                ],
+            },
+        )
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        assert payload["outcome"] == "pass"
+        assert payload["artifacts"][0]["caption"] == "artifacts too large to show"
+        assert len(out.read_text(encoding="utf-8")) < worker_module.MAX_ARTIFACT_CHARS + 2000
+
+    def test_a_self_referential_payload_does_not_recurse_forever(self) -> None:
+        """Why the depth stop exists. Without it this call raises RecursionError."""
+        loop: dict = {"kind": "text"}
+        loop["self"] = loop
+        assert worker_module._clip_strings(loop)["kind"] == "text"
+
+    def test_a_tuple_payload_travels_as_a_list(self) -> None:
+        """json writes a tuple as an array, so the clipped copy is a list too."""
+        assert worker_module._clip_strings({"payload": ("a", 2, None)})["payload"] == ["a", 2, None]
+
+    def test_a_payload_json_cannot_walk_is_reported_not_fatal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A deeply nested payload makes json.dumps raise RecursionError.
+
+        Raised here rather than nested for real, because the depth json gives up
+        at is a property of the stack, not of anything this project sets. Left
+        uncaught it killed the worker before it wrote anything, and the parent
+        reported that as the learner stopping the process.
+        """
+
+        def boom(payload: dict) -> dict:
+            raise RecursionError("maximum recursion depth exceeded")
+
+        monkeypatch.setattr(worker_module, "_bounded", boom)
+        out = tmp_path / "r.json"
+        worker_module._write(out, {"outcome": "pass", "artifacts": []})
+
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        assert payload["outcome"] == "internal_error"
+        assert payload["error_type"] == "RecursionError"
+
+    def test_a_deeply_nested_payload_always_leaves_a_verdict(self, tmp_path: Path) -> None:
+        """The real thing, asserting only what holds at every stack size."""
+        deep: list = []
+        cursor = deep
+        for _ in range(50_000):
+            child: list = []
+            cursor.append(child)
+            cursor = child
+
+        out = tmp_path / "r.json"
+        worker_module._write(
+            out, {"outcome": "pass", "artifacts": [{"kind": "text", "payload": deep}]}
+        )
+        assert json.loads(out.read_text(encoding="utf-8"))["outcome"] in ("pass", "internal_error")
+
+    def test_a_warning_repeated_is_reported_once(self) -> None:
+        """The same DeprecationWarning fires on every call inside a loop."""
+        from types import SimpleNamespace
+
+        caught = [
+            SimpleNamespace(message="qiskit is deprecating something"),
+            SimpleNamespace(message="qiskit is deprecating something"),
+            SimpleNamespace(message="   "),
+        ]
+        assert worker_module._format_warnings(caught) == ["qiskit is deprecating something"]
+
+    def test_the_fallback_cannot_be_broken_by_its_own_warnings(self, tmp_path: Path) -> None:
+        """Whatever would not serialize may sit in the warnings as well."""
+        out = tmp_path / "r.json"
+        worker_module._write(
+            out,
+            {"outcome": "pass", "artifacts": [{"payload": {1, 2}}], "warnings": [{3, 4}]},
+        )
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        assert payload["outcome"] == "internal_error"
+        assert len(payload["warnings"]) == 1
+        assert "3" in payload["warnings"][0]

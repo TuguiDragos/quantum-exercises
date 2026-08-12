@@ -52,11 +52,80 @@ EXIT_OK = 0
 # message is ever touched.
 MAX_FIELD_CHARS = 8000
 
+# The same reasoning for what an artifact carries. Clipping the fields above left
+# the one that is not a string, an artifact payload, travelling whole: a check
+# returning a megabyte of text reached the parent's memory and the terminal in
+# full. The largest artifact any shipped exercise produces is under 4 KB.
+MAX_ARTIFACT_CHARS = 64 * 1024
+
+# How far _clip_strings descends. Deeper than any artifact here, and a hard stop
+# so a payload holding a reference to itself cannot recurse until Python raises.
+MAX_ARTIFACT_DEPTH = 12
+
 
 def _clip(text: str, limit: int = MAX_FIELD_CHARS) -> str:
     if len(text) <= limit:
         return text
     return text[:limit] + f"\n... {len(text) - limit} further characters were cut ...\n"
+
+
+def _clip_strings(value: Any, depth: int = 0) -> Any:
+    """Clip every string inside an artifact, leaving its shape alone.
+
+    Keys are left as they are: two long keys cut to the same prefix would land on
+    one entry and silently replace each other.
+    """
+    if isinstance(value, str):
+        return _clip(value)
+    if depth >= MAX_ARTIFACT_DEPTH:
+        return value
+    if isinstance(value, dict):
+        return {key: _clip_strings(item, depth + 1) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_clip_strings(item, depth + 1) for item in value]
+    return value
+
+
+def _bounded_artifacts(artifacts: list) -> list:
+    """Keep the artifact list small enough to travel, whatever shape it has.
+
+    Strings are clipped first, so one long caption costs only itself. The size
+    check then catches what clipping cannot, such as a dict of a million keys.
+    """
+    clipped = [_clip_strings(artifact) for artifact in artifacts]
+    try:
+        rendered = json.dumps(clipped)
+    except (TypeError, ValueError, RecursionError):
+        return clipped  # not serializable, which _write reports on its own
+    if len(rendered) <= MAX_ARTIFACT_CHARS:
+        return clipped
+    return [
+        {
+            "kind": "text",
+            "caption": "artifacts too large to show",
+            "payload": (
+                f"check.py returned {len(rendered)} characters of artifacts, past the "
+                f"{MAX_ARTIFACT_CHARS} a verdict may carry, so none of them are shown. "
+                "That is a problem with the exercise, not with your answer."
+            ),
+            "meta": {},
+        }
+    ]
+
+
+def _bounded(payload: dict) -> dict:
+    """Clip every part of a verdict that an exercise could grow without limit."""
+    bounded: dict = {}
+    for key, value in payload.items():
+        if isinstance(value, str):
+            bounded[key] = _clip(value)
+        elif key == "warnings" and isinstance(value, list):
+            bounded[key] = [_clip(item) if isinstance(item, str) else item for item in value]
+        elif key == "artifacts" and isinstance(value, list):
+            bounded[key] = _bounded_artifacts(value)
+        else:
+            bounded[key] = value
+    return bounded
 
 
 class AuthoringError(Exception):
@@ -234,17 +303,13 @@ def _write(path: Path, payload: dict) -> None:
     Without this, the write raises, no file is produced, and the parent reports it
     as though the learner had killed the process.
     """
-    payload = {
-        key: _clip(value)
-        if isinstance(value, str)
-        else [_clip(item) for item in value]
-        if key == "warnings" and isinstance(value, list)
-        else value
-        for key, value in payload.items()
-    }
     try:
-        text = json.dumps(payload)
-    except (TypeError, ValueError) as exc:
+        text = json.dumps(_bounded(payload))
+    except (TypeError, ValueError, RecursionError) as exc:
+        # RecursionError too: a deeply nested payload makes json.dumps raise it,
+        # and an uncaught one here killed the worker without writing anything,
+        # which the parent then reported as the learner crashing the process.
+        recorded = payload.get("warnings")
         text = json.dumps(
             {
                 "outcome": "internal_error",
@@ -255,7 +320,11 @@ def _write(path: Path, payload: dict) -> None:
                 ),
                 "hint": None,
                 "artifacts": [],
-                "warnings": payload.get("warnings", []),
+                # Rebuilt as clipped text: whatever broke the dump above may sit
+                # in here too, and this fallback has to serialize.
+                "warnings": [
+                    _clip(str(item)) for item in (recorded if isinstance(recorded, list) else [])
+                ],
                 "line": None,
                 "error_type": type(exc).__name__,
             }

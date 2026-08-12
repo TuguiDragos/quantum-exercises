@@ -1,4 +1,4 @@
-# 20 - CHSH, the experiment that settles it
+# 20 - CHSH, the inequality that settles it
 
 Exercise 11 left a debt. You built the Bell state, you saw the two qubits agree
 every single time, and the README told you plainly that this proves nothing:
@@ -68,6 +68,31 @@ This is Bell's theorem, in the form John Clauser, Michael Horne, Abner Shimony
 and Richard Holt put it in 1969 so that it could actually be run in a lab. It has
 been run, with steadily fewer loopholes, and the 2022 Nobel Prize in Physics went
 to Aspect, Clauser and Zeilinger for doing it.
+
+## What you compute here, exactly
+
+Worth being precise, in an exercise about being precise. `correlation` asks
+`StatevectorEstimator` for an expectation value, and that is worked out from the
+state vector rather than sampled from it: no shots, no error bars, and `S` comes
+back as `2.828427...` on every run.
+
+So what you produce is the quantum prediction, calculated exactly. A real Bell
+test measures instead: it repeats each of the four angle pairs, ends up with a
+number carrying a statistical uncertainty, and then has to shut the doors that
+would let the envelopes back in. Two of those are detectors that miss too many
+events, and two sides near enough that a signal could pass between them in time.
+Closing both in one experiment was first done in 2015, by three groups within
+months of each other.
+
+That is not the last door. Whether the measurement settings were themselves free
+of any prior influence is a loophole of its own, and it stayed open in 2015;
+later experiments narrowed it by taking the settings from light that left distant
+stars, and then quasars, long before the apparatus existed.
+
+What this exercise settles is the arithmetic. The prediction is past 2, and no
+assignment of answers in advance can reach it. That the world agrees with the
+prediction is what the laboratories established, and it is why the names above
+are on a Nobel citation rather than on a preprint.
 
 ## Building the observable
 

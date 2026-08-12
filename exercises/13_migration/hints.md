@@ -48,6 +48,7 @@ result = sampler.run([qc], shots=SHOTS).result()
 counts = result[0].data.c.get_counts()
 ```
 
-Using `AerSimulator` from `qiskit_aer` instead is also a legitimate migration, but
-then you are on the `backend.run()` path and have to transpile first. The sampler
-is the shorter road for a local run.
+Using `AerSimulator` from `qiskit_aer` is a legitimate migration in general, but
+not here: it puts you on the `backend.run()` path, whose result is the old-style
+object this exercise is about replacing, and the checker asks for the V2 one. The
+sampler is both the shorter road and the one being taught.

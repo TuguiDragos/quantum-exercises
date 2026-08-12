@@ -108,5 +108,7 @@ qx run 12
 
 When someone tells you they simulated a quantum algorithm, the first useful
 question is how many qubits. Under about 30 it runs on a laptop. Above about 50
-it did not happen on any classical machine, and something in the claim needs
-another look.
+nothing is holding the whole state, so either the claim needs another look or
+they used a method that never stores it. Tensor networks and their relatives do
+reach further, by exploiting the structure of one particular circuit rather than
+writing down every amplitude, and that is a narrower claim than it first sounds.

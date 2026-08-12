@@ -55,8 +55,8 @@ answer flips completely.
 
 In `exercise.py`:
 
-1. `qc_undo`: two gates, so that the circuit does nothing at all.
-2. `qc_flip`: the same, with one phase gate in the middle so it becomes a NOT.
+1. `qc_undo`: two Hadamards, so that the circuit does nothing at all.
+2. `qc_flip`: the same two, with one phase gate between them so it becomes a NOT.
 3. `coin_model_prediction`: if `h` really were "randomise the qubit", what
    probability would you give the outcome `0` after two of them?
 

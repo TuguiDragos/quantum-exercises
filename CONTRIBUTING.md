@@ -217,10 +217,19 @@ tool the way the README tells a reader to, then runs it from outside the
 repository, which is the only check that the editable install still finds the
 exercises from any directory.
 
-`coverage` needs two settings, and both live in `[tool.coverage]` in
+`coverage` needs four settings, and they all live under `[tool.coverage]` in
 `pyproject.toml`. `patch = ["subprocess"]` measures the worker, which runs in a
 child process and would otherwise read as untouched; it needs coverage 7.10 or
-newer. `fail_under = 100` is the gate itself.
+newer. `parallel = true` gives each of those processes its own data file, which
+is what the `combine` step below exists to gather. `branch = true` counts both
+arms of every condition, not just the lines, which is what catches a guard whose
+false arm nothing ever takes. `fail_under = 100` is the gate itself.
+
+All four are declared in the file rather than passed as flags, so that the
+command below and the command CI runs measure the same thing. A flag would also
+work, since `patch = ["subprocess"]` hands the whole live configuration down to
+each child, but then the gate would live in the CI job instead of in the
+repository, and running it locally would mean remembering the flags.
 
 coverage is not a dependency. The job adds it for its own commands with
 `uv run --with coverage`, so `uv.lock` and the package counts above stay as they
@@ -234,8 +243,9 @@ uv run --with coverage python -m coverage run -m pytest -q
 uv run --with coverage python -m coverage combine && uv run --with coverage python -m coverage report
 ```
 
-The triggers are every pull request and every push to `main`. A push to a side
-branch runs nothing until a pull request exists for it.
+The triggers are every pull request, every push to `main`, and a manual
+`workflow_dispatch`. A push to a side branch runs nothing until a pull request
+exists for it.
 
 Everything scheduled in this repository fires on the 1st and the 15th, so the
 calendar holds two dates rather than a scatter of weekdays.
@@ -271,8 +281,8 @@ commit re-arms it, and the workflow can be re-enabled from the Actions tab.
 `rotate-notes.yml` is what keeps the clock from getting close: it rewrites the
 block between the NOTES markers in the README on the 1st and the 15th and commits
 the result. Twice a month rather than monthly so that two consecutive failed runs
-still leave the gap under sixty days. It is the only workflow here with `contents: write`, and the only one
-that changes anything in the repository.
+still leave the gap under sixty days. It is the only workflow here with
+`contents: write`, and the only one that changes anything in the repository.
 
 Those titles arrive from a feed rather than from this repository, so the block
 between the markers is exempt from the two tests that scan written files for a
@@ -287,6 +297,22 @@ Nothing may submit a job to real hardware. `ci.yml` and `verify.yml` set
 `QX_OFFLINE=1` and `tests/conftest.py` sets it for the whole session. A test that
 spends someone's free QPU quota is a bug. `rotate-notes.yml` runs no Python and
 touches nothing quantum.
+
+There is one exception, and it is opt-in. A test marked `@pytest.mark.hardware`
+does reach IBM, and `addopts` carries `-m 'not hardware'` so an ordinary run never
+collects it. That `-m` is what makes the promise real: the marker was declared
+long before anything deselected it, so the first test to carry one would have run
+everywhere, CI included. To run them on purpose:
+
+```bash
+uv run pytest -m hardware
+```
+
+`run_exercise` holds the other half of this. For the one exercise marked
+`hardware = true` it hands the child an offline environment unless the caller
+passes `allow_hardware`, and `qx run` is the only caller that ever does. Watch
+mode and every test take the default, which is not to. The other nineteen
+exercises never reach for a backend, so their environment is left alone.
 
 ## Before opening a pull request
 

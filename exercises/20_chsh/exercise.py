@@ -1,4 +1,4 @@
-"""Exercise 20 - CHSH, the experiment that settles it.
+"""Exercise 20 - CHSH, the inequality that settles it.
 
 Fill in the TODOs, then run:  qx run 20
 """

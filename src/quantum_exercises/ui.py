@@ -416,11 +416,19 @@ def render_next(exercise: Exercise) -> None:
             **panel(border=theme.BORDER_ACTIVE),
         )
     )
+    # The README first. It holds the teaching, and pointing straight at the file
+    # to edit sent readers into the TODOs without the lesson that explains them.
+    #
     # Outside the panel and soft-wrapped: a path with a box border through the middle
     # of it cannot be copied, and one cut off at the terminal width is worse still,
     # because nothing on screen says it was cut.
     console.print(
-        Text("\n  open  ", style=theme.DETAIL)
+        Text("\n  read  ", style=theme.DETAIL)
+        + Text(_display_path(exercise.readme_file), style=theme.PATH),
+        soft_wrap=True,
+    )
+    console.print(
+        Text("  edit  ", style=theme.DETAIL)
         + Text(_display_path(exercise.exercise_file), style=theme.PATH),
         soft_wrap=True,
     )

@@ -160,6 +160,21 @@ case(
     "result = StatevectorSampler(seed=1234).run([qc], shots=SHOTS).result()\n",
     "never appeared",
 )
+case(
+    "04_measurement",
+    "shots-left-off-the-run",
+    "result = StatevectorSampler(seed=1234).run([qc]).result()\n",
+    "but the circuit was run with 2048 shots",
+)
+case(
+    "04_measurement",
+    "wrong-distribution",
+    "qc = QuantumCircuit(1)\n"
+    "qc.ry(1.05, 0)\n"
+    "qc.measure_all()\n"
+    "result = StatevectorSampler(seed=1234).run([qc], shots=SHOTS).result()\n",
+    "do not match what was measured",
+)
 
 case("05_reading_counts", "not-a-function", "read_counts = {}", "should be a function")
 case(
@@ -305,6 +320,12 @@ case(
     "prediction-not-a-number",
     'coin_model_prediction = "half"',
     "should be a number",
+)
+case(
+    "09_interference",
+    "flip-with-the-wrong-phase",
+    "qc_flip = QuantumCircuit(1)\nqc_flip.h(0)\nqc_flip.s(0)\nqc_flip.h(0)\n",
+    "does not come out as a NOT",
 )
 
 case(
@@ -648,6 +669,48 @@ case(
 )
 
 case(
+    "13_migration",
+    "bell-broken-in-the-migration",
+    "qc = QuantumCircuit(2, 2)\n"
+    "qc.h(0)\n"
+    "qc.measure(0, 0)\n"
+    "qc.measure(1, 1)\n"
+    "result = StatevectorSampler(seed=7).run([qc], shots=SHOTS).result()\n"
+    "counts = result[0].data.c.get_counts()\n",
+    "no longer prepares a Bell state",
+)
+case(
+    "13_migration",
+    "shot-count-changed",
+    "result = StatevectorSampler(seed=7).run([qc], shots=SHOTS // 2).result()\n"
+    "counts = result[0].data.c.get_counts()\n",
+    "but the circuit was run with 1024 shots",
+)
+
+case(
+    "14_real_hardware",
+    "isa-of-an-unentangled-circuit",
+    "def to_isa(circuit, backend):\n"
+    "    from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager\n"
+    "    plain = QuantumCircuit(2)\n"
+    "    plain.h(0)\n"
+    "    plain.h(1)\n"
+    "    plain.measure_all()\n"
+    "    return generate_preset_pass_manager(optimization_level=1, backend=backend).run(plain)\n",
+    "had the two qubits agreeing",
+)
+case(
+    "14_real_hardware",
+    "isa-that-always-answers-00",
+    "def to_isa(circuit, backend):\n"
+    "    from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager\n"
+    "    plain = QuantumCircuit(2)\n"
+    "    plain.measure_all()\n"
+    "    return generate_preset_pass_manager(optimization_level=1, backend=backend).run(plain)\n",
+    "expected roughly half",
+)
+
+case(
     "15_honest_reading",
     "square-bracket-lookup",
     "def disagreement_rate(counts):\n"
@@ -660,6 +723,36 @@ case(
     "hardcoded-rate",
     "def agreement_rate(counts):\n    return 0.5\n",
     "agreement_rate returned 0.5000",
+)
+case(
+    "17_estimator",
+    "square-bracket-lookup",
+    "def z_from_counts(counts):\n"
+    "    shots = sum(counts.values())\n"
+    '    return (counts["0"] - counts["1"]) / shots\n',
+    "raised KeyError",
+)
+case(
+    "18_measurement_bases",
+    "two-classical-registers",
+    "def to_x_basis(qc):\n"
+    "    from qiskit import ClassicalRegister\n"
+    "    out = qc.copy()\n"
+    "    out.h(0)\n"
+    '    a, b = ClassicalRegister(1, "a"), ClassicalRegister(1, "b")\n'
+    "    out.add_register(a)\n"
+    "    out.add_register(b)\n"
+    "    out.measure(0, a[0])\n"
+    "    out.measure(0, b[0])\n"
+    "    return out\n",
+    "could not be sampled",
+)
+
+case(
+    "15_honest_reading",
+    "hardcoded-denominator",
+    'def agreement_rate(counts):\n    return (counts.get("00", 0) + counts.get("11", 0)) / 1024\n',
+    "4096 shots case",
 )
 case(
     "15_honest_reading",
@@ -823,6 +916,14 @@ case(
     "    true = np.clip(np.linalg.solve(matrix, observed), 0.0, None)\n"
     "    return {label: float(v) for label, v in zip(LABELS, true, strict=True)}\n",
     "shots were taken",
+)
+case(
+    "16_readout_repair",
+    "an-invented-distribution-that-never-used-the-matrix",
+    "def corrected(matrix, counts):\n"
+    "    shots = sum(counts.values())\n"
+    '    return {"00": shots / 2, "01": 0.0, "10": 0.0, "11": shots / 2}\n',
+    "do not reproduce what the device reported",
 )
 case(
     "16_readout_repair",
@@ -1232,6 +1333,12 @@ case(
     "not-a-function",
     "chsh = 2.8",
     "should be a function",
+)
+case(
+    "20_chsh",
+    "chsh-ignores-its-angles",
+    "def chsh(a0, a1, b0, b1):\n    return 2 * math.sqrt(2)\n",
+    "work S out from the four angles it is handed",
 )
 
 

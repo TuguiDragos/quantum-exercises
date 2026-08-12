@@ -37,6 +37,60 @@ def test_removed_qiskit_api(source: str, expected_in_message: str) -> None:
     assert translation.hint
 
 
+def test_mid_circuit_measurement_is_triggered_for_real() -> None:
+    """The rule matches on Qiskit's own wording, so only Qiskit can confirm it.
+
+    Tested by hand-built exception until now, which proves the rule reads the
+    string it was given and nothing about the string still being that one.
+    """
+    translation = translate(
+        _raised(
+            "from qiskit import QuantumCircuit\n"
+            "from qiskit.primitives import StatevectorSampler\n"
+            "qc = QuantumCircuit(1, 1)\n"
+            "qc.h(0)\n"
+            "qc.measure(0, 0)\n"
+            "qc.h(0)\n"
+            "qc.measure(0, 0)\n"
+            "StatevectorSampler(seed=1).run([qc], shots=16).result()\n"
+        )
+    )
+    assert translation is not None
+    assert "measures partway through" in translation.message
+    assert "AerSimulator" in translation.hint
+
+
+def test_a_circuit_handed_to_a_primitive_bare_is_triggered_for_real() -> None:
+    """`sampler.run(qc)` instead of `sampler.run([qc])`, the commonest V2 slip."""
+    translation = translate(
+        _raised(
+            "from qiskit import QuantumCircuit\n"
+            "from qiskit.primitives import StatevectorSampler\n"
+            "qc = QuantumCircuit(1)\n"
+            "qc.measure_all()\n"
+            "StatevectorSampler(seed=1).run(qc, shots=16).result()\n"
+        )
+    )
+    assert translation is not None
+    assert "instead of a list" in translation.message
+    assert "square brackets" in translation.hint
+
+
+def test_the_estimator_spelling_of_that_message_is_still_the_one_matched() -> None:
+    """The rule carries both spellings. Only the Estimator produces this one."""
+    translation = translate(
+        _raised(
+            "from qiskit import QuantumCircuit\n"
+            "from qiskit.primitives import StatevectorEstimator\n"
+            "from qiskit.quantum_info import SparsePauliOp\n"
+            "qc = QuantumCircuit(1)\n"
+            "StatevectorEstimator().run((qc, SparsePauliOp('Z'))).result()\n"
+        )
+    )
+    assert translation is not None
+    assert "instead of a list" in translation.message
+
+
 def test_missing_classical_register() -> None:
     translation = translate(
         _raised("from qiskit import QuantumCircuit\nQuantumCircuit(1).measure(0, 0)")

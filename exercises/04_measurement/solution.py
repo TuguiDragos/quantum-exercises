@@ -3,7 +3,7 @@
 from qiskit import QuantumCircuit
 from qiskit.primitives import StatevectorSampler
 
-SHOTS = 1024
+SHOTS = 2048
 
 qc = QuantumCircuit(1)
 qc.h(0)

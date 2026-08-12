@@ -150,20 +150,54 @@ class TestMetadataOnlyArtifacts:
         assert "PASS" in rendered
 
 
+def _console_reporting(encoding: str | None) -> SimpleNamespace:
+    """A stand-in console whose file claims one encoding.
+
+    A stand-in rather than the real console with its `file` patched, and the
+    difference is not cosmetic. `Console.file` is a property that falls back to
+    the live `sys.stdout` when nothing was assigned, so monkeypatch reads that
+    fallback as the original value and then, on teardown, assigns it back. The
+    console comes out of the test pinned to whichever stdout happened to be
+    current, and every later CliRunner invocation writes past the buffer it is
+    supposed to be captured in. It made four tests here leave a broken console
+    behind for whatever ran next, which the alphabet hid: test_cli_paths.py runs
+    before this file.
+    """
+    return SimpleNamespace(file=SimpleNamespace(encoding=encoding))
+
+
 def test_safe_replaces_unencodable_characters(monkeypatch) -> None:
-    monkeypatch.setattr(ui.console, "file", SimpleNamespace(encoding="ascii"))
+    monkeypatch.setattr(ui, "console", _console_reporting("ascii"))
     assert "?" in ui._safe("box → drawing")
 
 
 def test_safe_passes_text_through_without_an_encoding(monkeypatch) -> None:
     """An in-memory buffer has no encoding to fail against, so nothing is replaced."""
-    monkeypatch.setattr(ui.console, "file", SimpleNamespace(encoding=None))
+    monkeypatch.setattr(ui, "console", _console_reporting(None))
     assert ui._safe("box → drawing") == "box → drawing"
 
 
 def test_supports_blocks_without_an_encoding(monkeypatch) -> None:
-    monkeypatch.setattr(ui.console, "file", SimpleNamespace(encoding=None))
+    monkeypatch.setattr(ui, "console", _console_reporting(None))
     assert ui._supports_blocks() is True
+
+
+def test_patching_the_console_file_does_not_outlive_the_test(monkeypatch) -> None:
+    """The trap the helper above exists to avoid, kept as a live reminder.
+
+    rich resolves `Console.file` to `sys.stdout` when nothing was assigned, so
+    patching that attribute and restoring it pins the console to one stream for
+    good. If rich ever stops doing this, the helper can go back to patching the
+    real console.
+    """
+    console = ui.console
+    assert console._file is None, "the shared console must follow sys.stdout"
+
+    monkeypatch.setattr(console, "file", SimpleNamespace(encoding=None))
+    monkeypatch.undo()
+
+    assert console._file is not None, "rich no longer pins the file; _console_reporting can go"
+    console._file = None  # put it back, or every later test writes to the wrong stream
 
 
 @pytest.mark.parametrize(
@@ -182,7 +216,7 @@ def test_supports_blocks_without_an_encoding(monkeypatch) -> None:
 def test_supports_blocks_asks_only_about_what_is_drawn(
     monkeypatch, encoding: str, supported: bool
 ) -> None:
-    monkeypatch.setattr(ui.console, "file", SimpleNamespace(encoding=encoding))
+    monkeypatch.setattr(ui, "console", _console_reporting(encoding))
     assert ui._supports_blocks() is supported
     # Whatever the answer, the bar has to be encodable in that terminal.
     monkeypatch.setattr(ui, "console", _console_with_encoding(encoding))
@@ -214,12 +248,23 @@ def test_display_path_falls_back_to_absolute(tmp_path: Path, monkeypatch) -> Non
     assert ui._display_path(other) == str(other.resolve())
 
 
-def test_render_failure_handles_a_path_outside_the_root(tmp_path: Path, root: Path) -> None:
+def test_render_failure_handles_a_path_outside_the_root(
+    tmp_path: Path, root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """relative_to raises when the exercise is not under the root it was given.
+
+    The absolute path is the fallback, and a learner needs it to be the whole
+    path: half of one points at a file that does not exist.
+    """
+    console = Console(file=io.StringIO(), width=200)
+    monkeypatch.setattr(ui, "console", console)
     from quantum_exercises.runner import RunResult
 
     exercise = registry.load_exercises(root)[0]
-    result = RunResult(outcome="error", message="boom", line=3)
-    ui.render_run(exercise, result, root=tmp_path)  # root unrelated to the exercise path
+    ui.render_run(exercise, RunResult(outcome="error", message="boom", line=3), root=tmp_path)
+
+    shown = console.file.getvalue()
+    assert f"{exercise.exercise_file}:3" in shown
 
 
 def test_render_artifact_falls_back_to_text() -> None:

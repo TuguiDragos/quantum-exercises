@@ -19,8 +19,8 @@
 ---
 
 Twenty hands-on exercises that take you from an empty laptop to a quantum
-circuit on real IBM hardware, and then to a Bell test that no classical
-explanation survives.
+circuit on real IBM hardware, and then to the Bell inequality that no shared coin
+can reach.
 
 You edit a file, you run one command, and it tells you exactly what is wrong in
 the language of the problem rather than as a Python traceback.
@@ -82,8 +82,9 @@ depending on how much you stop to poke at things.
 
 ### 1. Install uv
 
-[uv](https://docs.astral.sh/uv/) is the only prerequisite. It fetches the right
-Python itself, so you do not need Python installed first.
+[uv](https://docs.astral.sh/uv/) is the only thing you have to install. It fetches
+the right Python itself, so you do not need Python first. You do need `git` to
+clone the repository, and macOS and most Linux installs already have it.
 
 macOS and Linux:
 
@@ -164,8 +165,13 @@ without one, and plain `qx doctor` reports that as a note rather than a problem.
 qx next
 ```
 
-That prints the first unfinished exercise and the path to the file you edit. Open
-that file, fill in the TODOs, save, and run `qx run`.
+That prints the first unfinished exercise and two paths: the `README.md` holding
+the lesson, and the `exercise.py` you edit. Read the first, fill in the TODOs in
+the second, save, and run `qx run`.
+
+Every exercise is written to be read before it is solved. The TODOs are short on
+purpose, because the explanation they belong to is next to them rather than
+inside them.
 
 ## The commands
 
@@ -185,15 +191,16 @@ Leave the number off and the command picks the first exercise you have not
 finished. Numbers, slugs and fragments all work, so `qx run 11`, `qx run bell`
 and `qx run 11_bell_entanglement` are the same thing.
 
-You never have to come back here for that list. Typing `qx` on its own prints it:
+You never have to come back here for that list. Typing `qx` on its own prints it,
+along with a short note on where to begin and how to set up an IBM account:
 
 ```bash
 qx
 ```
 
-The same list, plus a short note on where to begin and how to set up an IBM
-account, comes from **`qx --help`**. Note the `qx` in front: `--help` alone is not
-a command, and your shell will answer `command not found`.
+**`qx --help`** prints exactly the same thing, so either will do. Note the `qx` in
+front: `--help` alone is not a command, and your shell will answer
+`command not found`.
 
 ```bash
 qx --help
@@ -242,19 +249,20 @@ from inside the repository, and the tool prints whichever form applies to you.
 | 15 | Reading a noisy result honestly | Hardware gives outcomes the theory forbids. Quantify that instead of assuming your circuit is broken |
 | 16 | Correcting what readout got wrong | Measure how the device misreads, invert it, and win back most of the gap. Error mitigation, by hand |
 
-**Act IV - expectation values, and a real Bell test**
+**Act IV - expectation values, and the Bell inequality**
 
 Everything so far ends in counts. There is a second primitive that returns a
 number instead, and it is the one every serious algorithm is built on. Three
-exercises to reach it, and then to spend it on the experiment exercise 11
-deliberately did not claim to have run.
+exercises to reach it, and then to spend it on the quantity exercise 11
+deliberately did not claim to have measured. The last one computes that quantity
+exactly rather than sampling it, and says so.
 
 | # | Exercise | What you come away with |
 |---|---|---|
 | 17 | The Estimator, and what it returns | Expectation values instead of shots, computed two ways and shown to agree |
 | 18 | A device that only measures Z | Hardware reads one axis. Measuring any other means rotating the state first |
 | 19 | The picture behind the numbers | Three expectation values put the qubit on a sphere, where global phase visibly stops mattering |
-| 20 | CHSH, the experiment that settles it | Measure along different axes and reach S = 2.83, past the 2 that any pre-agreed answer is stuck below |
+| 20 | CHSH, the inequality that settles it | Correlate along different axes and reach S = 2.83, past the 2 that any pre-agreed answer is stuck below |
 
 ## How answers are checked
 
@@ -320,6 +328,16 @@ length an exercise cannot afford. Everything runs on a local simulator.
 
 ![The noise lab open in VS Code, showing an executed cell that runs the same Bell pair on three different pairs of physical qubits, and a table where the measured fidelity, 0.94, 0.88 and 0.97, tracks what the published readout rates predict.](readme-assets/06-vscode-notebook.png)
 
+The labs need an environment inside the repository, which the quickstart does not
+create: `uv tool install` puts `qx` on your PATH and keeps its dependencies to
+itself. One command adds one, and it is the same lockfile:
+
+```bash
+uv sync
+```
+
+That creates `.venv` in the repository, with the kernel the notebooks run on.
+
 In VS Code the notebook kernel is a **separate** setting from the Python
 interpreter. If `qx doctor` passes but the notebook cannot import qiskit, that is
 the cause: pick the kernel inside `.venv` from the picker in the top right.
@@ -353,7 +371,12 @@ its result stays in your account on
 [IBM Quantum Platform](https://quantum.cloud.ibm.com).
 
 The question is skipped whenever there is nothing to decide: no account, no
-network, `QX_OFFLINE` set, or output piped somewhere instead of a terminal.
+network, or `QX_OFFLINE` set.
+
+A run with no terminal to answer in, so a script, a CI job or an editor task,
+stays on the local simulator and says so rather than sending a job nobody agreed
+to. `qx watch` does the same, because it re-runs on every save and asks nothing.
+Nothing automated reaches a QPU.
 
 ![Exercise 14 run on ibm_marrakesh, a real IBM QPU. The queue question is answered yes, then the histogram shows 1024 shots: 00 at 49.0 percent, 11 at 48.4 percent, and 01 and 10 together at 2.54 percent. The summary reports the circuit as submitted, its ISA form, and that the disagreeing shots are noise rather than a bug.](readme-assets/08-real-hardware.png)
 

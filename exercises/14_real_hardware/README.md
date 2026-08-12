@@ -1,8 +1,11 @@
 # 14 - A Bell state on a real machine
 
 Two qubits, two gates, one measurement. It is the smallest circuit that is worth
-putting on real hardware: it takes seconds of QPU time and it shows you both
-entanglement and noise at once.
+putting on real hardware: it takes seconds of QPU time, and what comes back is a
+correlation you can read straight off the histogram together with the noise sitting
+on top of it. The runner checks the state you built before anything is sent, so
+you know it is the entangled one; the counts themselves prove correlation rather
+than entanglement, and exercise 20 is where that distinction is settled.
 
 ## You do not need an IBM account
 

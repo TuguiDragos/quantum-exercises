@@ -1,6 +1,6 @@
 [project]
 name = "quantum-exercises"
-version = "0.7.2"
+version = "0.8.0"
 description = "Hands-on quantum computing exercises for Qiskit, from an empty laptop to real IBM hardware"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -64,6 +64,21 @@ package = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/quantum_exercises"]
+# Bytecode left by an in-process import of a check.py, and notebook checkpoints.
+# Both are ignored by git and neither belongs in a release, so they are named
+# here rather than left to whatever happens to be on the machine that builds.
+exclude = ["**/__pycache__", "**/*.pyc", "**/.ipynb_checkpoints"]
+
+# The course travels with the tool, so `pip install` hands a learner something to
+# run. It sits under the package rather than beside it, and that is what keeps it
+# out of find_project_root's way: the walk looks for `exercises/` in each ancestor
+# of the working directory, and never sees one nested this deep inside the
+# package. `qx init` copies it somewhere writable, which is the only kind of place
+# a course is ever edited. readme-assets stays out: 7 MB of screenshots that a
+# learner never opens.
+[tool.hatch.build.targets.wheel.force-include]
+"exercises" = "quantum_exercises/_course/exercises"
+"notebooks" = "quantum_exercises/_course/notebooks"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

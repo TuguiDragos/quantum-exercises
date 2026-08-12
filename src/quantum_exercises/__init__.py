@@ -7,7 +7,7 @@ import shutil
 import sys
 from functools import lru_cache
 
-__version__ = "0.7.2"
+__version__ = "0.8.0"
 
 
 @lru_cache(maxsize=1)

@@ -1,0 +1,59 @@
+name: publish
+
+# Uploads the distributions to PyPI when a release is published.
+#
+# No token lives anywhere. PyPI is told, once, to trust releases coming from this
+# workflow in this repository, and the job asks GitHub for a short lived identity
+# at run time. That is why the job needs `id-token: write` and nothing else, and
+# why nobody has to rotate a secret.
+#
+# Setting it up on the PyPI side is a one time thing, under the project's
+# Publishing settings: owner `TuguiDragos`, repository `quantum-exercises`,
+# workflow `publish.yml`, environment `pypi`. Until that exists the job fails at
+# the upload step and changes nothing.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # A named environment, so the upload can be held behind a review rule if that
+    # is ever wanted. It costs nothing while no rule is set.
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Build the wheel and the sdist
+        run: uv build
+
+      # A wheel without the course installs cleanly and then has nothing to give
+      # `qx init`, which is the one packaging mistake that would reach a reader
+      # rather than a maintainer. Cheaper to check here than to yank a release.
+      - name: Refuse to publish a wheel with no course in it
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import sys, zipfile, pathlib
+          wheel = next(pathlib.Path("dist").glob("*.whl"))
+          names = zipfile.ZipFile(wheel).namelist()
+          exercises = {n.split("/")[3] for n in names if "/_course/exercises/" in n}
+          if len(exercises) < 20:
+              sys.exit(f"{wheel.name} carries {len(exercises)} exercises, expected 20")
+          if not any("/_course/notebooks/" in n for n in names):
+              sys.exit(f"{wheel.name} carries no notebooks")
+          print(f"{wheel.name}: {len(exercises)} exercises and the notebooks are in")
+          PY
+
+      - name: Upload to PyPI
+        run: uv publish --trusted-publishing always

@@ -1,4 +1,4 @@
-<img src="readme-assets/hero.svg" alt="quantum-exercises: from an empty laptop to a quantum circuit on real IBM hardware. A qx session runs doctor, two exercises and list, beside a panel that fills one bar per act while a ring counts toward twenty." width="100%">
+<img src="https://raw.githubusercontent.com/TuguiDragos/quantum-exercises/main/readme-assets/hero.svg" alt="quantum-exercises: from an empty laptop to a quantum circuit on real IBM hardware. A qx session runs doctor, two exercises and list, beside a panel that fills one bar per act while a ring counts toward twenty." width="100%">
 
 <p align="center">
   <a href="https://github.com/TuguiDragos/quantum-exercises/actions/workflows/ci.yml"><img alt="ci" src="https://github.com/TuguiDragos/quantum-exercises/actions/workflows/ci.yml/badge.svg" /></a>
@@ -7,13 +7,14 @@
 
 <p align="center">
   <a href="https://pypi.org/project/qiskit/"><img alt="qiskit 2.5.1" src="https://img.shields.io/badge/qiskit-2.5.1-161826?style=flat&labelColor=161826&logo=qiskit&logoColor=9184D9" /></a>
-  <a href="https://pypi.org/project/qiskit-ibm-runtime/"><img alt="qiskit-ibm-runtime 0.48.0" src="https://img.shields.io/badge/qiskit--ibm--runtime-0.48.0-161826?style=flat&labelColor=161826&logo=qiskit&logoColor=9184D9" /></a>
+  <a href="https://pypi.org/project/qiskit-ibm-runtime/"><img alt="qiskit-ibm-runtime 0.49.0" src="https://img.shields.io/badge/qiskit--ibm--runtime-0.49.0-161826?style=flat&labelColor=161826&logo=qiskit&logoColor=9184D9" /></a>
   <a href="https://pypi.org/project/qiskit-aer/"><img alt="qiskit-aer 0.17.2" src="https://img.shields.io/badge/qiskit--aer-0.17.2-161826?style=flat&labelColor=161826&logo=qiskit&logoColor=9184D9" /></a>
   <a href="https://github.com/astral-sh/uv"><img alt="uv" src="https://img.shields.io/badge/uv-161826?style=flat&labelColor=161826&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTE4NEQ5IiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTIgMy4yIDMuOCA3LjR2OS4yTDEyIDIwLjhsOC4yLTQuMlY3LjR6Ii8%2BPHBhdGggZD0iTTMuOCA3LjQgMTIgMTEuNmw4LjItNC4yTTEyIDExLjZ2OS4yIi8%2BPC9nPjwvc3ZnPg%3D%3D" /></a>
   <a href="https://github.com/astral-sh/ruff"><img alt="ruff" src="https://img.shields.io/badge/ruff-161826?style=flat&labelColor=161826&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTE4NEQ5IiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMy42IDYuMmgxNi44TTMuNiAxMmg5LjZNMy42IDE3LjhoNiIvPjxwYXRoIGQ9Im0xNS40IDE2LjYgMi4zIDIuMyA0LjQtNC43Ii8%2BPC9nPjwvc3ZnPg%3D%3D" /></a>
-  <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-161826?style=flat&labelColor=161826&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTE4NEQ5IiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTIgMy40djE3LjJNNy40IDIwLjZoOS4yTTMuOCA3LjJoMTYuNE0xMiAzLjkgMy44IDcuMk0xMiAzLjlsOC4yIDMuMyIvPjxwYXRoIGQ9Ik0zLjggNy42IDEuNSAxMy4yYTIuNyAyLjcgMCAwIDAgNC42IDB6TTIwLjIgNy42bC0yLjMgNS42YTIuNyAyLjcgMCAwIDAgNC42IDB6Ii8%2BPC9nPjwvc3ZnPg%3D%3D" /></a>
+  <a href="https://github.com/TuguiDragos/quantum-exercises/blob/main/LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-161826?style=flat&labelColor=161826&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTE4NEQ5IiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTIgMy40djE3LjJNNy40IDIwLjZoOS4yTTMuOCA3LjJoMTYuNE0xMiAzLjkgMy44IDcuMk0xMiAzLjlsOC4yIDMuMyIvPjxwYXRoIGQ9Ik0zLjggNy42IDEuNSAxMy4yYTIuNyAyLjcgMCAwIDAgNC42IDB6TTIwLjIgNy42bC0yLjMgNS42YTIuNyAyLjcgMCAwIDAgNC42IDB6Ii8%2BPC9nPjwvc3ZnPg%3D%3D" /></a>
   <a href="https://tuguidragos.com"><img alt="tuguidragos.com" src="https://img.shields.io/badge/tuguidragos.com-161826?style=flat&labelColor=161826&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTE4NEQ5IiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSI4LjYiLz48cGF0aCBkPSJNMy40IDEyaDE3LjIiLz48cGF0aCBkPSJNMTIgMy40YTEzLjQgMTMuNCAwIDAgMSAwIDE3LjIgMTMuNCAxMy40IDAgMCAxIDAtMTcuMiIvPjwvZz48L3N2Zz4%3D" /></a>
   <a href="https://www.python.org/"><img alt="python 3.10 | 3.11 | 3.12 | 3.13 | 3.14" src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-161826?style=flat&labelColor=161826&logo=python&logoColor=9184D9" /></a>
+  <a href="https://pypi.org/project/quantum-exercises/"><img alt="downloads per month" src="https://img.shields.io/pypi/dm/quantum-exercises?style=flat&labelColor=161826&color=161826&logo=pypi&logoColor=9184D9" /></a>
 </p>
 
 ---
@@ -29,7 +30,7 @@ the language of the problem rather than as a Python traceback.
 
 ### You get something wrong
 
-![A failing run of exercise 11. The panel reads: Your circuit does not prepare (|00> + |11>) / sqrt(2), and shows your probabilities, {'00': 1.0000}, against the target, {'00': 0.5000, '11': 0.5000}, with a note that global phase is ignored so a phase difference is not the problem.](readme-assets/02-qx-run-fail.png)
+![A failing run of exercise 11. The panel reads: Your circuit does not prepare (|00> + |11>) / sqrt(2), and shows your probabilities, {'00': 1.0000}, against the target, {'00': 0.5000, '11': 0.5000}, with a note that global phase is ignored so a phase difference is not the problem.](https://raw.githubusercontent.com/TuguiDragos/quantum-exercises/main/readme-assets/02-qx-run-fail.png)
 
 That is the whole idea. No traceback, no line number pointing at library code, no
 guessing. The runner knows which concept you tripped over, so it explains the
@@ -37,7 +38,7 @@ concept.
 
 ### You fix it, and something actually runs
 
-![A passing run showing three panels: the statevector with amplitudes and probabilities, a histogram of 2048 shots split between 00 and 11, and a demonstration of little-endian bit order.](readme-assets/03-qx-run-pass.png)
+![A passing run showing three panels: the statevector with amplitudes and probabilities, a histogram of 2048 shots split between 00 and 11, and a demonstration of little-endian bit order.](https://raw.githubusercontent.com/TuguiDragos/quantum-exercises/main/readme-assets/03-qx-run-pass.png)
 
 No exercise ends on a green tick alone. Each one finishes with something your own
 code produced and the runner rendered: a state, a matrix, a histogram, or the
@@ -45,7 +46,7 @@ numbers themselves. Seeing the object is the point.
 
 ### You always know where you are
 
-![The qx list command showing the exercises grouped by act, each row carrying its number, slug, title and status, under a progress bar.](readme-assets/01-qx-list.png)
+![The qx list command showing the exercises grouped by act, each row carrying its number, slug, title and status, under a progress bar.](https://raw.githubusercontent.com/TuguiDragos/quantum-exercises/main/readme-assets/01-qx-list.png)
 
 ## Why this exists
 
@@ -83,8 +84,7 @@ depending on how much you stop to poke at things.
 ### 1. Install uv
 
 [uv](https://docs.astral.sh/uv/) is the only thing you have to install. It fetches
-the right Python itself, so you do not need Python first. You do need `git` to
-clone the repository, and macOS and most Linux installs already have it.
+the right Python itself, so you do not need Python first.
 
 macOS and Linux:
 
@@ -101,7 +101,41 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 If `uv` is not found afterwards, open a new terminal so the updated PATH takes
 effect.
 
-### 2. Clone and install
+### 2. Install the tool
+
+```bash
+uv tool install quantum-exercises
+```
+
+That puts `qx` on your PATH, so every command below works from any directory. The
+first run downloads about 350 MB, mostly Qiskit and its scientific stack, so give
+it a minute or two on a normal connection. It is not stuck. Afterwards uv has
+everything cached and the same command finishes in about a second.
+
+`pipx install quantum-exercises` and `pip install quantum-exercises` work too.
+
+### 3. Take a copy of the course
+
+```bash
+qx init
+```
+
+```bash
+cd quantum-exercises
+```
+
+The exercises travel inside the package, and this copies them somewhere you can
+edit, because editing them is the whole point. Pass a name to put them elsewhere:
+`qx init my-course`.
+
+Running it again never overwrites anything. That is the upgrade path: after
+installing a release that adds an exercise, `qx init` in the same directory brings
+the new one across and leaves every answer you have written exactly as it is.
+
+### Or clone it instead
+
+If you would rather have the repository, which is what you want to contribute or
+to read the source alongside the exercises, `git` is the only extra requirement:
 
 ```bash
 git clone https://github.com/TuguiDragos/quantum-exercises
@@ -115,20 +149,15 @@ cd quantum-exercises
 uv tool install --editable .
 ```
 
-The first run downloads about 350 MB, mostly Qiskit and its scientific stack, so
-give it a minute or two on a normal connection. It is not stuck. Afterwards uv has
-everything cached and the same command finishes in about a second.
-
-It resolves the dependency ranges declared in `pyproject.toml` and puts `qx` on
-your PATH, so every command below works from any directory. `--editable` keeps it
-pointed at this clone, so it follows your edits and finds the exercises wherever
-you run it from.
+`--editable` keeps `qx` pointed at this clone, so it follows your edits and finds
+the exercises wherever you run it from, and there is no `qx init` step because the
+exercises are already there.
 
 If you want the exact versions this repository is tested against rather than a
 fresh resolution, use `uv sync --locked` instead: `uv tool install` does not read
 `uv.lock` at all, and has no flag that makes it.
 
-### 3. Check that it worked
+### 4. Check that it worked
 
 ```bash
 qx doctor
@@ -149,7 +178,7 @@ The one command that does ask IBM adds a tenth row to the same table:
 qx doctor --online
 ```
 
-![qx doctor --online listing ten checks, all reading ok: Python, uv, the Qiskit SDK, the Aer simulator, the IBM Runtime client, a circuit smoke test, the visualization extra, twenty exercises, the saved IBM Quantum account, and a live connection reporting three QPUs on the open plan.](readme-assets/04-qx-doctor.png)
+![qx doctor --online listing ten checks, all reading ok: Python, uv, the Qiskit SDK, the Aer simulator, the IBM Runtime client, a circuit smoke test, the visualization extra, twenty exercises, the saved IBM Quantum account, and a live connection reporting three QPUs on the open plan.](https://raw.githubusercontent.com/TuguiDragos/quantum-exercises/main/readme-assets/04-qx-doctor.png)
 
 That last row signs in with the saved key and lists the QPUs your plan can reach.
 Use it when you want to know the key is still good before spending a queue slot on
@@ -159,7 +188,7 @@ that can fail because of your network rather than your laptop.
 An IBM Quantum account is **optional**. Every exercise runs on a local simulator
 without one, and plain `qx doctor` reports that as a note rather than a problem.
 
-### 4. Start
+### 5. Start
 
 ```bash
 qx next
@@ -177,6 +206,7 @@ inside them.
 
 | Command | What it does |
 |---|---|
+| `qx init [dir]` | copy the exercises somewhere you can edit them |
 | `qx doctor` | check the environment, step by step |
 | `qx list` | every exercise and your progress |
 | `qx next` | the next thing to work on |
@@ -285,20 +315,24 @@ crash costs you one run rather than your terminal session.
 
 ## Working in an editor
 
-Open the repository folder and you get the exercise on one side and the verdict
-on the other.
+Open your course folder and you get the exercise on one side and the verdict on
+the other.
 
 ```bash
 code .
 ```
 
-![VS Code with exercise.py open on the left and the integrated terminal on the right, showing a passing run of exercise 11.](readme-assets/05-vscode-split.png)
+![VS Code with exercise.py open on the left and the integrated terminal on the right, showing a passing run of exercise 11.](https://raw.githubusercontent.com/TuguiDragos/quantum-exercises/main/readme-assets/05-vscode-split.png)
 
-The `.vscode` settings in this repository turn on pytest, activate the environment
-in new terminals, and set ruff as the formatter. They deliberately do **not**
-hardcode an interpreter path, because `uv` puts it in `.venv/bin` on macOS and
-Linux and `.venv/Scripts` on Windows; the Python extension discovers `.venv` on
-its own. If it picks the wrong one, choose it from the status bar.
+A course made by `qx init` needs no editor setup at all: `qx` is on your PATH, so
+any terminal in that folder can run it.
+
+The `.vscode` settings in this repository, which a clone gets and `qx init` does
+not copy, turn on pytest, activate the environment in new terminals, and set ruff
+as the formatter. They deliberately do **not** hardcode an interpreter path,
+because `uv` puts it in `.venv/bin` on macOS and Linux and `.venv/Scripts` on
+Windows; the Python extension discovers `.venv` on its own. If it picks the wrong
+one, choose it from the status bar.
 
 Editing and rerunning by hand gets old quickly, so there is a watch mode:
 
@@ -306,7 +340,7 @@ Editing and rerunning by hand gets old quickly, so there is a watch mode:
 qx watch
 ```
 
-![Watch mode running in the VS Code terminal, showing a failed check followed by the line: watching exercises/11_bell_entanglement/exercise.py, save to re-run, Ctrl-C to stop.](readme-assets/07-qx-watch.png)
+![Watch mode running in the VS Code terminal, showing a failed check followed by the line: watching exercises/11_bell_entanglement/exercise.py, save to re-run, Ctrl-C to stop.](https://raw.githubusercontent.com/TuguiDragos/quantum-exercises/main/readme-assets/07-qx-watch.png)
 
 It re-runs on every save and moves to the next exercise on its own when one
 passes.
@@ -326,11 +360,21 @@ every one, so none of them can quietly rot.
 The exercises are where you are checked. The labs are where you are shown, at a
 length an exercise cannot afford. Everything runs on a local simulator.
 
-![The noise lab open in VS Code, showing an executed cell that runs the same Bell pair on three different pairs of physical qubits, and a table where the measured fidelity, 0.94, 0.88 and 0.97, tracks what the published readout rates predict.](readme-assets/06-vscode-notebook.png)
+![The noise lab open in VS Code, showing an executed cell that runs the same Bell pair on three different pairs of physical qubits, and a table where the measured fidelity, 0.94, 0.88 and 0.97, tracks what the published readout rates predict.](https://raw.githubusercontent.com/TuguiDragos/quantum-exercises/main/readme-assets/06-vscode-notebook.png)
 
-The labs need an environment inside the repository, which the quickstart does not
-create: `uv tool install` puts `qx` on your PATH and keeps its dependencies to
-itself. One command adds one, and it is the same lockfile:
+`qx init` copies them alongside the exercises, and `qx` itself cannot run them:
+installing the tool keeps its dependencies to itself, and a notebook needs a
+kernel of its own. One command builds one with everything the labs import:
+
+```bash
+uv run --with quantum-exercises --with jupyterlab jupyter lab
+```
+
+Nothing is installed permanently by that. uv assembles the environment, runs
+Jupyter in it, and throws it away when you close it.
+
+In a clone, where there is a `pyproject.toml`, the shorter form works and uses the
+same lockfile the exercises are tested against:
 
 ```bash
 uv sync
@@ -340,7 +384,8 @@ That creates `.venv` in the repository, with the kernel the notebooks run on.
 
 In VS Code the notebook kernel is a **separate** setting from the Python
 interpreter. If `qx doctor` passes but the notebook cannot import qiskit, that is
-the cause: pick the kernel inside `.venv` from the picker in the top right.
+the cause: pick the kernel that has it from the picker in the top right, which in
+a clone is the one inside `.venv`.
 
 ## Running on real hardware
 
@@ -378,7 +423,7 @@ stays on the local simulator and says so rather than sending a job nobody agreed
 to. `qx watch` does the same, because it re-runs on every save and asks nothing.
 Nothing automated reaches a QPU.
 
-![Exercise 14 run on ibm_marrakesh, a real IBM QPU. The queue question is answered yes, then the histogram shows 1024 shots: 00 at 49.0 percent, 11 at 48.4 percent, and 01 and 10 together at 2.54 percent. The summary reports the circuit as submitted, its ISA form, and that the disagreeing shots are noise rather than a bug.](readme-assets/08-real-hardware.png)
+![Exercise 14 run on ibm_marrakesh, a real IBM QPU. The queue question is answered yes, then the histogram shows 1024 shots: 00 at 49.0 percent, 11 at 48.4 percent, and 01 and 10 together at 2.54 percent. The summary reports the circuit as submitted, its ISA form, and that the disagreeing shots are noise rather than a bug.](https://raw.githubusercontent.com/TuguiDragos/quantum-exercises/main/readme-assets/08-real-hardware.png)
 
 Those `01` and `10` shots are the point of the exercise that follows. An ideal
 Bell state forbids them; a real machine produces them anyway, and exercise 15 is
@@ -423,14 +468,14 @@ minutes.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Adding an exercise means creating one
+See [CONTRIBUTING.md](https://github.com/TuguiDragos/quantum-exercises/blob/main/CONTRIBUTING.md). Adding an exercise means creating one
 directory; the test suite enforces the rest. The full dependency inventory, with
 the reason each one is present, lives there too.
 
 ## Security
 
 Reporting, and what the tool does with your IBM API key, are in
-[SECURITY.md](SECURITY.md). The short version: an account is optional, the key
+[SECURITY.md](https://github.com/TuguiDragos/quantum-exercises/blob/main/SECURITY.md). The short version: an account is optional, the key
 never reaches this repository, and `qx run` executes `check.py` from whichever
 copy you cloned, so clone from a source you trust.
 
@@ -438,7 +483,7 @@ copy you cloned, so clone from a source you trust.
 
 Tugui Dragos, [tuguidragos.com](https://tuguidragos.com).
 
-If you use this project in written work, [CITATION.cff](CITATION.cff) has the
+If you use this project in written work, [CITATION.cff](https://github.com/TuguiDragos/quantum-exercises/blob/main/CITATION.cff) has the
 metadata; GitHub turns it into a formatted citation from the sidebar.
 
 ### The notebook
@@ -457,7 +502,7 @@ Everything I learn about quantum computing, written down in order, at [tuguidrag
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/TuguiDragos/quantum-exercises/blob/main/LICENSE).
 
 Qiskit is a trademark of IBM. This project is not affiliated with or endorsed by
 IBM. It is an independent set of exercises that happens to be written for Qiskit,

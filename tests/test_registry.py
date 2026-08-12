@@ -199,15 +199,26 @@ def test_holds_exercises_survives_an_unreadable_directory(tmp_path: Path, monkey
     monkeypatch.setattr(
         Path, "iterdir", lambda self: (_ for _ in ()).throw(OSError("permission denied"))
     )
-    assert registry._holds_exercises(tmp_path) is False
+    assert registry.holds_exercises(tmp_path) is False
 
 
 def test_find_project_root_gives_up_with_guidance(tmp_path: Path, monkeypatch) -> None:
+    """The advice has to fit whoever is reading it.
+
+    Someone who installed the tool from PyPI has no repository to be inside, so
+    telling them to find one is guidance they cannot act on. `qx init` is what
+    they need, and it also works for someone who cloned and took a wrong turn.
+    """
     monkeypatch.delenv("QX_ROOT", raising=False)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(registry, "_holds_exercises", lambda directory: False)
-    with pytest.raises(registry.RegistryError, match="Could not find the exercises"):
+    monkeypatch.setattr(registry, "holds_exercises", lambda directory: False)
+
+    with pytest.raises(registry.RegistryError) as failure:
         registry.find_project_root()
+
+    said = str(failure.value)
+    assert "init" in said, "the one command that fixes this for an installed copy"
+    assert "QX_ROOT" in said
 
 
 def test_qx_root_without_an_exercises_directory(tmp_path: Path, monkeypatch) -> None:

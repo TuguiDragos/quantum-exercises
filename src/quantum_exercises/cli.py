@@ -21,9 +21,13 @@ from typer import rich_utils
 
 from quantum_exercises import __version__, invocation, theme, ui
 from quantum_exercises.registry import (
+    EXERCISES_DIR,
+    NOTEBOOKS_DIR,
     Exercise,
     RegistryError,
+    course_template,
     find_project_root,
+    holds_exercises,
     load_exercises,
     load_hints,
     resolve,
@@ -166,6 +170,127 @@ def _pick(name: str | None, exercises: list[Exercise], state: State) -> Exercise
         f"or `{invocation()} reset <name>` to redo one."
     )
     raise typer.Exit(code=0)
+
+
+DEFAULT_COURSE_DIR = "quantum-exercises"
+
+# What `qx init` hands over. The exercises are the course; the notebooks are the
+# labs the README points at. Everything else in the repository belongs to whoever
+# is working on the project rather than to whoever is taking it.
+COURSE_PARTS = (EXERCISES_DIR, NOTEBOOKS_DIR)
+
+
+@app.command()
+def init(
+    directory: Annotated[
+        str,
+        typer.Argument(help="Where to put the course. Created if it is not there yet."),
+    ] = DEFAULT_COURSE_DIR,
+) -> None:
+    """Copy the exercises somewhere you can edit them. Start here after installing."""
+    try:
+        source = course_template()
+    except RegistryError as exc:
+        ui.error(
+            "This copy of qx carries no course, and there is no repository around it "
+            "to take one from."
+        )
+        raise typer.Exit(code=2) from exc
+
+    target = Path(directory).expanduser()
+    _refuse_an_unsuitable_target(target)
+    topping_up = holds_exercises(target)
+
+    try:
+        added = _copy_course(source, target)
+    except OSError as exc:
+        ui.error(f"Could not write the course to {target}: {exc.strerror or exc}")
+        raise typer.Exit(code=2) from exc
+
+    _report_init(target, added, topping_up=topping_up)
+
+
+def _refuse_an_unsuitable_target(target: Path) -> None:
+    """Anything already in the way is the reader's, so stop rather than mix into it."""
+    if target.exists() and not target.is_dir():
+        ui.error(f"{target} is a file, so the course cannot go there.")
+        raise typer.Exit(code=2)
+
+    if not target.is_dir() or holds_exercises(target):
+        return
+
+    try:
+        occupied = any(target.iterdir())
+    except OSError as exc:
+        ui.error(f"Could not read {target}: {exc.strerror or exc}")
+        raise typer.Exit(code=2) from exc
+
+    if occupied:
+        ui.error(
+            f"{target} already holds something that is not a course, so nothing was "
+            "copied. Give the course a directory of its own, or an empty one."
+        )
+        raise typer.Exit(code=2)
+
+
+def _copy_course(source: Path, target: Path) -> list[str]:
+    """Copy across whatever the target does not have yet, and say what that was.
+
+    Nothing already there is touched, which is what makes running this twice safe.
+    That is also the upgrade path: a release that adds an exercise adds it here,
+    and every answer already written stays exactly as it was.
+    """
+    added: list[str] = []
+    for part in COURSE_PARTS:
+        origin = source / part
+        if not origin.is_dir():
+            continue
+        destination = target / part
+        destination.mkdir(parents=True, exist_ok=True)
+        for entry in sorted(origin.iterdir()):
+            if entry.name.startswith(".") or entry.name == "__pycache__":
+                continue
+            landing = destination / entry.name
+            if landing.exists():
+                continue
+            if entry.is_dir():
+                shutil.copytree(
+                    entry, landing, ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+                )
+            else:
+                shutil.copyfile(entry, landing)
+            added.append(f"{part}/{entry.name}")
+    return added
+
+
+def _report_init(target: Path, added: list[str], *, topping_up: bool) -> None:
+    if not added:
+        ui.info(f"{target} already has the whole course, so nothing was copied.")
+        ui.console.print()
+        return
+
+    if topping_up:
+        ui.success(f"Added {len(added)} thing(s) to {target}:")
+        for item in added:
+            ui.info(f"  {item}")
+        ui.info("Everything already there was left alone.")
+        ui.console.print()
+        return
+
+    exercises = sum(1 for item in added if item.startswith(f"{EXERCISES_DIR}/"))
+    ui.success(f"The course is in {target}: {exercises} exercises, ready to edit.")
+    ui.console.print()
+    ui.console.print(
+        Text("  cd    ", style=theme.DETAIL) + Text(str(target), style=theme.PATH),
+        soft_wrap=True,
+    )
+    ui.console.print(
+        Text("  then  ", style=theme.DETAIL)
+        + Text(f"{invocation()} doctor", style=theme.COMMAND)
+        + Text(" to check the toolchain, then ", style=theme.DETAIL)
+        + Text(f"{invocation()} next", style=theme.COMMAND)
+        + "\n"
+    )
 
 
 @app.command()

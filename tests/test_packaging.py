@@ -59,6 +59,50 @@ def test_the_lockfile_carries_the_current_version(pyproject: dict, root: Path) -
     )
 
 
+class TestTheWheelCarriesTheCourse:
+    """`pip install` has to hand over something to run, or `qx init` has nothing.
+
+    Checked against the build configuration rather than by building, which keeps
+    it to milliseconds. The CI `wheel` job builds one for real and takes a learner
+    through it.
+    """
+
+    @staticmethod
+    def _force_include(pyproject: dict) -> dict:
+        return pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+
+    def test_the_exercises_and_the_notebooks_are_included(self, pyproject: dict) -> None:
+        included = self._force_include(pyproject)
+        assert "exercises" in included, "a wheel without the exercises is a tool with no course"
+        assert "notebooks" in included
+
+    def test_they_land_where_the_root_search_cannot_reach(self, pyproject: dict) -> None:
+        """Under the package, not beside it.
+
+        find_project_root walks up looking for `<ancestor>/exercises`, so a course
+        nested this deep is invisible to it. Move it up one level and an installed
+        copy becomes a candidate working directory, which means `qx run` checking
+        answers inside site-packages and `qx reset` trying to write there.
+        """
+        from quantum_exercises.registry import BUNDLED_COURSE
+
+        expected = f"quantum_exercises/{BUNDLED_COURSE.name}"
+        for source, destination in self._force_include(pyproject).items():
+            assert destination.startswith(f"{expected}/"), (
+                f"{source} is packaged at {destination}, outside {expected}"
+            )
+
+    def test_the_screenshots_stay_out(self, pyproject: dict) -> None:
+        """Seven megabytes of PNGs that no learner opens."""
+        assert "readme-assets" not in self._force_include(pyproject)
+
+    def test_bytecode_is_excluded(self, pyproject: dict) -> None:
+        """Importing a check.py in process leaves __pycache__ in the source tree."""
+        excluded = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["exclude"]
+        assert any("__pycache__" in pattern for pattern in excluded)
+        assert any(pattern.endswith("*.pyc") for pattern in excluded)
+
+
 def test_entry_point_is_importable(pyproject: dict) -> None:
     """`qx` must resolve to something callable, or the console script is dead."""
     target = pyproject["project"]["scripts"]["qx"]
@@ -104,6 +148,11 @@ def inventory(root: Path) -> str:
     return (root / "CONTRIBUTING.md").read_text(encoding="utf-8")
 
 
+def _is_badge(url: str) -> bool:
+    """The two hosts badges come from: shields, and GitHub's own workflow badges."""
+    return url.startswith("https://img.shields.io/") or url.endswith("/badge.svg")
+
+
 @pytest.fixture(scope="module")
 def badges(root: Path) -> dict[str, str]:
     """Every badge in the README: label -> URL.
@@ -117,8 +166,10 @@ def badges(root: Path) -> dict[str, str]:
 
     An HTML badge is labelled by the first word of its alt text, so the alt can
     stay useful to a screen reader, "qiskit 2.5.1", while the assertions below
-    still look it up as "qiskit". Only https sources count, which is what skips
-    the banner images stored in this repository.
+    still look it up as "qiskit". Only the two badge hosts count. Being on https
+    used to be enough to tell a badge from a screenshot, because the screenshots
+    were relative paths. They became absolute so PyPI could render them, and the
+    hero image immediately arrived here labelled "quantum-exercises:".
     """
     readme = (root / "README.md").read_text(encoding="utf-8")
 
@@ -128,6 +179,8 @@ def badges(root: Path) -> dict[str, str]:
         alt = re.search(r'\balt="([^"]*)"', tag)
         src = re.search(r'\bsrc="(https://[^"]+)"', tag)
         if alt is None or src is None:
+            continue
+        if not _is_badge(src.group(1)):
             continue
         words = alt.group(1).split()
         if words:
@@ -259,6 +312,7 @@ class TestReadmeBadges:
             "uv",
             "ruff",
             "license",
+            "downloads",
         } - {"verified-against-qiskit"}  # that one has spaces in its label
         missing = expected - set(badges)
         assert not missing, f"README is missing badges: {sorted(missing)}"

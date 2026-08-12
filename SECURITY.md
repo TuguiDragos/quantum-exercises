@@ -50,7 +50,7 @@ When you do use it:
 If you believe a key was exposed, revoke it at
 <https://cloud.ibm.com/iam/apikeys>, where it was created, and save a new one.
 
-### 2. It executes Python from the repository you cloned
+### 2. It executes Python from the course you are working in
 
 This is the part worth thinking about, because it is not obvious.
 
@@ -65,11 +65,20 @@ other source file.
 The consequence: **a `check.py` from a repository you clone can read
 `~/.qiskit/qiskit-ibm.json` and send it anywhere.** Verified, not theoretical.
 
-So treat this repository the way you would treat any other you are about to run:
+Where those files came from depends on how you installed. `qx init` copies them
+out of the wheel you installed from PyPI, so they are the ones this project
+published and signed for with a release. A clone gives you whatever that clone
+contains, which is the same thing when it came from here and is not when it came
+from a fork.
 
-- Clone from <https://github.com/TuguiDragos/quantum-exercises>, not from a fork
-  you have not read.
+So treat the course you are about to run the way you would treat any other code:
+
+- Install from PyPI, or clone from
+  <https://github.com/TuguiDragos/quantum-exercises>, rather than from a fork you
+  have not read.
 - If you do use a fork, read its `exercises/*/check.py` first. They are short.
+- `qx init` never overwrites, so it cannot quietly replace a `check.py` you have
+  already looked at. It only ever adds what is missing, and says what it added.
 - On a shared machine, or if you would rather not have the key reachable at all,
   run with `QX_OFFLINE=1` and skip `qx doctor --save-account` entirely. The whole
   course works that way.

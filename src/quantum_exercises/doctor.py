@@ -301,7 +301,8 @@ def check_exercises(root: Path | None) -> Check:
             "Exercises",
             "fail",
             "the exercises/ directory was not found",
-            "Run this from inside the cloned repository.",
+            f"Run `{invocation()} init` to put a course somewhere you can edit, or "
+            "change into one you already have.",
         )
     from quantum_exercises.registry import RegistryError, load_exercises
 

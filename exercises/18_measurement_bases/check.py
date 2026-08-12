@@ -176,5 +176,5 @@ def _summary(to_x_basis):
 def _callable(mod, name):
     value = require(mod, name)
     if not callable(value):
-        raise CheckFailed(f"`{name}` should be a function, but it is a {type(value).__name__}.")
+        raise CheckFailed(f"`{name}` should be a function, but its type is {type(value).__name__}.")
     return value

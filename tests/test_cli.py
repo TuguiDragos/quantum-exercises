@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from quantum_exercises import doctor
 from quantum_exercises.cli import app
 
 runner = CliRunner()
@@ -21,6 +22,10 @@ runner = CliRunner()
 def sandbox(tmp_path: Path, root: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     shutil.copytree(root / "exercises", tmp_path / "exercises")
     monkeypatch.setenv("QX_ROOT", str(tmp_path))
+    # `qx doctor` reads the saved account, and the real one belongs to whoever is
+    # running the suite. A machine carrying an account on the retired channel made
+    # doctor exit 1 and failed a test about something else entirely.
+    monkeypatch.setattr(doctor, "CREDENTIALS_PATH", tmp_path / "no-account.json")
     return tmp_path
 
 

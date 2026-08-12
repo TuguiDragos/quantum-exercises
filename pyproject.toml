@@ -1,6 +1,6 @@
 [project]
 name = "quantum-exercises"
-version = "0.8.0"
+version = "0.8.1"
 description = "Hands-on quantum computing exercises for Qiskit, from an empty laptop to real IBM hardware"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -79,6 +79,14 @@ exclude = ["**/__pycache__", "**/*.pyc", "**/.ipynb_checkpoints"]
 [tool.hatch.build.targets.wheel.force-include]
 "exercises" = "quantum_exercises/_course/exercises"
 "notebooks" = "quantum_exercises/_course/notebooks"
+
+# The sdist carries the repository, which is what it is for, minus the one part
+# nothing needs from it: the screenshots are 7 MB of the archive, no build step
+# reads them, and the README that PyPI renders loads them over https rather than
+# out of the file. Excluded here and not in the wheel section, because a wheel
+# never had them.
+[tool.hatch.build.targets.sdist]
+exclude = ["readme-assets", "**/__pycache__", "**/*.pyc", "**/.ipynb_checkpoints"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

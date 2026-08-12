@@ -200,10 +200,10 @@ def _summary(correlation, chsh):
         f"  S = {s:.6f}",
         "",
         f"  best of all 16 pre-decided strategies : {_best_classical():.6f}",
-        f"  what you just measured               : {s:.6f}",
+        f"  what you just computed               : {s:.6f}",
         f"  the quantum ceiling, 2 * sqrt(2)     : {TSIRELSON:.6f}",
         "",
-        "The envelopes cannot reach what you measured. That is the whole argument,",
+        "The envelopes cannot reach what you computed. That is the whole argument,",
         "and it is why exercise 11 was careful not to claim it had already been made.",
     ]
     return "\n".join(lines)
@@ -212,5 +212,5 @@ def _summary(correlation, chsh):
 def _callable(mod, name):
     value = require(mod, name)
     if not callable(value):
-        raise CheckFailed(f"`{name}` should be a function, but it is a {type(value).__name__}.")
+        raise CheckFailed(f"`{name}` should be a function, but its type is {type(value).__name__}.")
     return value

@@ -43,10 +43,13 @@ def check(mod):
     result = require(mod, "result")
     if hasattr(result, "get_counts"):
         raise CheckFailed(
-            "`result` is still an old-style result object.",
+            "`result` has a .get_counts() method, so it is not a V2 primitive result.",
             detail=(
-                "A V2 result has no .get_counts(). If this came from AerSimulator.run(), "
-                "switch to StatevectorSampler, whose result is indexed per circuit."
+                "That is what `backend.run(...).result()` hands back, and it is a current "
+                "API rather than a dead one: exercise 14 reads a hardware result exactly "
+                "that way. execute() had two replacements, and the one practised here is "
+                "the primitive, whose result is indexed per circuit. Build it with "
+                "StatevectorSampler."
             ),
         )
 

@@ -2,6 +2,7 @@
 
 from qiskit import QuantumCircuit
 from qiskit.primitives import StatevectorSampler
+from qiskit.quantum_info import Operator
 
 from quantum_exercises.checks import CheckFailed, require, text_artifact
 
@@ -41,9 +42,7 @@ def check(mod):
                 detail=(
                     f"Counts: {counts}\n"
                     + (
-                        "Getting the constant answer for a balanced function usually means the "
-                        "oracle was applied twice: the two sign flips cancel and the "
-                        "information is destroyed. Compose it exactly once."
+                        _balanced_diagnosis(circuit, oracle)
                         if balanced
                         else "Check the order: Hadamard, then the oracle, then Hadamard."
                     )
@@ -63,6 +62,7 @@ def check(mod):
 
         rows.append((name, balanced, counts, verdict))
 
+    _check_the_oracle_is_composed(deutsch)
     _check_majority(is_balanced)
 
     # The classical comparison, stated with the numbers just produced.
@@ -74,7 +74,7 @@ def check(mod):
         )
     summary += [
         "",
-        "Four functions, four correct answers, one oracle call each.",
+        "Four functions, four correct answers, one query to each.",
         "",
         "Classically this needs two calls, and that is not a matter of writing",
         "smarter code: after a single classical evaluation, two functions are",
@@ -110,6 +110,114 @@ def _check_majority(is_balanced) -> None:
                     "this wrong. Take the outcome that occurred most often."
                 ),
             )
+
+
+# What the sandwich itself contributes. Anything else in the circuit came from
+# the oracle, whether it was composed in or appended as a single gate.
+SCAFFOLDING = {"h", "measure", "barrier"}
+
+
+def _sandwich(oracle: QuantumCircuit) -> QuantumCircuit:
+    """The circuit deutsch() is asked for, without the measurement."""
+    qc = QuantumCircuit(1)
+    qc.h(0)
+    qc.compose(oracle, inplace=True)
+    qc.h(0)
+    return qc
+
+
+def _probe() -> QuantumCircuit:
+    """An oracle from outside the four.
+
+    A T gate is a phase oracle for no Boolean function at all, which is the point:
+    the algorithm never asks which function it was handed, so it has to work for
+    anything that arrives.
+    """
+    qc = QuantumCircuit(1)
+    qc.t(0)
+    return qc
+
+
+def _check_the_oracle_is_composed(deutsch) -> None:
+    """Hand deutsch() an oracle it cannot have anticipated.
+
+    Reading one of the four and writing the answer out by hand builds the same
+    circuit as composing it, gate for gate in two cases out of four, so nothing in
+    the returned circuit separates the two. The separation comes from the input
+    instead: composing works for any oracle, classifying works only for the four.
+
+    A deutsch() that rebuilds the oracle from its matrix passes this, and should.
+    It applies the oracle once, which is the entire claim being made.
+    """
+    probe = _probe()
+    try:
+        circuit = deutsch(probe)
+    except Exception as exc:  # noqa: BLE001 - re-raised as a teaching message
+        # The four have already been through it by now, so this is not a general
+        # fault: it is a deutsch() that only knows the oracles it expected.
+        raise CheckFailed(
+            f"deutsch() raised {type(exc).__name__} on an oracle outside the four.",
+            detail=(
+                "It works for the four in this file and for nothing else, which means it "
+                "is reading the oracle rather than composing it. Composing does not care "
+                f"what arrived.\nPython reported: {type(exc).__name__}: {exc}"
+            ),
+        ) from exc
+
+    if not isinstance(circuit, QuantumCircuit) or circuit.num_qubits != 1:
+        raise CheckFailed(
+            "deutsch() did not return a one-qubit circuit for an oracle outside the four.",
+            detail=(
+                "It is handed a QuantumCircuit and has to work for any of them, because "
+                "the algorithm never looks at which function it was given."
+            ),
+        )
+
+    built = Operator(circuit.remove_final_measurements(inplace=False))
+    if built.equiv(Operator(_sandwich(probe))):
+        return
+
+    raise CheckFailed(
+        "deutsch() does not put the oracle it was handed into the circuit.",
+        detail=(
+            "Handed a one-qubit circuit that is none of the four, it came back with "
+            "something else between the two Hadamards.\n"
+            "Composing works whatever arrives. Deciding from the oracle's contents works "
+            "only for the four in this file, and it answers the question classically "
+            "before the circuit has run, which is precisely the query the algorithm is "
+            "not allowed to make."
+        ),
+    )
+
+
+def _oracle_missing(circuit, oracle) -> bool:
+    """Whether the oracle left no trace at all in the returned circuit.
+
+    Only conclusive for an oracle that has gates to look for. constant_zero has
+    none and constant_one carries a global phase rather than a gate, so nothing
+    can be said about those two, and nothing is.
+
+    Used for the wording of a failure rather than to decide one. The check that
+    the oracle is really used is _check_the_oracle_is_composed, which works by
+    choosing the input rather than by inspecting the output.
+    """
+    if not oracle.data:
+        return False
+    return all(instruction.operation.name in SCAFFOLDING for instruction in circuit.data)
+
+
+def _balanced_diagnosis(circuit, oracle) -> str:
+    """Both ways a balanced function comes back looking constant."""
+    if _oracle_missing(circuit, oracle):
+        return (
+            "The circuit is the two Hadamards and nothing between them, so the oracle was "
+            "never put in. Insert it with qc.compose(oracle, inplace=True)."
+        )
+    return (
+        "Getting the constant answer for a balanced function usually means the "
+        "oracle was applied twice: the two sign flips cancel and the "
+        "information is destroyed. Compose it exactly once."
+    )
 
 
 def _validate_circuit(circuit, name: str) -> None:
@@ -152,5 +260,5 @@ def _sample(circuit) -> dict[str, int]:
 def _callable(mod, name):
     value = require(mod, name)
     if not callable(value):
-        raise CheckFailed(f"`{name}` should be a function, but it is a {type(value).__name__}.")
+        raise CheckFailed(f"`{name}` should be a function, but its type is {type(value).__name__}.")
     return value

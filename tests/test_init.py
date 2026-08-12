@@ -8,6 +8,7 @@ added, and the bundled copy is never mistaken for the working one.
 
 from __future__ import annotations
 
+import io
 import shutil
 from pathlib import Path
 
@@ -21,6 +22,22 @@ runner = CliRunner()
 
 def _invoke(*args: str):
     return runner.invoke(cli.app, list(args))
+
+
+def _fail_writing(monkeypatch: pytest.MonkeyPatch, doomed: Path) -> None:
+    """Refuse to write one particular file, leaving every other copy alone.
+
+    A read-only file would do it on POSIX and not on Windows, and would also stop
+    the backup rather than the replacement, which is the wrong half.
+    """
+    real = cli.shutil.copyfile
+
+    def guarded(source, destination, *args, **kwargs):
+        if Path(destination) == doomed:
+            raise OSError(28, "No space left on device")
+        return real(source, destination, *args, **kwargs)
+
+    monkeypatch.setattr(cli.shutil, "copyfile", guarded)
 
 
 @pytest.fixture
@@ -116,6 +133,23 @@ class TestFirstRun:
         assert _invoke("init").exit_code == 0
         assert (tmp_path / cli.DEFAULT_COURSE_DIR / "exercises").is_dir()
 
+    def test_a_path_whose_parents_do_not_exist_yet_is_made(self, tmp_path: Path) -> None:
+        """`qx init work/quantum/course` on a machine with none of those directories."""
+        target = tmp_path / "work" / "quantum" / "course"
+
+        assert _invoke("init", str(target)).exit_code == 0
+        assert registry.holds_exercises(target)
+
+    def test_a_symlink_to_a_directory_is_followed(self, tmp_path: Path) -> None:
+        """A course kept on another disk and linked to from home."""
+        real = tmp_path / "elsewhere"
+        real.mkdir()
+        link = tmp_path / "course"
+        link.symlink_to(real, target_is_directory=True)
+
+        assert _invoke("init", str(link)).exit_code == 0
+        assert (real / "exercises" / "01_environment").is_dir()
+
 
 class TestRunningItAgain:
     def test_nothing_is_copied_when_the_course_is_complete(self, tmp_path: Path) -> None:
@@ -154,6 +188,197 @@ class TestRunningItAgain:
         assert "exercises/02_dictionaries" in said
         assert "notebooks/playground.ipynb" in said
         assert (target / "exercises" / "02_dictionaries" / "check.py").is_file()
+
+
+class TestTheCourseReadme:
+    def test_a_fresh_course_gets_one(self, tmp_path: Path) -> None:
+        target = tmp_path / "my-course"
+        _invoke("init", str(target))
+
+        said = (target / cli.COURSE_README).read_text(encoding="utf-8")
+        assert said.startswith("# Your quantum-exercises course")
+        assert f"{registry.EXERCISES_DIR}/" in said
+        assert cli.LEARNER_FILE in said
+
+    def test_one_already_there_is_never_replaced(self, tmp_path: Path) -> None:
+        """`qx init .` in a clone would otherwise overwrite the project's own README."""
+        target = tmp_path / "my-course"
+        target.mkdir()
+        (target / cli.COURSE_README).write_text("mine\n", encoding="utf-8")
+
+        _invoke("init", str(target))
+        _invoke("init", str(target), "--refresh")
+
+        assert (target / cli.COURSE_README).read_text(encoding="utf-8") == "mine\n"
+
+
+class TestRefresh:
+    """`--refresh` is how a correction to a lesson reaches a course already copied.
+
+    Plain `qx init` skips anything that is already there, which keeps answers safe
+    and also means a fixed `check.py` never arrives. This brings those across while
+    keeping the one promise that matters: `exercise.py` is not touched.
+    """
+
+    @pytest.fixture
+    def target(self, tmp_path: Path) -> Path:
+        course = tmp_path / "my-course"
+        _invoke("init", str(course))
+        return course
+
+    def test_an_edited_lesson_file_is_brought_up_to_date(self, target: Path) -> None:
+        hints = target / "exercises" / "01_environment" / "hints.md"
+        current = hints.read_text(encoding="utf-8")
+        hints.write_text("stale\n", encoding="utf-8")
+
+        result = _invoke("init", str(target), "--refresh")
+
+        assert result.exit_code == 0, result.output
+        assert hints.read_text(encoding="utf-8") == current
+        assert "exercises/01_environment/hints.md" in " ".join(result.stdout.split())
+
+    def test_what_was_replaced_is_kept_beside_it(self, target: Path) -> None:
+        checker = target / "exercises" / "01_environment" / "check.py"
+        checker.write_text("# mine\n", encoding="utf-8")
+
+        _invoke("init", str(target), "--refresh")
+
+        backup = checker.with_name(checker.name + cli.BACKUP_SUFFIX)
+        assert backup.read_text(encoding="utf-8") == "# mine\n"
+        assert checker.read_text(encoding="utf-8") != "# mine\n"
+
+    def test_an_answer_is_never_touched(self, target: Path) -> None:
+        """The promise that makes the flag safe to run at any point in the course."""
+        mine = target / "exercises" / "01_environment" / cli.LEARNER_FILE
+        mine.write_text("qiskit_version = 'mine'\n", encoding="utf-8")
+        # Something to actually update, so the run has work to do around the answer.
+        (target / "exercises" / "01_environment" / "hints.md").write_text("x", encoding="utf-8")
+
+        result = _invoke("init", str(target), "--refresh")
+
+        assert mine.read_text(encoding="utf-8") == "qiskit_version = 'mine'\n"
+        assert not mine.with_name(mine.name + cli.BACKUP_SUFFIX).exists()
+        assert cli.LEARNER_FILE in " ".join(result.stdout.split())
+
+    def test_a_deleted_lesson_file_comes_back(self, target: Path) -> None:
+        hints = target / "exercises" / "02_dictionaries" / "hints.md"
+        hints.unlink()
+
+        _invoke("init", str(target), "--refresh")
+
+        assert hints.is_file()
+
+    def test_a_deleted_answer_stays_deleted(self, target: Path) -> None:
+        """`qx reset` restores that one, out of a template.py this does keep current."""
+        mine = target / "exercises" / "02_dictionaries" / cli.LEARNER_FILE
+        mine.unlink()
+
+        _invoke("init", str(target), "--refresh")
+
+        assert not mine.exists()
+
+    def test_nothing_to_do_says_so(self, target: Path) -> None:
+        result = _invoke("init", str(target), "--refresh")
+        assert "nothing was copied" in " ".join(result.stdout.split())
+
+    def test_running_it_twice_changes_nothing_the_second_time(self, target: Path) -> None:
+        (target / "exercises" / "01_environment" / "README.md").write_text("x", encoding="utf-8")
+
+        first = _invoke("init", str(target), "--refresh")
+        second = _invoke("init", str(target), "--refresh")
+
+        assert "up to date" in " ".join(first.stdout.split())
+        assert "nothing was copied" in " ".join(second.stdout.split())
+
+    def test_it_reports_what_it_added_and_what_it_replaced_together(self, target: Path) -> None:
+        shutil.rmtree(target / "exercises" / "02_dictionaries")
+        (target / "exercises" / "01_environment" / "meta.toml").write_text("x", encoding="utf-8")
+
+        said = " ".join(_invoke("init", str(target), "--refresh").stdout.split())
+
+        assert "Added 1" in said and "exercises/02_dictionaries" in said
+        assert "up to date" in said and "exercises/01_environment/meta.toml" in said
+
+    def test_bytecode_in_the_template_is_still_left_behind(
+        self, course: Path, target: Path
+    ) -> None:
+        """The skip has to hold at every depth, not just at the top of exercises/."""
+        stale = course / registry.EXERCISES_DIR / "01_environment" / "__pycache__"
+        stale.mkdir()
+        (stale / "check.cpython-313.pyc").write_bytes(b"\x00")
+        (course / registry.EXERCISES_DIR / "01_environment" / "check.pyc").write_bytes(b"\x00")
+
+        _invoke("init", str(target), "--refresh")
+
+        assert not list(target.rglob("__pycache__"))
+        assert not list(target.rglob("*.pyc"))
+
+    def test_a_run_that_stops_part_way_says_what_it_had_already_done(
+        self, target: Path, monkeypatch
+    ) -> None:
+        """A course left part new, reported as a flat failure, is unreadable.
+
+        The reader has no way to tell whether anything changed, and the honest
+        answer is that some of it did. Naming it is also what keeps the promise in
+        SECURITY.md that no lesson file is ever replaced silently.
+        """
+        first = target / "exercises" / "01_environment" / "hints.md"
+        later = target / "exercises" / "02_dictionaries" / "hints.md"
+        first.write_text("stale\n", encoding="utf-8")
+        later.write_text("stale\n", encoding="utf-8")
+        _fail_writing(monkeypatch, later)
+
+        result = _invoke("init", str(target), "--refresh")
+        said = " ".join(result.stdout.split())
+
+        assert result.exit_code == 2
+        assert "exercises/01_environment/hints.md" in said, "the work it did must not vanish"
+        assert "run it again" in said
+        assert "Could not write the course" in said
+        assert first.read_text(encoding="utf-8") != "stale\n"
+
+    def test_a_replacement_that_fails_leaves_no_backup_behind(
+        self, target: Path, monkeypatch
+    ) -> None:
+        """The backup is earned by the replacement, and there was not one."""
+        hints = target / "exercises" / "01_environment" / "hints.md"
+        hints.write_text("stale\n", encoding="utf-8")
+        _fail_writing(monkeypatch, hints)
+
+        _invoke("init", str(target), "--refresh")
+
+        assert hints.read_text(encoding="utf-8") == "stale\n"
+        assert not hints.with_name(hints.name + cli.BACKUP_SUFFIX).exists(), (
+            "a backup beside an unchanged file claims something happened that did not"
+        )
+
+    def test_the_names_it_lists_survive_a_narrow_terminal(self, target: Path, monkeypatch) -> None:
+        """A path broken across two lines reads as two files, and says nothing.
+
+        The longest label the shipped course produces is over forty characters, so
+        this is not a hypothetical width.
+        """
+        from rich.console import Console
+
+        from quantum_exercises import ui
+
+        console = Console(file=io.StringIO(), width=30)
+        monkeypatch.setattr(ui, "console", console)
+        checker = target / "exercises" / "02_dictionaries" / "check.py"
+        checker.write_text("stale\n", encoding="utf-8")
+
+        _invoke("init", str(target), "--refresh")
+
+        assert "exercises/02_dictionaries/check.py" in console.file.getvalue()
+
+    def test_without_the_flag_none_of_this_happens(self, target: Path) -> None:
+        hints = target / "exercises" / "01_environment" / "hints.md"
+        hints.write_text("stale\n", encoding="utf-8")
+
+        _invoke("init", str(target))
+
+        assert hints.read_text(encoding="utf-8") == "stale\n"
+        assert not hints.with_name(hints.name + cli.BACKUP_SUFFIX).exists()
 
 
 class TestRefusals:

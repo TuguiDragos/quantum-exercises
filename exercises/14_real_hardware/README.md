@@ -26,6 +26,12 @@ To force the offline path even when you do have an account:
 QX_OFFLINE=1 qx run 14
 ```
 
+PowerShell has no prefix form, so set it first. It stays set for that window:
+
+```powershell
+$env:QX_OFFLINE = '1'; qx run 14
+```
+
 ## The step that is not optional
 
 On a simulator you can hand over any circuit and it works. Hardware is not like
@@ -50,6 +56,10 @@ print('before:', dict(qc.count_ops()))
 print('after :', dict(to_isa(qc, b).count_ops()))
 "
 ```
+
+That one is written for bash or zsh. PowerShell does not carry a string across
+lines the same way, so set `$env:QX_OFFLINE` as above and put the Python on a
+single line, separated by semicolons.
 
 ## Your task
 

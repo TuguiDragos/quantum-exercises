@@ -164,7 +164,19 @@ case(
     "04_measurement",
     "shots-left-off-the-run",
     "result = StatevectorSampler(seed=1234).run([qc]).result()\n",
-    "but the circuit was run with 2048 shots",
+    "but this exercise asks for 2048 shots",
+)
+case(
+    "04_measurement",
+    "result-from-a-different-circuit",
+    "qc = QuantumCircuit(1)\n"
+    "qc.x(0)\n"
+    "qc.measure_all()\n"
+    "_elsewhere = QuantumCircuit(1)\n"
+    "_elsewhere.h(0)\n"
+    "_elsewhere.measure_all()\n"
+    "result = StatevectorSampler(seed=1234).run([_elsewhere], shots=SHOTS).result()\n",
+    "not a sample of the circuit in `qc`",
 )
 case(
     "04_measurement",
@@ -340,6 +352,78 @@ case(
     "    qc.measure_all()\n"
     "    return qc\n",
     "the oracle was applied twice",
+)
+case(
+    "10_deutsch",
+    "oracle-never-composed",
+    "def deutsch(oracle):\n"
+    "    qc = QuantumCircuit(1)\n"
+    "    qc.h(0)\n"
+    "    qc.h(0)\n"
+    "    qc.measure_all()\n"
+    "    return qc\n",
+    "never put in",
+)
+case(
+    "10_deutsch",
+    "oracle-read-instead-of-composed",
+    # The one answer that cannot be caught by looking at what comes back. For two
+    # of the four oracles this builds the same circuit as composing, gate for
+    # gate, so it is the choice of input that gives it away rather than any
+    # inspection of the output.
+    "def deutsch(oracle):\n"
+    "    from qiskit.quantum_info import Operator as _Operator\n"
+    "    import numpy as _np\n"
+    "    _matrix = _Operator(oracle).data\n"
+    "    qc = QuantumCircuit(1)\n"
+    "    qc.h(0)\n"
+    "    if not _np.allclose(_matrix[0, 0], _matrix[1, 1]):\n"
+    "        qc.z(0)\n"
+    "    qc.h(0)\n"
+    "    qc.measure_all()\n"
+    "    return qc\n",
+    "does not put the oracle it was handed into the circuit",
+)
+case(
+    "10_deutsch",
+    "an-unfamiliar-oracle-crashes-it",
+    "def deutsch(oracle):\n"
+    "    qc = QuantumCircuit(1)\n"
+    "    qc.h(0)\n"
+    "    if oracle.data and oracle.data[0].operation.name not in ('x', 'z'):\n"
+    "        raise ValueError('I only know the four')\n"
+    "    qc.compose(oracle, inplace=True)\n"
+    "    qc.h(0)\n"
+    "    qc.measure_all()\n"
+    "    return qc\n",
+    "raised ValueError on an oracle outside the four",
+)
+case(
+    "10_deutsch",
+    "an-unfamiliar-oracle-gets-nothing-back",
+    "def deutsch(oracle):\n"
+    "    qc = QuantumCircuit(1)\n"
+    "    qc.h(0)\n"
+    "    if oracle.data and oracle.data[0].operation.name not in ('x', 'z'):\n"
+    "        return None\n"
+    "    qc.compose(oracle, inplace=True)\n"
+    "    qc.h(0)\n"
+    "    qc.measure_all()\n"
+    "    return qc\n",
+    "did not return a one-qubit circuit",
+)
+case(
+    "10_deutsch",
+    "oracle-guessed-from-its-size",
+    "def deutsch(oracle):\n"
+    "    qc = QuantumCircuit(1)\n"
+    "    qc.h(0)\n"
+    "    if len(oracle.data) in (1, 3):\n"
+    "        qc.z(0)\n"
+    "    qc.h(0)\n"
+    "    qc.measure_all()\n"
+    "    return qc\n",
+    "does not put the oracle it was handed into the circuit",
 )
 case(
     "10_deutsch",
@@ -575,7 +659,7 @@ case(
     '        return {"00": 512, "11": 512}\n'
     "\n"
     "result = _LegacyResult()\n",
-    "still an old-style result object",
+    "not a V2 primitive result",
 )
 case(
     "13_migration",
@@ -684,7 +768,7 @@ case(
     "shot-count-changed",
     "result = StatevectorSampler(seed=7).run([qc], shots=SHOTS // 2).result()\n"
     "counts = result[0].data.c.get_counts()\n",
-    "but the circuit was run with 1024 shots",
+    "but this exercise asks for 1024 shots",
 )
 
 case(

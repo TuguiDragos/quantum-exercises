@@ -158,6 +158,28 @@ class TestHardening:
         assert len(result.stdout.encode()) < 4 * MAX_CAPTURED_BYTES
         assert "discarded" in result.stdout
 
+    def test_output_that_stops_exactly_at_the_limit_is_kept_whole(
+        self, synthetic: Exercise, tmp_path: Path
+    ) -> None:
+        """The boundary itself, where an off-by-one would either cut or overrun.
+
+        The test above overruns the cap by a factor of thousands, which any limit
+        at all satisfies. Here the child writes the cap exactly, so keeping one
+        byte too few would add the notice and keeping one too many would not.
+        """
+        _write(
+            synthetic,
+            "import sys\n"
+            f"sys.stdout.write('A' * {MAX_CAPTURED_BYTES})\n"
+            "sys.stdout.flush()\n"
+            "answer = 42\n",
+        )
+        result = run_exercise(synthetic, root=tmp_path, timeout=60)
+
+        assert result.passed
+        assert result.stdout == "A" * MAX_CAPTURED_BYTES
+        assert "discarded" not in result.stdout
+
     def test_a_verdict_written_before_the_timeout_is_honoured(
         self, synthetic: Exercise, tmp_path: Path
     ) -> None:

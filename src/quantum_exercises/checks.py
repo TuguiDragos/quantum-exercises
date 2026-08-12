@@ -123,7 +123,7 @@ def require(
             else " or ".join(t.__name__ for t in expected_type)
         )
         raise CheckFailed(
-            f"`{name}` should be a {want}, but it is a {type(value).__name__}.",
+            f"`{name}` should be a {want}, but its type is {type(value).__name__}.",
         )
     return value
 
@@ -419,9 +419,11 @@ def assert_shots(counts: dict[str, int], expected: int) -> None:
     total = sum(counts.values())
     if total != expected:
         raise CheckFailed(
-            f"The counts add up to {total}, but the circuit was run with {expected} shots.",
+            f"The counts add up to {total}, but this exercise asks for {expected} shots.",
             detail=(
-                "Every shot produces exactly one outcome, so the values must sum to the shot count."
+                "Every shot produces exactly one outcome, so the values must sum to the shot "
+                "count. A total that is lower means the run used fewer shots than it was asked "
+                "for, which is what leaving `shots=` off does."
             ),
         )
 

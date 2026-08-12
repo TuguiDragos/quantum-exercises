@@ -48,9 +48,9 @@ def angles(vector):
 
 Three things worth knowing about that last line.
 
-`math.atan2(y, x)` and not `atan2(x, y)`. Swapping them gives the angle measured
-from the Y axis instead of from X, which comes out right for `|+>` by luck and
-wrong for everything else.
+`math.atan2(y, x)` and not `atan2(x, y)`. Swapping them measures the angle from
+the Y axis instead of from X, so `|+>` comes back as `pi/2` where it should be
+`0`. The two orders agree only where `x` and `y` are equal.
 
 Do not reach for `atan(y / x)`. It cannot tell `|+>` from `|->`, because both
 have `y / x` equal to zero, and it divides by zero on the Y axis. `atan2` keeps

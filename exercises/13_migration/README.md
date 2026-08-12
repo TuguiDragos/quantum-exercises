@@ -15,7 +15,7 @@ Qiskit 1.0 removed a lot of what 0.x code takes for granted.
 
 | 2021 code | Qiskit 2.x |
 |---|---|
-| `from qiskit import execute` | gone; use a primitive, or `transpile` plus `backend.run` |
+| `from qiskit import execute` | gone; use a primitive (this exercise), or `transpile` plus `backend.run` (exercise 14) |
 | `from qiskit import Aer` | separate package: `from qiskit_aer import AerSimulator` |
 | `from qiskit import IBMQ` | `from qiskit_ibm_runtime import QiskitRuntimeService` |
 | `from qiskit import BasicAer` | `qiskit.providers.basic_provider` |
@@ -60,3 +60,7 @@ split those apart, which is more honest about what is happening.
 For a local simulation like this one, `StatevectorSampler` from
 `qiskit.primitives` is the shortest path and needs no extra package. It is exactly
 what you used in exercises 04 and 05.
+
+Both replacements are current, and this exercise asks for the primitive: `result`
+has to be a V2 result, indexed per circuit. Exercise 14 takes the other route,
+because hardware needs the transpile step written out rather than done for you.

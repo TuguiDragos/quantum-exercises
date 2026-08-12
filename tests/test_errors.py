@@ -28,6 +28,10 @@ def _raised(source: str) -> BaseException:
         ("from qiskit import BasicAer", "`BasicAer` was renamed"),
         ("import qiskit.opflow", "`qiskit.opflow` was removed"),
         ("from qiskit.tools.monitor import job_monitor", "`qiskit.tools` was removed"),
+        # The third entry in _REMOVED_MODULES, and the one only a hand-built
+        # exception used to reach. `qiskit-aer` being installed is what makes the
+        # old spelling worth translating rather than simply absent.
+        ("from qiskit.providers.aer import AerSimulator", "replaced by a standalone package"),
     ],
 )
 def test_removed_qiskit_api(source: str, expected_in_message: str) -> None:

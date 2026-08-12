@@ -285,14 +285,20 @@ class TestBarColouring:
     ) -> None:
         """Off by one here paints a cell of track in the fill colour, or the reverse.
 
-        The count is worked out here rather than read back off the bar. Deriving it
-        from _bar would only prove the drawing agrees with itself, and a bar that
-        filled one cell too many would satisfy that happily.
+        The fill is judged against the rule it exists to follow rather than against
+        the line that implements it. Recomputing `int(fraction * width)` here would
+        only prove the drawing agrees with itself, and a bar that filled one cell
+        too many would satisfy that happily. The rule has two halves: a filled cell
+        may never stand for work that is not done, and the bar may never sit more
+        than one cell behind the work.
         """
         fraction = numerator / 20
-        filled = int(fraction * width)
         drawn = ui._bar(fraction, width=width, track=track)
-        assert drawn.count(ui._FULL) == filled, f"{drawn!r} does not fill {filled} cells"
+        filled = drawn.count(ui._FULL)
+
+        assert filled <= fraction * width, f"{drawn!r} fills ahead of {fraction}"
+        assert fraction * width < filled + 1, f"{drawn!r} sits more than a cell behind"
+        assert len(drawn) == width, f"{drawn!r} is not {width} cells wide"
 
         captured.print(ui._bar_text(fraction, width=width, track=track))
         emitted = _emitted(captured).decode("utf-8")

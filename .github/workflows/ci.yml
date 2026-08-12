@@ -148,7 +148,16 @@ jobs:
           # Before anything is copied there is no course, and the message has to
           # name the command that makes one rather than a repository to go and find.
           if "$qx" list; then echo "expected qx list to fail before init"; exit 1; fi
-          "$qx" list 2>&1 | grep -q "init"
+
+          # Captured, not piped into grep. `qx list` exits 2 here by design, and
+          # under pipefail that status is what the whole pipeline reports even
+          # though grep found what it was looking for. The check passed and the
+          # step failed anyway.
+          said=$("$qx" list 2>&1 || true)
+          case "$said" in
+            *init*) ;;
+            *) echo "the pre-init message does not name init: $said"; exit 1 ;;
+          esac
 
           "$qx" init course
           cd course

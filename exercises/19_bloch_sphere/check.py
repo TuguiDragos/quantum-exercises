@@ -1,5 +1,6 @@
 """Verification for exercise 19."""
 
+import itertools
 import math
 
 import numpy as np
@@ -99,15 +100,15 @@ def _check_cardinals(bloch_vector) -> None:
             continue
 
         # The single most likely slip: the three numbers in the wrong order.
-        for order, label in (((2, 1, 0), "(z, y, x)"), ((2, 0, 1), "(z, x, y)")):
-            if np.allclose([got[i] for i in order], want, atol=TOL):
-                raise CheckFailed(
-                    f"For {name} the three numbers are right but the order is not.",
-                    detail=(
-                        f"You returned them as {label}. The convention here is (x, y, z), "
-                        "so <X> first and <Z> last."
-                    ),
-                )
+        label = _ordering_used(bloch_vector)
+        if label is not None:
+            raise CheckFailed(
+                f"For {name} the three numbers are right but the order is not.",
+                detail=(
+                    f"You returned them as {label}. The convention here is (x, y, z), "
+                    "so <X> first and <Z> last."
+                ),
+            )
         if math.isclose(got[1], want[2], abs_tol=TOL) and not math.isclose(
             want[1], want[2], abs_tol=TOL
         ):
@@ -123,6 +124,35 @@ def _check_cardinals(bloch_vector) -> None:
                 "all on the same circuit."
             ),
         )
+
+
+# Every wrong ordering, written as the positions to read first, second and third
+# to get (x, y, z) back.
+_ORDERINGS = tuple(order for order in itertools.permutations((0, 1, 2)) if order != (0, 1, 2))
+
+
+def _ordering_used(bloch_vector) -> str | None:
+    """Name the order a learner returned the coordinates in, or None if unclear.
+
+    Weighed against all six cardinal states rather than the one that failed. For
+    |0>, which is (0, 0, 1), several orderings fit the numbers equally well, and
+    naming the wrong one sends the reader to inspect a line that is correct.
+    """
+    measured = [
+        (_vector(bloch_vector, circuit, name), _reference(circuit)) for name, circuit, _ in CARDINAL
+    ]
+    fits = [
+        order
+        for order in _ORDERINGS
+        if all(np.allclose([got[i] for i in order], want, atol=TOL) for got, want in measured)
+    ]
+    if len(fits) != 1:
+        return None
+    # Reading position order[0] first means that position is where x ended up.
+    axes = ["", "", ""]
+    for position, axis in zip(fits[0], "xyz", strict=True):
+        axes[position] = axis
+    return "(" + ", ".join(axes) + ")"
 
 
 def _check_length(bloch_vector) -> None:
@@ -442,5 +472,5 @@ def _half_angle_table(bloch_vector, angles) -> str:
 def _callable(mod, name):
     value = require(mod, name)
     if not callable(value):
-        raise CheckFailed(f"`{name}` should be a function, but it is a {type(value).__name__}.")
+        raise CheckFailed(f"`{name}` should be a function, but its type is {type(value).__name__}.")
     return value

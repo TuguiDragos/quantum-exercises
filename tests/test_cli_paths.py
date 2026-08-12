@@ -23,6 +23,10 @@ runner = CliRunner()
 def sandbox(tmp_path: Path, root: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     shutil.copytree(root / "exercises", tmp_path / "exercises")
     monkeypatch.setenv("QX_ROOT", str(tmp_path))
+    # The saved account belongs to whoever runs the suite, and `qx doctor` reads
+    # it. Pointed somewhere empty so a real one, valid or retired, cannot decide
+    # the exit code of a test about something else.
+    monkeypatch.setattr(doctor_module, "CREDENTIALS_PATH", tmp_path / "no-account.json")
     return tmp_path
 
 
@@ -112,6 +116,26 @@ class TestHintGuards:
         assert result.exception is None
         assert "hint 2 of 2" in result.stdout
         assert "That was the last hint" in result.stdout
+
+    def test_a_hint_added_after_all_were_revealed_shows_up(self, sandbox: Path) -> None:
+        """The other direction, which `--all` makes reachable.
+
+        `--all` sets the counter to however many hints there were. A release that
+        adds one leaves the reader a hint short, and asking again has to hand it
+        over rather than repeat the last one.
+        """
+        hints = sandbox / "exercises" / "01_environment" / "hints.md"
+        _invoke("hint", "1", "--all")
+        hints.write_text(
+            hints.read_text(encoding="utf-8") + "\n## Hint 4\n\nOne the release added.\n",
+            encoding="utf-8",
+        )
+
+        result = _invoke("hint", "1")
+
+        assert result.exit_code == 0, result.output
+        assert "hint 4 of 4" in result.stdout
+        assert "One the release added." in result.stdout
 
 
 class TestHardwareConfirmation:
@@ -324,6 +348,46 @@ class TestHardwareWiring:
 
         assert "30 seconds" in said
         assert "3 hours" not in said, "it announced a wait it was not going to make"
+
+    def test_a_confirmed_run_with_no_limit_of_its_own_announces_the_queue_window(
+        self, sandbox: Path, monkeypatch
+    ) -> None:
+        """The other half of the branch above, whose wording nothing asserted.
+
+        The number is derived from the constant rather than typed out, so changing
+        the window changes the sentence and this test with it.
+        """
+        from quantum_exercises.backends import Queue
+
+        self._record(monkeypatch)
+        TestHardwareConfirmation._peek(monkeypatch, Queue("ibm_marrakesh", 2))
+        monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: True)
+
+        said = " ".join(_invoke("run", "14").stdout.split())
+
+        assert f"up to {cli.HARDWARE_WINDOW_SECONDS // 3600} hours" in said
+        assert "Ctrl-C stops waiting, not the job" in said
+
+    def test_ctrl_c_at_the_question_sends_nothing(self, sandbox: Path, monkeypatch) -> None:
+        """Interrupting the prompt is an answer, and the answer is no.
+
+        typer raises Abort, which reaches the runner as an exit rather than a
+        traceback. Nothing may have been submitted on the way out.
+        """
+        from quantum_exercises.backends import Queue
+
+        recorded = self._record(monkeypatch)
+        TestHardwareConfirmation._peek(monkeypatch, Queue("ibm_marrakesh", 2))
+
+        def interrupted(*args, **kwargs):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(cli.typer, "confirm", interrupted)
+
+        result = _invoke("run", "14")
+
+        assert result.exit_code != 0
+        assert recorded == {}, "the exercise must not have been run at all"
 
     def test_a_run_nobody_confirmed_is_not_allowed_hardware(
         self, sandbox: Path, monkeypatch
@@ -840,11 +904,18 @@ class TestTyperChrome:
         assert "{command_path}" in rich_utils.RICH_HELP
         assert "{help_option}" in rich_utils.RICH_HELP
 
-    def test_a_mistyped_option_names_the_command_that_has_it(self) -> None:
-        """`--online` belongs to doctor. The error must not be the only thing said."""
+    def test_a_mistyped_option_is_answered_with_the_option_itself(self) -> None:
+        """`--online` belongs to doctor, and typer answers for the app it was given.
+
+        Nothing here can name the command that owns it: click reports the option it
+        could not match and stops. What it has to do is quote the option back and
+        point at help, or the reader is left with a refusal and nowhere to go.
+        """
         result = _invoke("--online")
-        assert result.exit_code != 0
-        assert "No such option" in result.output
+        assert result.exit_code == 2
+        assert "No such option: --online" in result.output
+        assert "Usage: qx" in result.output
+        assert "--help" in result.output
 
     def test_typer_renders_in_the_same_colour_system_as_the_rest(self) -> None:
         """Not cosmetic: rich hands both consoles the same Style object.

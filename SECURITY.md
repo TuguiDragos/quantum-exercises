@@ -67,7 +67,9 @@ The consequence: **a `check.py` from a repository you clone can read
 
 Where those files came from depends on how you installed. `qx init` copies them
 out of the wheel you installed from PyPI, so they are the ones this project
-published and signed for with a release. A clone gives you whatever that clone
+published through trusted publishing, with no long-lived token anywhere in the
+chain. That is not the same as a signature: no attestation is uploaded, so there
+is nothing for you to verify locally. A clone gives you whatever that clone
 contains, which is the same thing when it came from here and is not when it came
 from a fork.
 
@@ -79,6 +81,10 @@ So treat the course you are about to run the way you would treat any other code:
 - If you do use a fork, read its `exercises/*/check.py` first. They are short.
 - `qx init` never overwrites, so it cannot quietly replace a `check.py` you have
   already looked at. It only ever adds what is missing, and says what it added.
+  `qx init --refresh` does replace lesson files, which is the point of it, and it
+  cannot do so quietly either: whatever was there is copied aside with a `.bak`
+  suffix and every replaced file is named on screen. Read those names if you did
+  not fetch the update yourself.
 - On a shared machine, or if you would rather not have the key reachable at all,
   run with `QX_OFFLINE=1` and skip `qx doctor --save-account` entirely. The whole
   course works that way.
@@ -150,13 +156,12 @@ run, both stay on the local simulator and say so. A scripted `qx run 14` on a
 machine with a saved account therefore spends nothing, which before this was
 exactly how a stray editor task could have joined a real queue.
 
-One case is deliberately left open, and it is worth stating rather than glossing.
-When the run **is** interactive but the queue cannot be read at all, there is no
-queue to show you and so no question to put; the run then proceeds as it always
-did, and the worker reports which backend it settled on and why. Someone sitting
-at a terminal who typed `qx run 14` is not ambushed by that. The ambush this
-guards against is the one with nobody at the keyboard, and that case has no
-terminal by definition.
+The awkward case is the interactive run whose queue cannot be read at all. There
+is nothing to show and so no question to put, and a failed check is not consent,
+so the run stays on the local simulator and says so, naming
+`qx doctor --online` as the way to find out whether IBM is reachable at all. It
+fails closed: reading a failed peek as a yes once meant the last line on screen
+was "this sends no job" and then a job went out.
 
 That third workflow is the only one here holding `contents: write`. It rewrites
 the block between the NOTES markers in `README.md` from the author's public feed

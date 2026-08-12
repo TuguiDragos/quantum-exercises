@@ -38,8 +38,14 @@ measured 01  0.03  0.94  0.00  0.02
 Read a **column**: it says what the device reports when that state was prepared.
 Each column is a probability distribution, so each column adds to 1.
 
-Call that matrix `A`. It is a complete description of how this device lies about
-readout.
+Call that matrix `A`. It is what this device does to a distribution on the way
+out.
+
+Strictly, `A` catches slightly more than readout. Preparing `01` takes an `x`
+gate, and that gate is noisy too, so a little of its error lands in the column
+with the readout error. On this device the readout term is more than fifty times
+the gate term, which is why the matrix is named for readout. The careful name is
+assignment error, or SPAM, for state preparation and measurement.
 
 ## Undoing it
 

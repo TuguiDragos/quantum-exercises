@@ -138,35 +138,7 @@ jobs:
           set -euo pipefail
           uv venv "$HOME/wheel-env" --python 3.13
           VIRTUAL_ENV="$HOME/wheel-env" uv pip install dist/*.whl
+      # The steps themselves live in a script, because verify.yml runs the same
+      # ones on macOS and Windows and a second copy of them would drift.
       - name: Take a learner through it, with no repository in sight
-        run: |
-          set -euo pipefail
-          qx="$HOME/wheel-env/bin/qx"
-          mkdir -p "$HOME/elsewhere"
-          cd "$HOME/elsewhere"
-
-          # Before anything is copied there is no course, and the message has to
-          # name the command that makes one rather than a repository to go and find.
-          if "$qx" list; then echo "expected qx list to fail before init"; exit 1; fi
-
-          # Captured, not piped into grep. `qx list` exits 2 here by design, and
-          # under pipefail that status is what the whole pipeline reports even
-          # though grep found what it was looking for. The check passed and the
-          # step failed anyway.
-          said=$("$qx" list 2>&1 || true)
-          case "$said" in
-            *init*) ;;
-            *) echo "the pre-init message does not name init: $said"; exit 1 ;;
-          esac
-
-          "$qx" init course
-          cd course
-          "$qx" doctor
-          "$qx" list
-          cp exercises/01_environment/solution.py exercises/01_environment/exercise.py
-          "$qx" run 1
-
-          # Running it again is the upgrade path, and it may not touch an answer.
-          cd ..
-          "$qx" init course
-          grep -q "__version__" course/exercises/01_environment/exercise.py
+        run: bash .github/scripts/wheel-smoke.sh "$HOME/wheel-env" "$HOME/elsewhere"

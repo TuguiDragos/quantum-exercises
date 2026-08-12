@@ -2,6 +2,7 @@
 
 from quantum_exercises.checks import (
     CheckFailed,
+    as_statevector,
     assert_counts_close,
     assert_shots,
     counts_artifact,
@@ -64,6 +65,7 @@ def check(mod):
     counts = dict(getattr(pub_result.data, fields[0]).get_counts())
 
     assert_shots(counts, EXPECTED_SHOTS)
+    _assert_result_came_from(counts, qc)
 
     missing = {"0", "1"} - set(counts)
     if missing:
@@ -82,6 +84,34 @@ def check(mod):
     assert_counts_close(counts, {"0": 0.5, "1": 0.5})
 
     return counts_artifact(counts, caption=f"{EXPECTED_SHOTS} shots of a Hadamard")
+
+
+def _assert_result_came_from(counts: dict[str, int], qc) -> None:
+    """Tie the numbers to the circuit that was supposed to produce them.
+
+    Nothing else here reads `qc` and `result` together, so a wrong circuit paired
+    with counts from a different one passed. Compared against what `qc` itself
+    predicts, at the same tolerance as the check below, because these counts are
+    a sample rather than an exact distribution.
+    """
+    predicted = as_statevector(qc).probabilities_dict()
+    shots = sum(counts.values())
+    try:
+        assert_counts_close(counts, predicted)
+    except CheckFailed as exc:
+        # Worded here rather than passed through: assert_counts_close speaks to a
+        # learner who wrote the probabilities down, and these came from a circuit.
+        want = ", ".join(f"'{key}': {float(value):.4f}" for key, value in sorted(predicted.items()))
+        got = ", ".join(f"'{key}': {value / shots:.4f}" for key, value in sorted(counts.items()))
+        raise CheckFailed(
+            "The counts in `result` are not a sample of the circuit in `qc`.",
+            detail=(
+                "`result` has to come from running the circuit you built, so hand `qc` "
+                "itself to the sampler: sampler.run([qc], shots=SHOTS).\n"
+                f"qc predicts   {{{want}}}\n"
+                f"result shows  {{{got}}}"
+            ),
+        ) from exc
 
 
 def _has_measurement(qc) -> bool:

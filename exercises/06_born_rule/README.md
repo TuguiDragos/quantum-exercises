@@ -26,7 +26,7 @@ chance, it means a 75% chance. Amplitudes are not probabilities, and unlike
 probabilities they can be negative or complex.
 
 The circuit in `exercise.py` applies `ry(pi/3)` to a qubit starting in state 0.
-The `ry` gate rotates by an angle in a plane, and it produces:
+The `ry` gate rotates the state by an angle around the y axis, and it produces:
 
 ```
 Ry(theta)|0> = cos(theta/2)|0> + sin(theta/2)|1>

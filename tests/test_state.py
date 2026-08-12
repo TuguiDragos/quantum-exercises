@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -304,6 +307,84 @@ class TestLocking:
         with state_module.locked(missing):
             pass
         assert not missing.exists()
+
+    def test_the_same_exercise_twice_over_leaves_one_entry(self, tmp_path: Path) -> None:
+        """The concurrency test below uses eight different slugs, which cannot collide.
+
+        Two processes finishing the same exercise is the ordinary case: `qx watch`
+        in one window and `qx run` in another. The last writer wins the timestamp,
+        and what matters is that the entry survives as one record rather than the
+        file ending up with a half-written pair of them.
+        """
+        for _ in range(2):
+            with state_module.locked(tmp_path):
+                state = state_module.load(tmp_path)
+                state.mark_done("01_environment", ran_on="simulator")
+                state_module.save(tmp_path, state)
+
+        reloaded = state_module.load(tmp_path)
+        assert list(reloaded.exercises) == ["01_environment"]
+        assert reloaded.get("01_environment").ran_on == "simulator"
+
+
+class TestTheWindowsLock:
+    """The nt branch, exercised wherever the suite runs rather than nowhere at all.
+
+    It is not simply unmeasured. No job runs the coverage gate on Windows, and
+    these two functions do not share flock's semantics: `msvcrt.locking` claims
+    one byte, retries once a second ten times and then raises, where flock waits.
+    Run here against a stand-in for msvcrt, so the calls it makes, and the rewind
+    that has to precede the unlock, are pinned on any platform.
+    """
+
+    @staticmethod
+    def _load_windows_state(monkeypatch: pytest.MonkeyPatch) -> tuple[dict, list]:
+        # Read before os.name moves. pathlib chooses its flavour from it, and a
+        # POSIX path built afterwards comes back with backslashes in it.
+        source = Path(state_module.__file__)
+        text, name = source.read_text(encoding="utf-8"), str(source)
+
+        calls: list[tuple[int, int]] = []
+        msvcrt = ModuleType("msvcrt")
+        msvcrt.LK_LOCK, msvcrt.LK_UNLCK = 1, 0
+        msvcrt.locking = lambda handle, mode, length: calls.append((mode, length))
+        monkeypatch.setitem(sys.modules, "msvcrt", msvcrt)
+        monkeypatch.setattr(os, "name", "nt")
+
+        # A real module, registered: state.py defers its annotations, so building
+        # its dataclasses means looking the module up in sys.modules by name.
+        module = ModuleType("qx_state_as_windows_sees_it")
+        module.__file__ = name
+        monkeypatch.setitem(sys.modules, module.__name__, module)
+        exec(compile(text, name, "exec"), module.__dict__)  # noqa: S102
+        return module.__dict__, calls
+
+    def test_it_claims_and_frees_exactly_the_byte_it_says(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        namespace, calls = self._load_windows_state(monkeypatch)
+        handle = os.open(tmp_path / "lock", os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            namespace["_acquire"](handle)
+            namespace["_release"](handle)
+        finally:
+            os.close(handle)
+
+        assert calls == [(1, 1), (0, 1)], "one byte locked with LK_LOCK, freed with LK_UNLCK"
+
+    def test_the_unlock_rewinds_to_what_was_locked(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """LK_UNLCK frees from wherever the file pointer sits, not from the start."""
+        namespace, _ = self._load_windows_state(monkeypatch)
+        handle = os.open(tmp_path / "lock", os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            namespace["_acquire"](handle)
+            os.lseek(handle, 40, os.SEEK_SET)
+            namespace["_release"](handle)
+            assert os.lseek(handle, 0, os.SEEK_CUR) == 0
+        finally:
+            os.close(handle)
 
     def test_concurrent_updates_do_not_erase_each_other(self, tmp_path: Path) -> None:
         """The regression test for the defect: eight writers, eight entries.

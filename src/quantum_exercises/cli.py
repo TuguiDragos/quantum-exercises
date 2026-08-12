@@ -179,6 +179,17 @@ DEFAULT_COURSE_DIR = "quantum-exercises"
 # is working on the project rather than to whoever is taking it.
 COURSE_PARTS = (EXERCISES_DIR, NOTEBOOKS_DIR)
 
+# The one file in an exercise a learner writes in. `--refresh` neither creates
+# nor replaces it, without exception, so an answer can never be lost to an
+# update. `qx reset` is what restores it, out of a template.py that --refresh
+# does keep current.
+LEARNER_FILE = "exercise.py"
+
+# Where the version a learner had goes before an update replaces it.
+BACKUP_SUFFIX = ".bak"
+
+COURSE_README = "README.md"
+
 
 @app.command()
 def init(
@@ -186,6 +197,13 @@ def init(
         str,
         typer.Argument(help="Where to put the course. Created if it is not there yet."),
     ] = DEFAULT_COURSE_DIR,
+    refresh: Annotated[
+        bool,
+        typer.Option(
+            "--refresh",
+            help="Also update lesson files already copied. Never touches exercise.py.",
+        ),
+    ] = False,
 ) -> None:
     """Copy the exercises somewhere you can edit them. Start here after installing."""
     try:
@@ -201,13 +219,21 @@ def init(
     _refuse_an_unsuitable_target(target)
     topping_up = holds_exercises(target)
 
+    # Held here rather than inside the copy, so that a failure half way through
+    # can still say what had already landed. A course left part new and reported
+    # as a flat failure is the one state a reader cannot make sense of.
+    added: list[str] = []
+    refreshed: list[str] = []
     try:
-        added = _copy_course(source, target)
+        _copy_course(source, target, added, refreshed, refresh=refresh)
     except OSError as exc:
+        if added or refreshed:
+            _report_update(target, added, refreshed)
+            ui.warn("That is how far it got. Fix what is below and run it again to finish.")
         ui.error(f"Could not write the course to {target}: {exc.strerror or exc}")
         raise typer.Exit(code=2) from exc
 
-    _report_init(target, added, topping_up=topping_up)
+    _report_init(target, added, refreshed, topping_up=topping_up)
 
 
 def _refuse_an_unsuitable_target(target: Path) -> None:
@@ -233,14 +259,32 @@ def _refuse_an_unsuitable_target(target: Path) -> None:
         raise typer.Exit(code=2)
 
 
-def _copy_course(source: Path, target: Path) -> list[str]:
+def _skippable(name: str) -> bool:
+    """Bytecode, hidden files and notebook checkpoints, at any depth."""
+    return name.startswith(".") or name == "__pycache__" or name.endswith(".pyc")
+
+
+def _copy_course(
+    source: Path,
+    target: Path,
+    added: list[str],
+    refreshed: list[str],
+    *,
+    refresh: bool = False,
+) -> None:
     """Copy across whatever the target does not have yet, and say what that was.
 
     Nothing already there is touched, which is what makes running this twice safe.
     That is also the upgrade path: a release that adds an exercise adds it here,
     and every answer already written stays exactly as it was.
+
+    With ``refresh``, files the course owns are brought back in step with it as
+    well, which is how a correction to a lesson or a checker reaches a course
+    that was copied out before it. Anything that differs is copied aside first.
+
+    The two lists belong to the caller so that they survive an OSError raised part
+    way through, which is the only way it can report what had already landed.
     """
-    added: list[str] = []
     for part in COURSE_PARTS:
         origin = source / part
         if not origin.is_dir():
@@ -248,33 +292,137 @@ def _copy_course(source: Path, target: Path) -> list[str]:
         destination = target / part
         destination.mkdir(parents=True, exist_ok=True)
         for entry in sorted(origin.iterdir()):
-            if entry.name.startswith(".") or entry.name == "__pycache__":
+            if _skippable(entry.name):
                 continue
             landing = destination / entry.name
-            if landing.exists():
+            label = f"{part}/{entry.name}"
+            if not landing.exists():
+                if entry.is_dir():
+                    shutil.copytree(
+                        entry, landing, ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+                    )
+                else:
+                    shutil.copyfile(entry, landing)
+                added.append(label)
+            elif refresh:
+                _refresh_entry(entry, landing, label, added, refreshed)
+    _place_course_readme(target, added)
+
+
+def _refresh_entry(
+    origin: Path, landing: Path, label: str, added: list[str], refreshed: list[str]
+) -> None:
+    """Bring one already-copied file, or one directory of them, back in step."""
+    if origin.is_dir():
+        for entry in sorted(origin.iterdir()):
+            if _skippable(entry.name):
                 continue
-            if entry.is_dir():
-                shutil.copytree(
-                    entry, landing, ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
-                )
-            else:
-                shutil.copyfile(entry, landing)
-            added.append(f"{part}/{entry.name}")
-    return added
-
-
-def _report_init(target: Path, added: list[str], *, topping_up: bool) -> None:
-    if not added:
-        ui.info(f"{target} already has the whole course, so nothing was copied.")
-        ui.console.print()
+            _refresh_entry(entry, landing / entry.name, f"{label}/{entry.name}", added, refreshed)
         return
 
-    if topping_up:
+    if origin.name == LEARNER_FILE:
+        return
+
+    if not landing.exists():
+        shutil.copyfile(origin, landing)
+        added.append(label)
+        return
+
+    if landing.read_bytes() == origin.read_bytes():
+        return
+
+    backup = landing.with_name(landing.name + BACKUP_SUFFIX)
+    shutil.copyfile(landing, backup)
+    try:
+        shutil.copyfile(origin, landing)
+    except OSError:
+        # The replacement is what earns the backup. Left behind after a failed
+        # write it sits beside an unchanged file, claiming something happened.
+        backup.unlink(missing_ok=True)
+        raise
+    refreshed.append(label)
+
+
+def _place_course_readme(target: Path, added: list[str]) -> None:
+    """Leave a short note at the top of the course saying what the folder is.
+
+    Written only when there is nothing there already, never refreshed. `qx init`
+    pointed at a directory that has its own README, a clone of this repository
+    among them, must not replace it.
+    """
+    landing = target / COURSE_README
+    if landing.exists():
+        return
+    landing.write_text(_course_readme_text(), encoding="utf-8")
+    added.append(COURSE_README)
+
+
+def _course_readme_text() -> str:
+    """The note `qx init` leaves at the top of a course."""
+    qx = invocation()
+    return f"""# Your quantum-exercises course
+
+The exercises, and the labs that go with them. Everything here is yours to edit.
+
+## Start
+
+    {qx} doctor     check that the toolchain works
+    {qx} next       the next exercise to work on
+    {qx} run        check your answer
+    {qx} list       every exercise, and where you are
+
+`{qx}` on its own prints the whole command list.
+
+## What is in here
+
+- `{EXERCISES_DIR}/` one directory per exercise. You edit `{LEARNER_FILE}`; the rest is
+  the lesson, the hints, the reference answer and the checker.
+- `{NOTEBOOKS_DIR}/` labs to poke at. None of them are graded.
+- `{STATE_FILENAME}` your progress. Delete it and the course forgets you.
+
+## Keeping it current
+
+`{qx} init` again brings across anything a newer release added, and never touches
+an answer you have written. `{qx} init --refresh` also updates the lesson files
+themselves, keeping a `{BACKUP_SUFFIX}` copy of any you had changed.
+
+https://github.com/TuguiDragos/quantum-exercises
+"""
+
+
+def _listed(items: list[str]) -> None:
+    """One name per line, whole.
+
+    soft_wrap because these are paths. A terminal narrow enough to break one says
+    nothing about having broken it, and the two halves read as two files.
+    """
+    for item in items:
+        ui.console.print(Text(f"    {item}", style=theme.DETAIL), soft_wrap=True)
+
+
+def _report_update(target: Path, added: list[str], refreshed: list[str]) -> None:
+    """What happened to a course that was already there."""
+    if added:
         ui.success(f"Added {len(added)} thing(s) to {target}:")
-        for item in added:
-            ui.info(f"  {item}")
+        _listed(added)
+
+    if refreshed:
+        ui.success(f"Brought {len(refreshed)} file(s) in {target} up to date:")
+        _listed(refreshed)
+        ui.info(f"The version you had is beside each one, with a {BACKUP_SUFFIX} suffix.")
+
+    if not added and not refreshed:
+        ui.info(f"{target} already has the whole course, so nothing was copied.")
+    elif refreshed:
+        ui.info(f"No {LEARNER_FILE} was touched, so your answers are as you left them.")
+    else:
         ui.info("Everything already there was left alone.")
-        ui.console.print()
+    ui.console.print()
+
+
+def _report_init(target: Path, added: list[str], refreshed: list[str], *, topping_up: bool) -> None:
+    if topping_up or not added:
+        _report_update(target, added, refreshed)
         return
 
     exercises = sum(1 for item in added if item.startswith(f"{EXERCISES_DIR}/"))

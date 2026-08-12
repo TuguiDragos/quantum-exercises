@@ -229,6 +229,11 @@ __marimo__/
 # other. Left in place on purpose: deleting it would race a process holding it.
 .qx-state.lock
 
+# What `qx init --refresh` sets aside before it replaces a lesson file. In a
+# clone the course is this repository, so a contributor who runs it would
+# otherwise find their own edits staged for commit.
+*.bak
+
 # macOS Finder metadata. Nothing here belongs to the project.
 .DS_Store
 

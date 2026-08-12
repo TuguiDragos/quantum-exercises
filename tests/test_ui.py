@@ -268,8 +268,50 @@ def test_render_failure_handles_a_path_outside_the_root(
 
 
 def test_render_artifact_falls_back_to_text() -> None:
+    """A kind no renderer knows still has to draw, and to carry its payload."""
     panel = ui.render_artifact({"kind": "mystery", "caption": "c", "payload": {"a": 1}})
-    assert panel is not None
+    console = Console(file=io.StringIO(), width=200)
+    console.print(panel)
+    shown = console.file.getvalue()
+    assert "'a': 1" in shown
+    assert "c" in shown
+
+
+class TestTheBackendALearnerReached:
+    """`qx list` says which backend exercise 14 ran on, and it is the one line in
+    the table a learner cannot get from anywhere else."""
+
+    @staticmethod
+    def _listing(kind: str | None, root: Path, monkeypatch) -> str:
+        from quantum_exercises.state import State
+
+        console = Console(file=io.StringIO(), width=200)
+        monkeypatch.setattr(ui, "console", console)
+        exercises = registry.load_exercises(root)
+        state = State()
+        state.mark_done(exercises[13].slug, ran_on=kind)
+        ui.render_list(exercises, state)
+        return console.file.getvalue()
+
+    def test_a_real_qpu_is_named_as_one(self, root: Path, monkeypatch) -> None:
+        assert "done (QPU)" in self._listing("hardware", root, monkeypatch)
+
+    def test_a_noisy_simulator_is_told_apart_from_a_plain_one(
+        self, root: Path, monkeypatch
+    ) -> None:
+        assert "done (noisy)" in self._listing("noisy_simulator", root, monkeypatch)
+        assert "done (sim)" in self._listing("simulator", root, monkeypatch)
+
+    def test_a_backend_nobody_recognises_is_shown_as_it_came(self, root: Path, monkeypatch) -> None:
+        """RAN_ON_LABEL is a shortening, not a filter: an unknown kind still shows."""
+        assert "done (ibm_fez)" in self._listing("ibm_fez", root, monkeypatch)
+
+    def test_an_exercise_that_never_reached_a_backend_says_only_done(
+        self, root: Path, monkeypatch
+    ) -> None:
+        listing = self._listing(None, root, monkeypatch)
+        assert "done" in listing
+        assert "done (" not in listing
 
 
 @pytest.mark.parametrize(

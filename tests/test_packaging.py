@@ -25,6 +25,16 @@ def pyproject(root: Path) -> dict:
         return tomllib.load(handle)
 
 
+@pytest.fixture(scope="module")
+def ignored(root: Path) -> set[str]:
+    """Every pattern .gitignore carries, comments and blank lines dropped."""
+    return {
+        line.strip()
+        for line in (root / ".gitignore").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+
+
 def test_version_agrees_across_every_file(pyproject: dict, root: Path) -> None:
     """Four files carry the version. They drift the moment one is forgotten."""
     declared = pyproject["project"]["version"]
@@ -99,6 +109,81 @@ class TestTheWheelCarriesTheCourse:
     def test_bytecode_is_excluded(self, pyproject: dict) -> None:
         """Importing a check.py in process leaves __pycache__ in the source tree."""
         excluded = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["exclude"]
+        assert any("__pycache__" in pattern for pattern in excluded)
+        assert any(pattern.endswith("*.pyc") for pattern in excluded)
+
+
+class TestNothingPrivateIsTracked:
+    """A learner's own files sit in the repository and none of them belong in git.
+
+    state.py opens with "never committed" and cli.py writes `.bak` copies beside
+    lesson files. Both are true only for as long as .gitignore says so, and a
+    missing line there would be noticed by nobody until a progress file, or a
+    backup carrying someone's answer, arrived in a pull request.
+    """
+
+    def test_the_progress_file_and_its_neighbours_are_ignored(self, ignored: set[str]) -> None:
+        from quantum_exercises.state import LOCK_FILENAME, STATE_FILENAME, UNREADABLE_SUFFIX
+
+        assert STATE_FILENAME in ignored
+        assert STATE_FILENAME + UNREADABLE_SUFFIX in ignored
+        assert LOCK_FILENAME in ignored
+
+    def test_the_backups_refresh_leaves_behind_are_ignored(self, ignored: set[str]) -> None:
+        from quantum_exercises.cli import BACKUP_SUFFIX
+
+        assert f"*{BACKUP_SUFFIX}" in ignored, (
+            f"`qx init --refresh` writes *{BACKUP_SUFFIX} files into the course, "
+            "and in a clone the course is the repository"
+        )
+
+    def test_none_of_them_are_tracked_right_now(self, root: Path) -> None:
+        """The rule above, checked against what git is actually carrying."""
+        import subprocess
+
+        from quantum_exercises.cli import BACKUP_SUFFIX
+        from quantum_exercises.state import STATE_FILENAME
+
+        try:
+            listed = subprocess.run(  # noqa: S603 - fixed argv, no shell
+                ["git", "-C", str(root), "ls-files"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except (FileNotFoundError, OSError):  # pragma: no cover - git-less environment
+            pytest.skip("git is not available")
+        if listed.returncode != 0:  # pragma: no cover - only outside a checkout
+            pytest.skip("not a git checkout")
+
+        stray = [
+            name
+            for name in listed.stdout.splitlines()
+            if name.endswith(BACKUP_SUFFIX) or Path(name).name.startswith(STATE_FILENAME)
+        ]
+        assert not stray, f"these belong to whoever is taking the course: {stray}"
+
+
+class TestTheSdistCarriesTheRepository:
+    """A source archive, minus the one part of the repository nothing reads from it."""
+
+    @staticmethod
+    def _excluded(pyproject: dict) -> list[str]:
+        return pyproject["tool"]["hatch"]["build"]["targets"]["sdist"]["exclude"]
+
+    def test_the_screenshots_stay_out(self, pyproject: dict) -> None:
+        """Seven megabytes of the archive. No build step reads them, and the README
+        PyPI renders loads them over https rather than out of the file."""
+        assert "readme-assets" in self._excluded(pyproject)
+
+    def test_nothing_a_build_needs_is_excluded(self, pyproject: dict) -> None:
+        """The sdist has to still build a wheel, which is the whole point of one."""
+        needed = {"src", "exercises", "notebooks", "pyproject.toml", "README.md", "LICENSE"}
+        for pattern in self._excluded(pyproject):
+            assert pattern not in needed, f"{pattern} is needed to build from the sdist"
+
+    def test_bytecode_is_excluded(self, pyproject: dict) -> None:
+        excluded = self._excluded(pyproject)
         assert any("__pycache__" in pattern for pattern in excluded)
         assert any(pattern.endswith("*.pyc") for pattern in excluded)
 

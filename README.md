@@ -132,6 +132,19 @@ Running it again never overwrites anything. That is the upgrade path: after
 installing a release that adds an exercise, `qx init` in the same directory brings
 the new one across and leaves every answer you have written exactly as it is.
 
+A release that *fixes* an exercise is the other half of that, and skipping what is
+already there means the fix never arrives. `qx init --refresh` brings those across
+too:
+
+```bash
+qx init --refresh
+```
+
+It updates the lesson files, the hints, the checkers and the labs, and it never
+creates or replaces an `exercise.py`, so your answers cannot be lost to it.
+Anything you had edited yourself is copied aside with a `.bak` suffix first, and
+every file it touched is listed on screen.
+
 ### Or clone it instead
 
 If you would rather have the repository, which is what you want to contribute or
@@ -207,6 +220,7 @@ inside them.
 | Command | What it does |
 |---|---|
 | `qx init [dir]` | copy the exercises somewhere you can edit them |
+| `qx init --refresh` | update the lesson files of a course you already have |
 | `qx doctor` | check the environment, step by step |
 | `qx list` | every exercise and your progress |
 | `qx next` | the next thing to work on |
@@ -461,6 +475,12 @@ To force the offline path even when you do have an account:
 
 ```bash
 QX_OFFLINE=1 qx run 14
+```
+
+PowerShell has no prefix form, so set it first. It stays set for that window:
+
+```powershell
+$env:QX_OFFLINE = '1'; qx run 14
 ```
 
 CI always sets `QX_OFFLINE`, so no automated run can ever spend your free QPU

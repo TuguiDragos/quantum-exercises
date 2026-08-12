@@ -157,7 +157,9 @@ def _kill_tree(process: subprocess.Popen, pgid: int | None = None) -> None:
 
     with contextlib.suppress(OSError):
         process.kill()
-    # pragma: no cover - only reached if the kill above did not take
+    # Reap it, so a signal that has not landed yet cannot leave a zombie behind.
+    # The timeout is suppressed because a child that ignores SIGKILL is the
+    # kernel's problem rather than something this runner can do anything about.
     with contextlib.suppress(subprocess.TimeoutExpired):
         process.wait(timeout=5)
 

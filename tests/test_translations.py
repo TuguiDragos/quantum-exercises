@@ -122,6 +122,21 @@ class TestTranslations:
         exc = type("AccountNotFoundError", (Exception,), {})()
         assert "No IBM Quantum account is saved" in errors.translate(exc).message
 
+    def test_the_two_account_rules_match_the_classes_that_really_raise(self) -> None:
+        """Both rules match on the class name, so a rename upstream disables them.
+
+        Every case here builds its own stand-in, which proves the rule reads a name
+        and nothing about that name still belonging to anything. These are the real
+        classes, imported from the package that raises them.
+        """
+        from qiskit_ibm_runtime.accounts import AccountNotFoundError, InvalidAccountError
+
+        assert "No IBM Quantum account is saved" in errors.translate(AccountNotFoundError()).message
+        assert (
+            "no longer accepted"
+            in errors.translate(InvalidAccountError("Unable to retrieve instances.")).message
+        )
+
     def test_a_saved_account_that_is_no_longer_accepted(self) -> None:
         """A revoked key is not a missing account, and the fix is a different one.
 

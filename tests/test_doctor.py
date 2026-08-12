@@ -370,62 +370,10 @@ def test_run_checks_includes_online_only_when_asked(tmp_path: Path, monkeypatch)
     assert len(doctor.run_checks(None, online=True)) == len(doctor.run_checks(None)) + 1
 
 
-class TestCredentialChecks:
-    @staticmethod
-    def _point_at(monkeypatch, path: Path) -> None:
-        monkeypatch.setattr(doctor, "CREDENTIALS_PATH", path)
-
-    def test_missing_file_is_a_warning(self, tmp_path: Path, monkeypatch) -> None:
-        self._point_at(monkeypatch, tmp_path / "absent.json")
-        assert doctor.check_credentials().status == "warn"
-
-    def test_unreadable_file_fails(self, tmp_path: Path, monkeypatch) -> None:
-        path = tmp_path / "creds.json"
-        path.write_text("{not json", encoding="utf-8")
-        self._point_at(monkeypatch, path)
-        assert doctor.check_credentials().status == "fail"
-
-    def test_empty_file_fails(self, tmp_path: Path, monkeypatch) -> None:
-        path = tmp_path / "creds.json"
-        path.write_text("{}", encoding="utf-8")
-        self._point_at(monkeypatch, path)
-        assert doctor.check_credentials().status == "fail"
-
-    def test_retired_channel_fails(self, tmp_path: Path, monkeypatch) -> None:
-        path = tmp_path / "creds.json"
-        path.write_text(json.dumps({"default": {"channel": "ibm_quantum"}}), encoding="utf-8")
-        path.chmod(0o600)
-        self._point_at(monkeypatch, path)
-        check = doctor.check_credentials()
-        assert check.status == "fail" and "retired" in check.detail
-
-    def test_typo_channel_warns(self, tmp_path: Path, monkeypatch) -> None:
-        path = tmp_path / "creds.json"
-        path.write_text(json.dumps({"default": {"channel": "ibm_clod"}}), encoding="utf-8")
-        path.chmod(0o600)
-        self._point_at(monkeypatch, path)
-        assert "not recognised" in doctor.check_credentials().detail
-
-    @pytest.mark.skipif(os.name == "nt", reason="POSIX modes only")
-    def test_world_readable_key_warns(self, tmp_path: Path, monkeypatch) -> None:
-        path = tmp_path / "creds.json"
-        path.write_text(
-            json.dumps({"default": {"channel": "ibm_quantum_platform"}}), encoding="utf-8"
-        )
-        path.chmod(0o644)
-        self._point_at(monkeypatch, path)
-        check = doctor.check_credentials()
-        assert check.status == "warn" and "readable by other local users" in check.detail
-
-    @pytest.mark.skipif(os.name == "nt", reason="POSIX modes only")
-    def test_owner_only_key_is_ok(self, tmp_path: Path, monkeypatch) -> None:
-        path = tmp_path / "creds.json"
-        path.write_text(
-            json.dumps({"default": {"channel": "ibm_quantum_platform"}}), encoding="utf-8"
-        )
-        path.chmod(0o600)
-        self._point_at(monkeypatch, path)
-        assert doctor.check_credentials().status == "ok"
+# TestCredentialChecks stood here and re-tested, one assertion at a time, exactly
+# what TestCredentials and TestCredentialPermissions above already cover with
+# their fix text and their parametrised channels. Every case it held was a strict
+# subset of one of theirs, so it went rather than being kept in step twice.
 
 
 def test_doctor_reports_a_broken_smoke_test(monkeypatch) -> None:

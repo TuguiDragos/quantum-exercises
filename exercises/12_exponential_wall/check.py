@@ -11,13 +11,13 @@ from quantum_exercises.checks import (
     text_artifact,
 )
 
-# Sizes the runner actually builds. 22 qubits is 64 MiB and about half a second;
-# the point of the exercise is that going much past this is not a matter of
-# patience, so nothing here tries.
+# Sizes the runner builds for real, so the two quantum answers are checked
+# against an actual statevector rather than against arithmetic alone.
 MEASURED = (1, 5, 10, 20)
 
 # The ladder shown to the learner. Two qubits apart, so each rung is four times
-# the one below and the growth is visible rather than asserted.
+# the one below and the growth is visible rather than asserted. It stops at 22,
+# which is 64 MiB: going much past that is not a matter of patience.
 LADDER = (14, 16, 18, 20, 22)
 
 # Sizes checked by arithmetic alone, because allocating them is the thing the
@@ -214,7 +214,7 @@ def _timed_ladder(quantum_bytes_for) -> str:
         "to be felt rather than measured, and nothing passes or fails on them.",
         "",
         "Read up the ladder and ask where it ends. Two more rungs is a gigabyte.",
-        "Ten more is a terabyte. Twenty more is beyond any machine that exists.",
+        "Seven more is a terabyte. Twenty more is beyond any machine that exists.",
     ]
     return "\n".join(rows)
 
@@ -251,7 +251,7 @@ def _human(size) -> str:
 def _callable(mod, name):
     value = require(mod, name)
     if not callable(value):
-        raise CheckFailed(f"`{name}` should be a function, but it is a {type(value).__name__}.")
+        raise CheckFailed(f"`{name}` should be a function, but its type is {type(value).__name__}.")
     return value
 
 

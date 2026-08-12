@@ -49,6 +49,7 @@ counts = result[0].data.c.get_counts()
 ```
 
 Using `AerSimulator` from `qiskit_aer` is a legitimate migration in general, but
-not here: it puts you on the `backend.run()` path, whose result is the old-style
-object this exercise is about replacing, and the checker asks for the V2 one. The
-sampler is both the shorter road and the one being taught.
+not here: it puts you on the `backend.run()` path, whose result carries
+`get_counts()` rather than the per-circuit indexing this exercise asks for. That
+path is current, and exercise 14 takes it on purpose. Here the sampler is both
+the shorter road and the one being taught.

@@ -30,8 +30,8 @@ rotated = circuit.copy()
 return rotated
 ```
 
-Without the `copy()` the first call works and the second does not, because `h`
-and `measure_all` append to whatever circuit you hand them.
+Without the `copy()`, `h` and `measure_all` append to the circuit you were handed
+rather than to one of your own, so the caller's circuit comes back changed.
 
 ## Hint 3
 

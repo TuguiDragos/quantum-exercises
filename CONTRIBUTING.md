@@ -78,6 +78,16 @@ checking answers inside `site-packages` and `qx reset` would try to write there.
 first step: a release that adds an exercise adds it to an existing course and
 leaves every answer alone.
 
+That leaves the case it cannot serve, which is a release that *corrects* an
+exercise: the files are already there, so they are skipped, and the correction
+never reaches anyone who copied the course out earlier. `qx init --refresh` is
+that path. It compares every file the course owns against the one shipped,
+replaces what differs, and keeps the old one beside it as `.bak`. `exercise.py`
+is excluded outright rather than compared, so no answer can be lost to it, and
+`template.py` staying current is what keeps `qx reset` honest afterwards. The
+course README at the top is written once and never refreshed, because `qx init .`
+in a clone would otherwise overwrite this repository's own.
+
 The packaging lives in `[tool.hatch.build.targets.wheel]`. `force-include` maps
 `exercises` and `notebooks` under the package; `exclude` keeps out the
 `__pycache__` an in-process import of a `check.py` leaves behind. `readme-assets`
@@ -252,9 +262,15 @@ tool the way the README tells a reader to, then runs it from outside the
 repository, which is the only check that the editable install still finds the
 exercises from any directory. `wheel` is the other install: it builds the wheel,
 puts it in an environment of its own with no repository anywhere, and takes a
-learner from `qx init` through a passing exercise, then runs `qx init` again to
-prove the answer survives it. That job is the only thing standing between a
-packaging slip and a reader whose `pip install` gives them a tool with no course.
+learner from `qx init` through a passing exercise, then runs `qx init` and
+`qx init --refresh` again to prove the answer survives both. That job is the only
+thing standing between a packaging slip and a reader whose `pip install` gives
+them a tool with no course.
+
+Its steps live in `.github/scripts/wheel-smoke.sh` rather than in the workflow,
+because `verify.yml` runs the same ones on macOS and Windows and two copies would
+drift. The script is written for bash, which Windows runners have as Git Bash,
+and it looks for the console script in `bin` and then in `Scripts`.
 
 `coverage` needs four settings, and they all live under `[tool.coverage]` in
 `pyproject.toml`. `patch = ["subprocess"]` measures the worker, which runs in a
@@ -289,7 +305,7 @@ exists for it.
 Everything scheduled in this repository fires on the 1st and the 15th, so the
 calendar holds two dates rather than a scatter of weekdays.
 
-`verify.yml` has three jobs. `latest` resolves to the newest Qiskit the
+`verify.yml` has four jobs. `latest` resolves to the newest Qiskit the
 version ranges allow and runs everything again: it is the early warning for a
 breaking release, which is why dependencies are ranges rather than exact pins
 even though `uv.lock` is committed, and it writes the version it tested to the
@@ -302,6 +318,12 @@ both dates.
 and runs on the 1st only. Pinned versions do not change inside a month, and this
 job costs more than everything else here put together: macOS alone is billed at
 ten times the Linux rate while the repository is private.
+
+`wheel` is the same three operating systems and the same date, running the smoke
+script `ci.yml` runs on Linux for every push. What it adds is the half the test
+suite cannot see: a wheel unpacking wrongly, or `uv` putting the console script
+somewhere else, is a Windows problem that no amount of green tests would have
+caught before a release.
 
 The workflow declares two cron entries rather than one `1,15`, because a single
 entry reports the same string to `github.event.schedule` on both days and the

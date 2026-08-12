@@ -86,6 +86,41 @@ jobs:
       - run: uv sync --locked --all-extras --dev
       - run: uv run pytest -q
 
+  # The other thing the operating systems disagree about, and the one the suite
+  # cannot see: installing the built wheel and taking a learner through it. ci.yml
+  # runs this on Linux for every push, so a wheel that unpacked wrongly on Windows,
+  # or a console script uv put somewhere else, would reach a release unnoticed.
+  # The 1st only, for the same reason as the job above, and by hand before a
+  # release worth being sure about.
+  wheel:
+    if: github.event.schedule != '23 6 15 * *'
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    # bash on all three, including Windows, where it is Git Bash. The script is
+    # shared with ci.yml and written for one shell rather than two.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: "3.13"
+      - run: uv build --wheel --out-dir dist
+      - name: Install it into an environment of its own
+        run: |
+          set -euo pipefail
+          uv venv "$HOME/wheel-env" --python 3.13
+          VIRTUAL_ENV="$HOME/wheel-env" uv pip install dist/*.whl
+      - name: Take a learner through it, with no repository in sight
+        run: bash .github/scripts/wheel-smoke.sh "$HOME/wheel-env" "$HOME/elsewhere"
+
   # Early warning: newest versions the dependency ranges allow.
   latest:
     runs-on: ubuntu-latest

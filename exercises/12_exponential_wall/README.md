@@ -55,14 +55,16 @@ It is tempting to conclude that a quantum computer "stores 2^n numbers at once",
 and that this is where the power comes from. It is not, and the difference
 matters.
 
-The exponential cost above is the cost of **simulating** the state on a classical
-machine, because a classical machine has to write every amplitude down. The
-quantum computer does not write them down. It is in that state, and when you
+The exponential cost above is the cost of **writing the state down** on a
+classical machine, one amplitude at a time. The quantum computer does not write
+them down. It is in that state, and when you
 measure it you get **one** outcome, not 2^n numbers. The amplitudes are not
 readable storage.
 
 So what does the arithmetic prove? Only that past a few dozen qubits nobody can
-check your answer by simulation any more. That is a genuine and important fact,
+check your answer by writing the whole statevector down any more. Methods that
+never write it down reach further, and the last section on this page says how
+much further. That is a genuine and important fact,
 and it is not the same claim as "a quantum computer is exponentially faster",
 which is a separate and much harder question the field has not finished
 answering.
@@ -73,8 +75,8 @@ Up to here you could always check your work against a simulator that knew
 everything. Exercise 07 printed the whole statevector. Exercise 08 printed the
 whole matrix.
 
-Past a few dozen qubits, that safety net is gone, and there is no replacement for
-it. The rest of Act III is about working without it: running on a real device,
+Past a few dozen qubits, that safety net is gone, and nothing general takes its
+place. The rest of Act III is about working without it: running on a real device,
 reading a noisy result honestly, and correcting what can be corrected.
 
 ## Your task

@@ -4,6 +4,7 @@ import itertools
 import math
 
 import numpy as np
+from qiskit import QuantumCircuit
 from qiskit.quantum_info import SparsePauliOp
 
 from quantum_exercises.checks import CheckFailed, require, text_artifact
@@ -35,6 +36,7 @@ def check(mod):
 
     _check_order(joint_observable)
     _check_correlation(correlation)
+    _check_the_state_is_used(mod, correlation)
     _check_chsh(chsh, correlation)
 
     return [text_artifact(_summary(correlation, chsh), caption="S, against the classical ceiling")]
@@ -101,6 +103,45 @@ def _check_correlation(correlation):
                     "probably not being passed through."
                 ),
             )
+
+
+# What the two qubits are in when the state is swapped underneath correlation.
+# |00> is a product state, so the joint expectation factorises into cos(a)cos(b),
+# which is nothing like cos(a - b) at these angles.
+STATE_SWAP_CASES = [(0.3, 1.1), (0.9, -0.4)]
+
+
+def _check_the_state_is_used(mod, correlation):
+    """Swap the state under correlation() and see whether the answer follows.
+
+    cos(a - b) is the right answer for the Bell state, so returning it directly
+    passes every comparison above without an Estimator ever running. Nothing in
+    the returned number can show that, and the exercise is about computing the
+    quantity rather than knowing it. So the input moves instead: bell() is
+    replaced with a circuit that prepares |00>, where the same observable has a
+    different expectation value.
+    """
+    original = mod.bell
+    plain = QuantumCircuit(2)
+    try:
+        mod.bell = lambda: plain.copy()
+        for alice, bob in STATE_SWAP_CASES:
+            got = _number(correlation, (alice, bob), f"correlation({alice:.4f}, {bob:.4f})")
+            want = math.cos(alice) * math.cos(bob)
+            if math.isclose(got, want, abs_tol=1e-4):
+                continue
+            raise CheckFailed(
+                "correlation() does not read the state it is given.",
+                detail=(
+                    "Handed a circuit preparing |00> instead of the Bell state, it still "
+                    f"answered {got:+.6f}, where that state gives {want:+.6f}.\n"
+                    "cos(a - b) is the right answer for the Bell state, and writing it out "
+                    "directly returns the right number without measuring anything. Build the "
+                    "observable, hand it and bell() to the Estimator, and read what comes back."
+                ),
+            )
+    finally:
+        mod.bell = original
 
 
 def _check_chsh(chsh, correlation):

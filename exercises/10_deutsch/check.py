@@ -126,15 +126,23 @@ def _sandwich(oracle: QuantumCircuit) -> QuantumCircuit:
     return qc
 
 
+# An angle no whole number of turns comes back to. Any rotation by a rational
+# multiple of pi would: a T gate is an eighth of a turn, so nine of them are the
+# same operator as one, and a deutsch() that composed the oracle nine times
+# passed. One radian divides 2*pi nowhere, so U**k is equivalent to U only at
+# k = 1. Checked out to k = 400.
+PROBE_ANGLE = 1.0
+
+
 def _probe() -> QuantumCircuit:
     """An oracle from outside the four.
 
-    A T gate is a phase oracle for no Boolean function at all, which is the point:
-    the algorithm never asks which function it was handed, so it has to work for
-    anything that arrives.
+    A rotation by one radian is a phase oracle for no Boolean function at all,
+    which is the point: the algorithm never asks which function it was handed, so
+    it has to work for anything that arrives.
     """
     qc = QuantumCircuit(1)
-    qc.t(0)
+    qc.rz(PROBE_ANGLE, 0)
     return qc
 
 
@@ -145,6 +153,12 @@ def _check_the_oracle_is_composed(deutsch) -> None:
     circuit as composing it, gate for gate in two cases out of four, so nothing in
     the returned circuit separates the two. The separation comes from the input
     instead: composing works for any oracle, classifying works only for the four.
+
+    The probe also has to be an oracle no repetition can imitate. Every one of the
+    four is its own inverse, so composing them twice is the identity and any odd
+    number of times is the same operator as once; the same held for the T gate
+    used here at first, where nine applications passed. A rotation by one radian
+    fixes that, and with it the check means one query rather than one that counts.
 
     A deutsch() that rebuilds the oracle from its matrix passes this, and should.
     It applies the oracle once, which is the entire claim being made.

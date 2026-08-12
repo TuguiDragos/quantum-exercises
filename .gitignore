@@ -231,8 +231,15 @@ __marimo__/
 
 # What `qx init --refresh` sets aside before it replaces a lesson file. In a
 # clone the course is this repository, so a contributor who runs it would
-# otherwise find their own edits staged for commit.
+# otherwise find their own edits staged for commit. The numbered form is the
+# second and later backups of the same file, which are kept rather than written
+# over each other.
 *.bak
+*.bak.[0-9]*
+
+# Written beside a lesson file for the instant between writing the new bytes and
+# renaming them into place. Only a crash in that instant leaves one.
+.qx-refresh-*.tmp
 
 # macOS Finder metadata. Nothing here belongs to the project.
 .DS_Store

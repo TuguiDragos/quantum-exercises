@@ -56,6 +56,7 @@ def check(mod):
     _check_length(bloch_vector)
     _check_global_phase(bloch_vector)
     _check_polar(bloch_vector, angles)
+    _check_polar_uses_the_length(angles)
     _check_azimuth(bloch_vector, angles)
 
     return [
@@ -227,6 +228,39 @@ def _check_polar(bloch_vector, angles) -> None:
             f"`angles` gave theta = {got_theta:.6f} for ry({theta:.6f}), expected {theta:.6f}.",
             detail="The angle down from the north pole is arccos(z / length).",
         )
+
+
+# A point inside the sphere rather than on it, which is what a mixed state gives.
+# Length 0.5, so theta is arccos(0.4 / 0.5) and not arccos(0.4).
+INSIDE = (0.3, 0.0, 0.4)
+
+
+def _check_polar_uses_the_length(angles) -> None:
+    """The README asks for arccos(z / length), and every vector above has length 1.
+
+    On the surface the division changes nothing, so `arccos(z)` passed all of it.
+    A point inside the sphere is where the two part company, and it is a state a
+    real device produces: every mixed state sits in there.
+    """
+    got_theta, _ = _angles(angles, INSIDE, "a point inside the sphere")
+    want = math.acos(INSIDE[2] / math.sqrt(sum(c * c for c in INSIDE)))
+    if math.isclose(got_theta, want, abs_tol=1e-6):
+        return
+
+    if math.isclose(got_theta, math.acos(INSIDE[2]), abs_tol=1e-6):
+        raise CheckFailed(
+            f"`angles` gave theta = {got_theta:.6f} for {_fmt(INSIDE)}, expected {want:.6f}.",
+            detail=(
+                "That is arccos(z) without the division. Every state checked so far sits on "
+                "the surface, where the length is 1 and the division cannot be seen. This one "
+                "is inside, which is where a mixed state lands, and there theta is "
+                "arccos(z / length)."
+            ),
+        )
+    raise CheckFailed(
+        f"`angles` gave theta = {got_theta:.6f} for {_fmt(INSIDE)}, expected {want:.6f}.",
+        detail="theta is arccos(z / length), and this vector has length 0.5 rather than 1.",
+    )
 
 
 def _check_azimuth(bloch_vector, angles) -> None:

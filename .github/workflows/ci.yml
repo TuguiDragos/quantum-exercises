@@ -115,3 +115,49 @@ jobs:
           qx version
           qx doctor
           qx list
+
+  # The other way in, and the one nothing else covers: installing the built
+  # wheel, with no repository anywhere. That path only works if the wheel really
+  # carries the course and `qx init` really copies it somewhere writable, so this
+  # job takes a learner all the way to a passing exercise rather than stopping at
+  # an exit code.
+  wheel:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: "3.13"
+      - name: Build the wheel
+        run: uv build --wheel --out-dir dist
+      - name: Install it into an environment of its own
+        run: |
+          set -euo pipefail
+          uv venv "$HOME/wheel-env" --python 3.13
+          VIRTUAL_ENV="$HOME/wheel-env" uv pip install dist/*.whl
+      - name: Take a learner through it, with no repository in sight
+        run: |
+          set -euo pipefail
+          qx="$HOME/wheel-env/bin/qx"
+          mkdir -p "$HOME/elsewhere"
+          cd "$HOME/elsewhere"
+
+          # Before anything is copied there is no course, and the message has to
+          # name the command that makes one rather than a repository to go and find.
+          if "$qx" list; then echo "expected qx list to fail before init"; exit 1; fi
+          "$qx" list 2>&1 | grep -q "init"
+
+          "$qx" init course
+          cd course
+          "$qx" doctor
+          "$qx" list
+          cp exercises/01_environment/solution.py exercises/01_environment/exercise.py
+          "$qx" run 1
+
+          # Running it again is the upgrade path, and it may not touch an answer.
+          cd ..
+          "$qx" init course
+          grep -q "__version__" course/exercises/01_environment/exercise.py

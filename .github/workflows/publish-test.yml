@@ -1,0 +1,68 @@
+name: publish-test
+
+# A rehearsal of publish.yml against TestPyPI, which is a throwaway copy of PyPI.
+#
+# Same build, same guard, same trusted publishing, different endpoint. The point
+# is to find out whether the upload works before the version number is spent:
+# an index accepts a given version exactly once, so a first attempt on the real
+# PyPI is also the last one.
+#
+# Run by hand only. There is no release trigger here, so nothing reaches TestPyPI
+# unless someone asks for it from the Actions tab.
+#
+# The PyPI side is a one time thing, under the project's Publishing settings on
+# test.pypi.org: owner `TuguiDragos`, repository `quantum-exercises`, workflow
+# `publish-test.yml`, environment `testpypi`. Until that exists the job fails at
+# the upload step and changes nothing.
+#
+# Installing the result needs the real PyPI as well, because qiskit and the rest
+# are not on TestPyPI:
+#
+#   uv pip install quantum-exercises \
+#     --index-url https://test.pypi.org/simple/ \
+#     --extra-index-url https://pypi.org/simple/ \
+#     --index-strategy unsafe-best-match
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Build the wheel and the sdist
+        run: uv build
+
+      # Kept identical to publish.yml on purpose. A rehearsal that skips the
+      # guard does not rehearse the thing that matters.
+      - name: Refuse to publish a wheel with no course in it
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import sys, zipfile, pathlib
+          wheel = next(pathlib.Path("dist").glob("*.whl"))
+          names = zipfile.ZipFile(wheel).namelist()
+          exercises = {n.split("/")[3] for n in names if "/_course/exercises/" in n}
+          if len(exercises) < 20:
+              sys.exit(f"{wheel.name} carries {len(exercises)} exercises, expected 20")
+          if not any("/_course/notebooks/" in n for n in names):
+              sys.exit(f"{wheel.name} carries no notebooks")
+          print(f"{wheel.name}: {len(exercises)} exercises and the notebooks are in")
+          PY
+
+      - name: Upload to TestPyPI
+        run: |
+          uv publish --trusted-publishing always \
+            --publish-url https://test.pypi.org/legacy/ \
+            --check-url https://test.pypi.org/simple/

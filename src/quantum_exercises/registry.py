@@ -20,7 +20,15 @@ else:  # pragma: no cover - exercised only on 3.10
     import tomli as tomllib
 
 EXERCISES_DIR = "exercises"
+NOTEBOOKS_DIR = "notebooks"
 SLUG_PATTERN = re.compile(r"^(\d{2})_[a-z0-9_]+$")
+
+# A pristine course, shipped inside the wheel so that installing the tool is
+# enough to have something to run. Deliberately nested one level below the
+# package directory: find_project_root walks up from there looking for
+# `<ancestor>/exercises`, so a course at this depth is invisible to it, and an
+# installed copy can never be mistaken for the writable one a learner edits.
+BUNDLED_COURSE = Path(__file__).resolve().parent / "_course"
 
 # Files that make up one exercise.
 EXERCISE_FILE = "exercise.py"
@@ -78,7 +86,7 @@ class Exercise:
         return self.path / TEMPLATE_FILE
 
 
-def _holds_exercises(directory: Path) -> bool:
+def holds_exercises(directory: Path) -> bool:
     """Whether this directory is a project root, rather than merely near one.
 
     An `exercises/` directory alone is not enough. Anyone can have `~/exercises`
@@ -102,7 +110,7 @@ def find_project_root(start: Path | None = None) -> Path:
 
     Holding the directory is not enough. A plain `~/exercises` used to swallow the
     search from everything beneath it, so a candidate only counts when at least one
-    numbered exercise sits inside. See _holds_exercises.
+    numbered exercise sits inside. See holds_exercises.
 
     QX_ROOT overrides the search, which is what the test suite uses.
     """
@@ -122,13 +130,30 @@ def find_project_root(start: Path | None = None) -> Path:
 
     for candidate in candidates:
         for directory in [candidate.resolve(), *candidate.resolve().parents]:
-            if _holds_exercises(directory):
+            if holds_exercises(directory):
                 return directory
 
+    # Both audiences in one message. Someone who installed the tool has no
+    # repository to be inside, and telling them to find one is advice they cannot
+    # take; someone who cloned it has a course already and only took a wrong turn.
     raise RegistryError(
-        "Could not find the exercises/ directory. Run this from inside the "
-        "quantum-exercises repository, or set QX_ROOT to point at it."
+        f"Could not find an {EXERCISES_DIR}/ directory here or above. Run "
+        f"`{invocation()} init` to put a course somewhere you can edit, or change "
+        "into one you already have. QX_ROOT overrides the search."
     )
+
+
+def course_template() -> Path:
+    """Where an unedited copy of the course lives, for `qx init` to copy out of.
+
+    A wheel carries one inside the package. A clone does not, and there the
+    repository is the template, which is also what a contributor wants: running
+    `qx init` from a checkout should hand over the exercises in that checkout,
+    edits to them included.
+    """
+    if (BUNDLED_COURSE / EXERCISES_DIR).is_dir():
+        return BUNDLED_COURSE
+    return find_project_root()
 
 
 def _read_meta(path: Path) -> dict:
@@ -264,9 +289,14 @@ def resolve(name: str, exercises: list[Exercise]) -> Exercise:
 
 
 __all__ = [
+    "BUNDLED_COURSE",
+    "EXERCISES_DIR",
+    "NOTEBOOKS_DIR",
     "Exercise",
     "RegistryError",
+    "course_template",
     "find_project_root",
+    "holds_exercises",
     "load_exercise",
     "load_exercises",
     "resolve",

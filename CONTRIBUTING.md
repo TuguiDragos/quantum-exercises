@@ -28,7 +28,7 @@ resolves to 2.2.6 and scipy to 1.15.3. A test keeps this table in step with a
 | Dependency | Range | On 3.13 | Why it is here |
 |---|---|---|---|
 | [qiskit](https://pypi.org/project/qiskit/) `[visualization]` | `>=2.5,<3` | 2.5.1 | the SDK itself. The extra adds matplotlib, pydot, Pillow, pylatexenc, seaborn and sympy, which plain `qiskit` does not install and `draw("mpl")` needs |
-| [qiskit-ibm-runtime](https://pypi.org/project/qiskit-ibm-runtime/) | `>=0.48,<1` | 0.48.0 | talks to IBM hardware, and supplies the fake backends the offline noise model is copied from |
+| [qiskit-ibm-runtime](https://pypi.org/project/qiskit-ibm-runtime/) | `>=0.48,<1` | 0.49.0 | talks to IBM hardware, and supplies the fake backends the offline noise model is copied from |
 | [qiskit-aer](https://pypi.org/project/qiskit-aer/) | `>=0.17,<1` | 0.17.2 | local simulation, including noise models taken from real devices |
 | [typer](https://pypi.org/project/typer/) | `>=0.27,<1` | 0.27.1 | the `qx` command and its subcommands |
 | [rich](https://pypi.org/project/rich/) | `>=15,<16` | 15.0.0 | histograms, matrices and panels in the terminal |
@@ -60,6 +60,28 @@ scanning, and the hooks from
 
 Python 3.10 or newer, which is the same floor Qiskit sets. CI runs the suite on
 3.10, 3.11, 3.12, 3.13 and 3.14; `uv` installs 3.13 by default.
+
+## How the course reaches a reader
+
+Two ways, and they need different things from the build.
+
+A contributor clones, and the exercises are simply there. A reader installs
+`quantum-exercises` and gets them inside the wheel, at
+`quantum_exercises/_course/`, from where `qx init` copies them somewhere
+writable. The depth is deliberate. `find_project_root` walks up from the working
+directory looking for `<ancestor>/exercises`, so a course nested that far inside
+the package is invisible to it, and an installed read-only copy can never be
+picked up as the one to edit. Move it one level up and `qx run` would start
+checking answers inside `site-packages` and `qx reset` would try to write there.
+
+`qx init` never overwrites. That is what makes it the upgrade path as well as the
+first step: a release that adds an exercise adds it to an existing course and
+leaves every answer alone.
+
+The packaging lives in `[tool.hatch.build.targets.wheel]`. `force-include` maps
+`exercises` and `notebooks` under the package; `exclude` keeps out the
+`__pycache__` an in-process import of a `check.py` leaves behind. `readme-assets`
+is not included, which is seven megabytes a reader never opens.
 
 ## Adding an exercise
 
@@ -198,6 +220,19 @@ What changed in a version goes in the notes of the GitHub release for its tag,
 where it sits next to the download and cannot describe a version that was never
 published.
 
+Publishing the release is what uploads to PyPI. `publish.yml` fires on a
+published release, builds both distributions, refuses to upload a wheel carrying
+fewer than twenty exercises, and pushes them with trusted publishing, so there is
+no token in this repository to leak or rotate. PyPI has to be told once to trust
+that workflow, under the project's Publishing settings, naming the repository,
+`publish.yml` and the `pypi` environment. Until that is done the job fails at the
+upload step and nothing else happens.
+
+One ordering rule, because the README documents `uv tool install
+quantum-exercises` as the way in: that sentence is only true once the version is
+on PyPI. Publish the release, let `publish.yml` finish, and check the version is
+actually there before pointing anyone at it.
+
 ## What CI checks
 
 For every exercise:
@@ -209,13 +244,17 @@ For every exercise:
 - `meta.toml` is complete
 - the diagnoses it promises are reached, in `tests/test_diagnostics.py`
 
-`ci.yml` has five jobs. `test` runs the suite once per interpreter in the matrix.
+`ci.yml` has six jobs. `test` runs the suite once per interpreter in the matrix.
 `lint` runs `ruff check` and `ruff format --check` as two steps on 3.13. `secrets`
 runs gitleaks over the tree and uses no Python at all. `coverage` runs the suite
 once more under coverage and fails below 100% of `src/`. `install` installs the
 tool the way the README tells a reader to, then runs it from outside the
 repository, which is the only check that the editable install still finds the
-exercises from any directory.
+exercises from any directory. `wheel` is the other install: it builds the wheel,
+puts it in an environment of its own with no repository anywhere, and takes a
+learner from `qx init` through a passing exercise, then runs `qx init` again to
+prove the answer survives it. That job is the only thing standing between a
+packaging slip and a reader whose `pip install` gives them a tool with no course.
 
 `coverage` needs four settings, and they all live under `[tool.coverage]` in
 `pyproject.toml`. `patch = ["subprocess"]` measures the worker, which runs in a

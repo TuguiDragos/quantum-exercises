@@ -43,5 +43,8 @@ def chsh(a0, a1, b0, b1):
 ```
 
 Three plus, one minus, and the minus is on the pair where both parties used their
-second angle. Put it anywhere else and S comes out at exactly 2, which looks like
-a near miss and is actually the classical answer.
+second angle. At these angles three of the four correlations are `+cos(pi/4)` and
+the fourth is `-cos(pi/4)`, so putting the minus on any of the other three makes
+the terms cancel in pairs and S comes out at 0. Leaving it out altogether gives
+`sqrt(2)`. Two is not reachable at all here, which is worth knowing: if you land
+on it, something other than the sign is wrong.

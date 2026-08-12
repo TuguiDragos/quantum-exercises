@@ -30,6 +30,11 @@ LAYOUT = [0, 1]
 # clear of noise without pretending the method is perfect.
 MIN_IMPROVEMENT = 0.02
 
+# How far A @ your_answer may sit from the counts the device reported, in shots.
+# An honest solve lands within 1e-13 of them, so half a shot is twelve orders of
+# margin, while an answer that never used the matrix misses by tens.
+RECONSTRUCTION_TOL = 0.5
+
 
 def check(mod):
     prepare = _callable(mod, "prepare")
@@ -65,6 +70,10 @@ def check(mod):
                 "close to the identity, which means the calibration counts were not used."
             ),
         )
+
+    # Last, and after the improvement bar on purpose: an answer that corrects
+    # nothing is better described by the message above than by this one.
+    _check_it_reproduces_the_observation(matrix, fixed, observed)
 
     return [
         counts_artifact(
@@ -189,6 +198,38 @@ def _check_corrected(corrected, matrix, observed) -> dict:
             ),
         )
     return fixed
+
+
+def _check_it_reproduces_the_observation(matrix, fixed, observed) -> None:
+    """Put the answer back through the matrix and see if the device's counts come out.
+
+    Everything before this asks whether the answer has the right shape and whether
+    it helps. A distribution invented outright, half the shots on 00 and half on
+    11, has both: it is a valid distribution, it keeps the shot total, and it
+    scores a perfect agreement. Only the equation itself tells the two apart, and
+    it is the equation the exercise is about.
+    """
+    answer = np.array([float(fixed[label]) for label in LABELS])
+    reproduced = matrix @ answer
+    reported = np.array([float(observed.get(label, 0)) for label in LABELS])
+
+    gap = np.abs(reproduced - reported)
+    if gap.max() <= RECONSTRUCTION_TOL:
+        return
+
+    worst = int(np.argmax(gap))
+    raise CheckFailed(
+        "Your corrected counts do not reproduce what the device reported.",
+        detail=(
+            "`observed = A @ true` is the equation being solved, so multiplying the "
+            "matrix back through a correct answer has to give the observed counts "
+            "again.\n"
+            f"For {LABELS[worst]!r} it gives {reproduced[worst]:.1f}, while the device "
+            f"reported {reported[worst]:.1f}.\n"
+            "Solve the system rather than assembling a distribution that looks right: "
+            "np.linalg.solve(matrix, observed_as_a_vector)."
+        ),
+    )
 
 
 def _noisy_backend():

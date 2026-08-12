@@ -4,8 +4,10 @@ title: "quantum-exercises: hands-on Qiskit exercises, from an empty laptop to re
 abstract: >-
   A command line course of twenty exercises in quantum computing with Qiskit,
   taking a learner from an unprepared machine to a circuit executed on real IBM
-  hardware, and on to a CHSH test that exceeds the classical bound. Answers are verified by inspecting the Qiskit objects a learner's
-  code produces rather than by comparing source text or program output: states
+  hardware, and on to the CHSH inequality, whose quantum value exceeds the bound
+  any classical explanation allows. Answers are verified by inspecting the Qiskit
+  objects a learner's code produces rather than by comparing source text or
+  program output: states
   and operators are compared up to global phase, and measurement counts are
   tested against statistical tolerances derived from the binomial standard error
   and a chi-square goodness-of-fit test, never for equality. Each submission runs
@@ -24,8 +26,8 @@ contact:
     given-names: "Dragos"
     email: contact@tuguidragos.com
     website: "https://tuguidragos.com"
-version: 0.7.1
-date-released: "2026-08-11"
+version: 0.7.2
+date-released: "2026-08-12"
 license: MIT
 license-url: "https://github.com/TuguiDragos/quantum-exercises/blob/main/LICENSE"
 url: "https://github.com/TuguiDragos/quantum-exercises"

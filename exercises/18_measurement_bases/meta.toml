@@ -1,4 +1,4 @@
 title = "A device that only measures Z"
-act = "Act IV - Expectation values, and a real Bell test"
+act = "Act IV - Expectation values, and the Bell inequality"
 summary = "Hardware reads one axis and one axis only. Measuring any other means rotating the state first."
 hardware = false

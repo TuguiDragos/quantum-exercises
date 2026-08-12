@@ -19,7 +19,7 @@ nothing here rules out the two qubits having simply agreed in advance.
 
 What no pair of envelopes can reproduce is the pattern that appears when the two
 qubits are measured along **different** axes. That is Bell's theorem, it is why
-this state carries his name, and exercise 20 is where you actually measure it.
+this state carries his name, and exercise 20 is where you work it out.
 
 ## The endianness trap
 

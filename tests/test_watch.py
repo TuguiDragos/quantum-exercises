@@ -6,6 +6,7 @@ That is enough to drive every branch of watch_exercise without real file events.
 
 from __future__ import annotations
 
+import inspect
 import shutil
 from pathlib import Path
 
@@ -13,6 +14,7 @@ import pytest
 
 from quantum_exercises import watch as watch_module
 from quantum_exercises.registry import load_exercises
+from quantum_exercises.runner import run_exercise
 from quantum_exercises.state import load as load_state
 
 
@@ -61,6 +63,46 @@ class TestNextUnfinished:
 
         save(sandbox, state)
         assert watch_module._next_unfinished(sandbox, exercises) is None
+
+
+class TestHardware:
+    """Watch mode re-runs on every save, so it must never be a way onto a QPU."""
+
+    def test_a_watched_run_is_never_allowed_hardware(
+        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """It asks nobody anything, so it has to take the safe default."""
+        from quantum_exercises.runner import RunResult
+
+        recorded: dict = {}
+
+        def fake(exercise, **kwargs):
+            recorded.update(kwargs)
+            return RunResult(outcome="fail", message="not run for real")
+
+        monkeypatch.setattr(watch_module, "run_exercise", fake)
+        watch_module._run_and_record(load_exercises(sandbox)[0], sandbox)
+
+        # Two halves, because watch passes nothing and leans on the default. The
+        # first assertion alone would be satisfied by its own fallback.
+        assert recorded.get("allow_hardware", False) is False
+        assert inspect.signature(run_exercise).parameters["allow_hardware"].default is False
+
+    def test_the_hardware_exercise_says_why_it_stays_on_a_simulator(
+        self, sandbox: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        """The panel names the backend, not the reason this mode could pick no other."""
+        hardware = next(e for e in load_exercises(sandbox) if e.hardware)
+        watch_module._announce(hardware, sandbox)
+        # One word: the console wraps to whatever terminal it finds, and
+        # "local simulator" splits across the break in a narrow pane.
+        assert "simulator" in capsys.readouterr().out
+
+    def test_a_simulator_exercise_says_nothing_extra(
+        self, sandbox: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        watch_module._announce(load_exercises(sandbox)[0], sandbox)
+        assert "simulator" not in capsys.readouterr().out
 
 
 class TestRunAndRecord:
@@ -155,6 +197,30 @@ class TestWatchExercise:
 
         # Announced once on entry, once again after the failing re-run.
         assert announced == ["01_environment", "01_environment"]
+
+    def test_a_pass_that_could_not_be_recorded_stays_on_the_same_exercise(
+        self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A read-only clone runs the check happily and cannot write the result.
+
+        The watcher asks the state file what to do next, so it is handed back the
+        exercise that just passed. Advancing to it would mean announcing a move to
+        where it already is, on every save, for as long as the file stays unwritable.
+        """
+        _solve(sandbox, "01_environment")
+        exercises = load_exercises(sandbox)
+        announced: list[str] = []
+        monkeypatch.setattr(watch_module, "_announce", lambda ex, root: announced.append(ex.slug))
+        monkeypatch.setattr(watch_module.ui, "save_progress", lambda root, state: False)
+
+        def fake(path, debounce=0, step=0):
+            yield {(2, str(exercises[0].exercise_file))}
+
+        monkeypatch.setattr(watch_module, "watch", fake)
+        watch_module.watch_exercise(exercises[0], root=sandbox, exercises=exercises)
+
+        assert announced == ["01_environment", "01_environment"]
+        assert load_state(sandbox).is_complete("01_environment") is False
 
     def test_last_exercise_passing_inside_the_loop_ends_the_session(
         self, sandbox: Path, monkeypatch: pytest.MonkeyPatch

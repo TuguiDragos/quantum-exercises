@@ -36,4 +36,5 @@ def outcome_probabilities(counts):
     return {outcome: count / shots for outcome, count in counts.items()}
 ```
 
-Note `/` and not `//`. Integer division would turn every probability into 0.
+Note `/` and not `//`. Integer division floors, so every probability short of a
+whole 1 comes back as 0.

@@ -2,7 +2,71 @@
 
 from __future__ import annotations
 
+import pytest
+
 from quantum_exercises import errors
+
+
+class TestEveryTableEntryIsReachable:
+    """The tables are data, and a dict literal counts as covered the moment it loads.
+
+    So a key that no longer matches anything, a typo in one, or an entry nothing
+    ever reaches, all read as fully covered while helping nobody. These drive
+    every entry through translate() instead.
+    """
+
+    @pytest.mark.parametrize("symbol", sorted(errors._REMOVED_FROM_QISKIT))
+    def test_each_removed_symbol_is_translated_by_all_three_routes(self, symbol: str) -> None:
+        expected = errors._REMOVED_FROM_QISKIT[symbol][0]
+
+        imported = ImportError(f"cannot import name '{symbol}' from 'qiskit' (/x/__init__.py)")
+        attribute = AttributeError(f"module 'qiskit' has no attribute '{symbol}'")
+        undefined = NameError(f"name '{symbol}' is not defined")
+
+        for exc in (imported, attribute, undefined):
+            translation = errors.translate(exc)
+            assert translation is not None, f"{symbol} via {type(exc).__name__}"
+            assert translation.message == expected, f"{symbol} via {type(exc).__name__}"
+            assert translation.hint
+
+    @pytest.mark.parametrize("module", sorted(errors._REMOVED_MODULES))
+    def test_each_removed_module_is_translated(self, module: str) -> None:
+        exc = ModuleNotFoundError(f"No module named '{module}'")
+        exc.name = module
+        translation = errors.translate(exc)
+        assert translation is not None
+        assert translation.message == errors._REMOVED_MODULES[module][0]
+
+    @pytest.mark.parametrize("package", sorted(errors._MISSING_PACKAGES))
+    def test_each_missing_package_is_translated(self, package: str) -> None:
+        exc = ModuleNotFoundError(f"No module named '{package}'")
+        exc.name = package
+        translation = errors.translate(exc)
+        assert translation is not None
+        assert translation.message == errors._MISSING_PACKAGES[package][0]
+
+    @pytest.mark.parametrize("package", sorted(errors._MISSING_PACKAGES))
+    def test_a_submodule_of_each_is_a_typo_rather_than_an_absence(self, package: str) -> None:
+        exc = ModuleNotFoundError(f"No module named '{package}.nonsense'")
+        exc.name = f"{package}.nonsense"
+        translation = errors.translate(exc)
+        assert translation is not None
+        assert "no submodule" in translation.message
+
+    @pytest.mark.parametrize("typo", sorted(errors._CIRCUIT_TYPOS))
+    def test_each_circuit_typo_points_at_the_real_method(self, typo: str) -> None:
+        exc = AttributeError(f"'QuantumCircuit' object has no attribute '{typo}'")
+        translation = errors.translate(exc)
+        assert translation is not None
+        assert f"qc.{errors._CIRCUIT_TYPOS[typo]}(" in translation.hint
+
+    def test_the_typo_table_only_maps_onto_methods_that_exist(self) -> None:
+        """A typo pointing at another typo would be worse than no rule at all."""
+        from qiskit import QuantumCircuit
+
+        for typo, real in errors._CIRCUIT_TYPOS.items():
+            assert not hasattr(QuantumCircuit, typo), f"{typo} is a real method now"
+            assert hasattr(QuantumCircuit, real), f"{real} is not a QuantumCircuit method"
 
 
 class TestTranslations:

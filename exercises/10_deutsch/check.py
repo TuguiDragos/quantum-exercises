@@ -7,7 +7,7 @@ from quantum_exercises.checks import CheckFailed, require, text_artifact
 
 SHOTS = 256
 
-# name, oracle factory, is it balanced, expected measured outcome
+# name of the oracle in exercise.py, is it balanced, expected measured outcome
 FUNCTIONS = [
     ("constant_zero", False, "0"),
     ("constant_one", False, "0"),

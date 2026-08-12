@@ -7,9 +7,13 @@ from quantum_exercises.checks import CheckFailed, require, text_artifact
 AGREEING = ("00", "11")
 DISAGREEING = ("01", "10")
 
+# Not every case runs 1024 shots, and that is deliberate. With one shot count
+# throughout, dividing by a hardcoded 1024 rather than by the total gives the
+# right answer everywhere and the mistake ships. The 4096 case is what catches it.
 CASES = [
     ("ideal simulator", {"00": 512, "11": 512}),
     ("good hardware", {"00": 507, "11": 448, "01": 25, "10": 44}),
+    ("same machine, 4096 shots", {"00": 1998, "11": 1830, "01": 121, "10": 147}),
     ("poor hardware", {"00": 380, "11": 360, "01": 150, "10": 134}),
     ("no entanglement at all", {"00": 256, "01": 256, "10": 256, "11": 256}),
     ("sparse result, some outcomes absent", {"00": 600, "11": 400, "01": 24}),
@@ -55,17 +59,24 @@ def check(mod):
 
     _check_explanation(mod)
 
-    lines = [f"{'case':<38} {'agreement':>10} {'disagreement':>14}"]
+    lines = [f"{'case':<36} {'shots':>6} {'agreement':>10} {'disagreement':>13}"]
     for label, counts in CASES:
         lines.append(
-            f"{label:<38} {agreement_rate(counts):>9.2%} {disagreement_rate(counts):>13.2%}"
+            f"{label:<36} {sum(counts.values()):>6} "
+            f"{agreement_rate(counts):>9.2%} {disagreement_rate(counts):>12.2%}"
         )
     lines.append("")
     lines.append("Read down the agreement column. The drop from 100% to the low 90s is")
-    lines.append("noise on a working machine. The drop to 50% is a circuit that never")
-    lines.append("entangled anything, and that one is worth debugging.")
+    lines.append("noise on a working machine. The drop to 50% is a circuit whose two")
+    lines.append("qubits came out uncorrelated, and that one is worth debugging.")
+    lines.append("")
+    lines.append("A high number is not proof of entanglement. Exercise 11's envelopes")
+    lines.append("score 1.0 as well. This measures distance from the ideal, no more.")
+    lines.append("")
+    lines.append("The shots column is why the divisor has to be sum(counts.values()).")
+    lines.append("One of these runs is four times longer than the rest.")
 
-    return text_artifact("\n".join(lines), caption="The same question, five different results")
+    return text_artifact("\n".join(lines), caption=f"The same question, {len(CASES)} results")
 
 
 def _check_explanation(mod) -> None:

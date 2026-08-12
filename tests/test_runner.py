@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import dataclasses
 import io
+import os
+import time
 from pathlib import Path
 
 import pytest
 
 from quantum_exercises import runner
+from quantum_exercises.backends import OFFLINE_ENV
 from quantum_exercises.registry import Exercise, load_exercise
 from quantum_exercises.runner import MAX_CAPTURED_BYTES, ran_on, run_exercise
 
@@ -223,6 +227,171 @@ class TestHardening:
         _write(synthetic, "answer = 42\n")
         result = run_exercise(synthetic, root=tmp_path)
         assert result.outcome == "internal_error"
+
+
+def _alive(pid: int) -> bool:
+    """Whether a pid still names a live process. Signal 0 only checks."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:  # pragma: no cover - someone else's process, so it exists
+        return True
+    return True
+
+
+def _wait_until_gone(pid: int, seconds: float = 10.0) -> bool:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if not _alive(pid):
+            return True
+        time.sleep(0.05)
+    return not _alive(pid)
+
+
+# The kill goes through a process group, which Windows does not have. The branch
+# for it calls taskkill instead and is exercised nowhere in this suite.
+posix_only = pytest.mark.skipif(os.name == "nt", reason="process groups are POSIX")
+
+
+class TestNothingIsLeftRunning:
+    """The time limit lives in the parent, so anything it fails to kill runs forever.
+
+    Both cases below passed with a kill that reached only the worker: the verdict
+    is the same either way, and only the leftover process tells them apart.
+    """
+
+    @posix_only
+    def test_a_timeout_takes_the_whole_process_group(
+        self, synthetic: Exercise, tmp_path: Path
+    ) -> None:
+        marker = tmp_path / "grandchild.pid"
+        _write(
+            synthetic,
+            "import subprocess, sys, time\n"
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])\n"
+            f"open({str(marker)!r}, 'w').write(str(child.pid))\n"
+            "while True:\n"
+            "    time.sleep(0.1)\n",
+        )
+
+        result = run_exercise(synthetic, root=tmp_path, timeout=10)
+
+        assert result.outcome == "timeout"
+        pid = int(marker.read_text(encoding="utf-8"))
+        assert _wait_until_gone(pid), f"grandchild {pid} outlived the timeout"
+
+    @posix_only
+    def test_an_interrupted_run_does_not_orphan_the_worker(
+        self, synthetic: Exercise, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Ctrl-C reaches this process alone: the child sits in a group of its own.
+
+        So the parent has to do the killing on its way out. Without that the worker
+        keeps running with nothing left to stop it, since the clock was the parent's.
+        """
+        _write(synthetic, "import time\ntime.sleep(120)\n")
+
+        started: list[int] = []
+        real_popen = runner.subprocess.Popen
+
+        def spy(*args, **kwargs):
+            process = real_popen(*args, **kwargs)
+            started.append(process.pid)
+            return process
+
+        real_wait = real_popen.wait
+        waits = {"count": 0}
+
+        def wait(self, timeout=None):
+            # Only the first wait, the one the time limit is enforced with. The
+            # cleanup that follows has to be left working, or this would prove
+            # nothing about what the cleanup does.
+            waits["count"] += 1
+            if waits["count"] == 1:
+                raise KeyboardInterrupt
+            return real_wait(self, timeout=timeout)
+
+        # The class by reference, and before the name is taken over: once Popen is
+        # the spy above, runner.subprocess.Popen no longer names the class at all.
+        monkeypatch.setattr(real_popen, "wait", wait)
+        monkeypatch.setattr(runner.subprocess, "Popen", spy)
+
+        with pytest.raises(KeyboardInterrupt):
+            run_exercise(synthetic, root=tmp_path, timeout=120)
+
+        assert started, "the worker never started"
+        assert _wait_until_gone(started[0]), "the worker outlived the interrupt"
+
+
+@posix_only
+def test_kill_tree_still_kills_when_there_is_no_process_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """getpgid can fail, and the child still has to die.
+
+    The group is what takes anything the exercise spawned. Without one there is
+    nothing to signal, so the direct kill below is all that is left.
+    """
+    import subprocess
+    import sys
+
+    process = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
+        [sys.executable, "-c", "import time; time.sleep(60)"]
+    )
+    monkeypatch.setattr(runner, "_process_group", lambda proc: None)
+
+    runner._kill_tree(process, None)
+
+    assert process.poll() is not None, "the worker survived a kill with no group to signal"
+
+
+class TestHardwareIsFencedOff:
+    """A QPU job costs someone real quota, so it takes an answer to send one.
+
+    The child decides which backend to use, and the only lever the parent has over
+    that decision is the environment it hands down. `qx run` sets this from the
+    question it asked; every other caller takes the default, which is no.
+    """
+
+    @staticmethod
+    def _hardware(exercise: Exercise) -> Exercise:
+        return dataclasses.replace(exercise, hardware=True)
+
+    def test_a_run_nobody_confirmed_is_forced_offline(
+        self, synthetic: Exercise, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv(OFFLINE_ENV, raising=False)
+        env = runner._child_env(self._hardware(synthetic), allow_hardware=False)
+        assert env[OFFLINE_ENV] == "1"
+
+    def test_a_confirmed_run_may_reach_a_qpu(
+        self, synthetic: Exercise, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv(OFFLINE_ENV, raising=False)
+        env = runner._child_env(self._hardware(synthetic), allow_hardware=True)
+        assert OFFLINE_ENV not in env
+
+    def test_a_reader_who_set_it_keeps_it(
+        self, synthetic: Exercise, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Consent unblocks the fence; it never takes down one of the reader's own."""
+        monkeypatch.setenv(OFFLINE_ENV, "1")
+        env = runner._child_env(self._hardware(synthetic), allow_hardware=True)
+        assert env[OFFLINE_ENV] == "1"
+
+    def test_a_simulator_exercise_is_left_exactly_as_it_was(
+        self, synthetic: Exercise, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Only the exercise that can reach IBM is fenced, so nothing else changes."""
+        monkeypatch.delenv(OFFLINE_ENV, raising=False)
+        assert OFFLINE_ENV not in runner._child_env(synthetic, allow_hardware=False)
+
+    def test_the_default_is_the_safe_answer(self) -> None:
+        """A caller that has not thought about hardware cannot spend anyone's quota."""
+        import inspect
+
+        assert inspect.signature(run_exercise).parameters["allow_hardware"].default is False
 
 
 class TestRanOn:

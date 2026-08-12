@@ -7,7 +7,7 @@ matrices. Qiskit will hand you that product:
 from qiskit.quantum_info import Operator
 
 Operator(qc).data  # the matrix, as a numpy array
-Operator(qc).is_unitary()  # True for anything without measurement
+Operator(qc).is_unitary()  # True for a circuit of gates alone
 ```
 
 Being able to look at this is what turns "I followed a tutorial" into "I know what

@@ -1,4 +1,4 @@
-title = "CHSH, the experiment that settles it"
-act = "Act IV - Expectation values, and a real Bell test"
-summary = "Exercise 11 said a shared coin could fake the Bell state. Measure along different axes and it cannot."
+title = "CHSH, the inequality that settles it"
+act = "Act IV - Expectation values, and the Bell inequality"
+summary = "Exercise 11 said a shared coin could fake the Bell state. Correlate along different axes and it cannot."
 hardware = false

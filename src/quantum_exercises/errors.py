@@ -70,6 +70,18 @@ _REMOVED_MODULES = {
     ),
 }
 
+# Names people reach for that QuantumCircuit does not have, and what they meant.
+# Module level like the tables above, so a test can walk it: a mapping built
+# inside the rule reads as covered the moment the rule runs once.
+_CIRCUIT_TYPOS = {
+    "measure_al": "measure_all",
+    "measureall": "measure_all",
+    "meausre_all": "measure_all",
+    "hadamard": "h",
+    "cnot": "cx",
+    "toffoli": "ccx",
+}
+
 # Third-party imports whose absence has a specific, actionable fix.
 _MISSING_PACKAGES = {
     "matplotlib": (
@@ -328,18 +340,10 @@ def _circuit_attribute(exc: BaseException) -> Translation | None:
     if not match:
         return None
     attr = match.group(1)
-    known_typos = {
-        "measure_al": "measure_all",
-        "measureall": "measure_all",
-        "meausre_all": "measure_all",
-        "hadamard": "h",
-        "cnot": "cx",
-        "toffoli": "ccx",
-    }
-    if attr in known_typos:
+    if attr in _CIRCUIT_TYPOS:
         return Translation(
             f"`QuantumCircuit` has no method `{attr}`.",
-            f"You probably meant `qc.{known_typos[attr]}(...)`.",
+            f"You probably meant `qc.{_CIRCUIT_TYPOS[attr]}(...)`.",
         )
     return Translation(
         f"`QuantumCircuit` has no method `{attr}`.",

@@ -187,8 +187,9 @@ def _contrast(amplitudes_for, quantum_bytes_for, classical_bytes_for) -> str:
         "",
         f"A hundred classical bits fit in {hundred_classical} bytes, which is a sentence in a",
         f"text message. Simulating a hundred qubits needs {quantum_bytes_for(100):.1e} bytes,",
-        f"which is {quantum_bytes_for(100) / hundred_classical:.0e} times more and does not fit "
-        "in the observable universe.",
+        f"which is {quantum_bytes_for(100) / hundred_classical:.0e} times more. Nothing about the "
+        "problem grew between",
+        "those two sentences. Only the bookkeeping did.",
     ]
     return "\n".join(rows)
 

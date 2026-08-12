@@ -31,7 +31,7 @@ four two-qubit states and you have sixteen numbers:
               00    01    10    11
         00  0.95  0.04  0.02  0.00
 measured 01  0.03  0.94  0.00  0.02
-        10  0.02  0.00  0.94  0.04
+        10  0.02  0.00  0.95  0.04
         11  0.00  0.02  0.03  0.94
 ```
 
@@ -69,11 +69,12 @@ outcomes come back slightly negative, and the agreement lands a fraction past
 1.0. Neither is possible for anything a real device could produce.
 
 That is not a bug in your code. It is the method extrapolating further than four
-thousand shots can support, and it shows up in about two runs in five here.
-Production tools avoid it by fitting the nearest valid distribution rather than
-inverting outright, which trades a little bias for an answer that is always
-physical. The raw inverse is the version worth meeting first, because you can see
-every step of it, including this one.
+thousand shots can support. This exercise runs on a fixed seed, so you see it
+every time; across seeds it turns up in about two runs in five, which makes it
+the ordinary case rather than a staged one. Production tools avoid it by fitting
+the nearest valid distribution rather than inverting outright, which trades a
+little bias for an answer that is always physical. The raw inverse is the version
+worth meeting first, because you can see every step of it, including this one.
 
 **It only fixes readout.** The gates were noisy too, and no amount of readout
 calibration touches that. You will not land at a perfect 1.0, and the gap that

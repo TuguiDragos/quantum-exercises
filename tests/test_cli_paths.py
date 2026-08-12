@@ -14,6 +14,7 @@ from typer.testing import CliRunner
 
 from quantum_exercises import cli
 from quantum_exercises import doctor as doctor_module
+from quantum_exercises.backends import OFFLINE_ENV
 
 runner = CliRunner()
 
@@ -49,6 +50,26 @@ class TestRunGuards:
             _invoke("run", slug)
         result = _invoke("run", exercises[-1])
         assert "That was the last one" in result.stdout
+
+    def test_passing_one_that_was_already_done_says_nothing_about_what_is_next(
+        self, sandbox: Path
+    ) -> None:
+        """Re-running a finished exercise is a check, not progress.
+
+        The pointer to the next one belongs to the moment it is first passed.
+        Repeating it on every later run would read as though something moved.
+        """
+        shutil.copyfile(
+            sandbox / "exercises" / "01_environment" / "solution.py",
+            sandbox / "exercises" / "01_environment" / "exercise.py",
+        )
+        first = _invoke("run", "1")
+        assert "Next up" in first.stdout
+
+        again = _invoke("run", "1")
+        assert again.exit_code == 0
+        assert "PASS" in again.stdout
+        assert "Next up" not in again.stdout
 
     def test_run_with_everything_complete_exits_zero(self, sandbox: Path) -> None:
         _solve_all(sandbox)
@@ -94,12 +115,23 @@ class TestHintGuards:
 
 
 class TestHardwareConfirmation:
-    """A queue is measured in hours. Joining one should be a decision, not a surprise."""
+    """A queue is measured in hours. Joining one should be a decision, not a surprise.
+
+    Two things are settled here, and they are not the same: whether the run may
+    reach a QPU at all, and the longer time limit a confirmed one needs.
+    """
 
     @staticmethod
     def _peek(monkeypatch, queue) -> None:
+        # QX_OFFLINE is set for the whole session by conftest, and it answers the
+        # question before the queue is ever consulted. These cases are about what
+        # happens when it has not been set.
+        monkeypatch.delenv(OFFLINE_ENV, raising=False)
         monkeypatch.setattr("quantum_exercises.backends.queue_peek", lambda **k: queue)
-        monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True, raising=False)
+        # The seam rather than sys.stdin, because CliRunner installs a stream of
+        # its own for the length of an invoke and a patched isatty does not
+        # survive that. What counts as a terminal is settled in its own tests.
+        monkeypatch.setattr(cli, "_interactive", lambda: True)
 
     def test_a_simulator_exercise_is_never_interrupted(self, sandbox: Path, monkeypatch) -> None:
         """Only the hardware exercise has anything to ask about."""
@@ -109,13 +141,59 @@ class TestHardwareConfirmation:
         _invoke("run", "1")
         assert asked == []
 
-    def test_a_pipe_is_never_asked(self, sandbox: Path, monkeypatch) -> None:
-        """A script or a CI job must behave exactly as it did before."""
+    def test_a_simulator_exercise_is_always_allowed(self, sandbox: Path) -> None:
+        """Nothing is fenced off for an exercise that cannot reach IBM anyway."""
+        simulator = next(e for e in _all_exercises(sandbox) if not e.hardware)
+        assert cli._confirm_hardware(simulator) == cli._HardwareDecision(allowed=True, window=None)
+
+    def test_a_pipe_is_never_asked_and_never_sends(
+        self, sandbox: Path, monkeypatch, capsys
+    ) -> None:
+        """No terminal means no way to get a yes, so nothing may be sent.
+
+        It used to fall through here and submit a real job, which is what a task
+        runner or `echo | qx run 14` would have done with a saved account.
+        """
         asked = []
+        monkeypatch.delenv(OFFLINE_ENV, raising=False)
         monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: asked.append(True))
         monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: False, raising=False)
-        assert cli._confirm_hardware(_hardware_exercise(sandbox)) is None
+
+        decision = cli._confirm_hardware(_hardware_exercise(sandbox))
+
+        assert decision.allowed is False
+        assert decision.window is None
         assert asked == []
+        # One word, because the console wraps to the terminal it finds and
+        # "local simulator" splits across the break in a narrow pane.
+        assert "simulator" in capsys.readouterr().out, "silence would look like a QPU run"
+
+    def test_stdin_that_cannot_answer_at_all_is_not_a_terminal(self, monkeypatch) -> None:
+        """A closed or absent stdin raises on isatty rather than returning False."""
+
+        class Closed:
+            def isatty(self) -> bool:
+                raise ValueError("I/O operation on closed file")
+
+        monkeypatch.setattr(cli.sys, "stdin", Closed())
+        assert cli._interactive() is False
+        monkeypatch.setattr(cli.sys, "stdin", None)
+        assert cli._interactive() is False
+
+    def test_a_terminal_is_recognised_as_one(self, monkeypatch) -> None:
+        class Terminal:
+            def isatty(self) -> bool:
+                return True
+
+        monkeypatch.setattr(cli.sys, "stdin", Terminal())
+        assert cli._interactive() is True
+
+    def test_offline_settles_it_without_a_word(self, sandbox: Path, monkeypatch, capsys) -> None:
+        """QX_OFFLINE already answered. Saying so on every CI run would be noise."""
+        monkeypatch.setenv(OFFLINE_ENV, "1")
+        decision = cli._confirm_hardware(_hardware_exercise(sandbox))
+        assert decision.allowed is False
+        assert capsys.readouterr().out == ""
 
     def test_the_queue_and_a_link_are_shown_before_the_question(
         self, sandbox: Path, monkeypatch, capsys
@@ -125,13 +203,14 @@ class TestHardwareConfirmation:
         self._peek(monkeypatch, Queue("ibm_marrakesh", 6))
         monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: True)
 
-        window = cli._confirm_hardware(_hardware_exercise(sandbox))
+        decision = cli._confirm_hardware(_hardware_exercise(sandbox))
         shown = capsys.readouterr().out
         assert "ibm_marrakesh" in shown
         assert "6 job" in shown
         assert cli.COMPUTERS_URL in shown
-        assert window == cli.HARDWARE_WINDOW_SECONDS
-        assert window == 3 * 60 * 60, "the window has to outlast a real queue"
+        assert decision.allowed is True
+        assert decision.window == cli.HARDWARE_WINDOW_SECONDS
+        assert decision.window == 3 * 60 * 60, "the window has to outlast a real queue"
 
     def test_no_leaves_everything_untouched(self, sandbox: Path, monkeypatch) -> None:
         from quantum_exercises.backends import Queue
@@ -143,19 +222,130 @@ class TestHardwareConfirmation:
             cli._confirm_hardware(_hardware_exercise(sandbox))
         assert exit_info.value.exit_code == 0, "declining is not a failure"
 
-    def test_unreachable_hardware_asks_nothing(self, sandbox: Path, monkeypatch) -> None:
-        """Offline, no account, no network: there is no decision to put to anyone."""
+    def test_a_queue_that_cannot_be_read_fails_closed(
+        self, sandbox: Path, monkeypatch, capsys
+    ) -> None:
+        """A failed peek is not a decision, and it is not permission either.
+
+        `queue_peek` answers None for every failure, and it asks for the queue
+        depth as well, which the child never does. So a status endpoint having a
+        bad minute looks exactly like no QPU existing, while the child's own call
+        may still succeed and submit. Read as consent, that put "this sends no
+        job" on screen and then sent one.
+        """
         asked = []
         self._peek(monkeypatch, None)
         monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: asked.append(True))
-        assert cli._confirm_hardware(_hardware_exercise(sandbox)) is None
+
+        decision = cli._confirm_hardware(_hardware_exercise(sandbox))
+
+        assert decision.allowed is False, "a peek that failed cannot stand in for a yes"
+        assert decision.window is None
         assert asked == []
+        assert "simulator" in capsys.readouterr().out
+
+
+class TestHardwareWiring:
+    """The answer has to reach the run. Asking and then ignoring it is worse than not asking."""
+
+    @staticmethod
+    def _record(monkeypatch) -> dict:
+        """Stop at run_exercise and keep the arguments it was called with."""
+        from quantum_exercises.runner import RunResult
+
+        recorded: dict = {}
+
+        def fake(exercise, **kwargs):
+            recorded.update(kwargs)
+            return RunResult(outcome="fail", message="stopped before running anything")
+
+        monkeypatch.setattr(cli, "run_exercise", fake)
+        return recorded
+
+    def test_a_confirmed_run_carries_both_the_permission_and_the_window(
+        self, sandbox: Path, monkeypatch
+    ) -> None:
+        from quantum_exercises.backends import Queue
+
+        recorded = self._record(monkeypatch)
+        TestHardwareConfirmation._peek(monkeypatch, Queue("ibm_marrakesh", 2))
+        monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: True)
+
+        _invoke("run", "14")
+
+        assert recorded["allow_hardware"] is True
+        assert recorded["timeout"] == cli.HARDWARE_WINDOW_SECONDS
+
+    def test_an_explicit_timeout_does_not_waive_the_question(
+        self, sandbox: Path, monkeypatch
+    ) -> None:
+        """--timeout is a time limit, not consent.
+
+        Passing one used to skip the question entirely, so `qx run 14 --timeout 60`
+        sent a job to a real QPU without asking.
+        """
+        from quantum_exercises.backends import Queue
+
+        asked = []
+        recorded = self._record(monkeypatch)
+        TestHardwareConfirmation._peek(monkeypatch, Queue("ibm_marrakesh", 2))
+
+        def confirm(*args, **kwargs) -> bool:
+            asked.append(True)
+            return True
+
+        monkeypatch.setattr(cli.typer, "confirm", confirm)
+
+        _invoke("run", "14", "--timeout", "30")
+
+        assert asked == [True], "the question has to be put even with an explicit limit"
+        assert recorded["timeout"] == 30, "the reader's own limit wins over the queue window"
+        assert recorded["allow_hardware"] is True
+
+    def test_the_wait_that_is_announced_is_the_wait_that_happens(
+        self, sandbox: Path, monkeypatch, capsys
+    ) -> None:
+        """It used to promise three hours whatever `--timeout` said.
+
+        The job goes out either way, so the promise was the expensive half: quota
+        spent, then abandoned half a minute later, with the screen still saying it
+        would wait until the queue came back.
+        """
+        from quantum_exercises.backends import Queue
+
+        self._record(monkeypatch)
+        TestHardwareConfirmation._peek(monkeypatch, Queue("ibm_marrakesh", 2))
+        monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: True)
+
+        result = _invoke("run", "14", "--timeout", "30")
+        # Whitespace collapsed, so a line break falling between the number and its
+        # unit cannot decide whether this test passes.
+        said = " ".join(result.stdout.split())
+
+        assert "30 seconds" in said
+        assert "3 hours" not in said, "it announced a wait it was not going to make"
+
+    def test_a_run_nobody_confirmed_is_not_allowed_hardware(
+        self, sandbox: Path, monkeypatch
+    ) -> None:
+        recorded = self._record(monkeypatch)
+        monkeypatch.delenv(OFFLINE_ENV, raising=False)
+        monkeypatch.setattr(cli, "_interactive", lambda: False)
+
+        _invoke("run", "14")
+
+        assert recorded["allow_hardware"] is False
+        assert recorded["timeout"] is None, "the exercise keeps its own limit"
+
+
+def _all_exercises(sandbox: Path):
+    from quantum_exercises.registry import load_exercises
+
+    return load_exercises(sandbox)
 
 
 def _hardware_exercise(sandbox: Path):
-    from quantum_exercises.registry import load_exercises
-
-    return next(e for e in load_exercises(sandbox) if e.hardware)
+    return next(e for e in _all_exercises(sandbox) if e.hardware)
 
 
 class TestDamagedProgressFile:
@@ -244,6 +434,29 @@ class TestSolutionAndResetRefusals:
         result = _invoke("reset", "1", "--yes")
         assert "still" in result.stdout and "recorded as complete" in result.stdout
 
+    def test_answering_yes_at_the_prompt_restores_the_file(self, sandbox: Path) -> None:
+        """--yes has its own tests. This is the reader typing it."""
+        target = sandbox / "exercises" / "01_environment" / "exercise.py"
+        template = (sandbox / "exercises" / "01_environment" / "template.py").read_text(
+            encoding="utf-8"
+        )
+        target.write_text("# mine\n", encoding="utf-8")
+
+        result = _invoke("reset", "1", input="y\n")
+
+        assert result.exit_code == 0, result.output
+        assert "restored to its starting state" in result.stdout
+        assert target.read_text(encoding="utf-8") == template
+
+    def test_a_solution_that_could_not_be_recorded_does_not_claim_it_was(
+        self, sandbox: Path, monkeypatch
+    ) -> None:
+        """The answer is on screen either way. Only the bookkeeping failed."""
+        monkeypatch.setattr(cli.ui, "save_progress", lambda root, state: False)
+        result = _invoke("solution", "1", "--yes")
+        assert result.exit_code == 0, result.output
+        assert "recorded as solved" not in result.stdout
+
 
 class TestDoctorBranches:
     def test_outside_a_repository_reports_a_blocking_problem(
@@ -256,9 +469,6 @@ class TestDoctorBranches:
 
     def test_fix_lines_are_printed(self, sandbox: Path, monkeypatch) -> None:
         monkeypatch.setattr(
-            cli, "STATUS_ICON", cli.STATUS_ICON
-        )  # keep the mapping, replace the checks
-        monkeypatch.setattr(
             "quantum_exercises.doctor.run_checks",
             lambda root, online=False: [
                 doctor_module.Check("Thing", "warn", "not there", "Install the thing.")
@@ -267,6 +477,58 @@ class TestDoctorBranches:
         result = _invoke("doctor")
         assert "Install the thing." in result.stdout
         assert result.exit_code == 0
+
+
+class TestDoctorOnlineFlag:
+    """`--online` is the one flag that decides whether IBM is contacted at all.
+
+    Everything under it was tested by calling doctor directly, so hardcoding
+    `online=False` at the call site in cli.py would have passed the whole suite
+    while quietly turning the flag off.
+    """
+
+    @staticmethod
+    def _fake_service(monkeypatch) -> None:
+        module = ModuleType("qiskit_ibm_runtime")
+        module.QiskitRuntimeService = lambda *a, **k: SimpleNamespace(
+            backends=lambda **k: [SimpleNamespace(name="ibm_probe", num_qubits=156)]
+        )
+        monkeypatch.setitem(sys.modules, "qiskit_ibm_runtime", module)
+
+    def test_the_flag_reaches_the_checks(self, sandbox: Path, monkeypatch) -> None:
+        self._fake_service(monkeypatch)
+        result = _invoke("doctor", "--online")
+        assert result.exit_code == 0, result.output
+        assert "IBM Quantum connection" in result.stdout
+        assert "ibm_probe" in result.stdout
+
+    def test_without_the_flag_nothing_is_contacted(self, sandbox: Path, monkeypatch) -> None:
+        def explode(*args, **kwargs):
+            raise AssertionError("plain `qx doctor` must never reach the network")
+
+        module = ModuleType("qiskit_ibm_runtime")
+        module.QiskitRuntimeService = explode
+        monkeypatch.setitem(sys.modules, "qiskit_ibm_runtime", module)
+
+        result = _invoke("doctor")
+        assert result.exit_code == 0, result.output
+        assert "IBM Quantum connection" not in result.stdout
+
+    def test_the_account_row_stops_pointing_at_the_command_just_run(
+        self, sandbox: Path, monkeypatch, tmp_path: Path
+    ) -> None:
+        """Printed directly above the answer, that pointer sends the reader in a circle."""
+        self._fake_service(monkeypatch)
+        account = tmp_path / "qiskit-ibm.json"
+        account.write_text(
+            '{"default": {"channel": "ibm_quantum_platform"}}',
+            encoding="utf-8",
+        )
+        account.chmod(0o600)
+        monkeypatch.setattr(doctor_module, "CREDENTIALS_PATH", account)
+
+        assert "doctor --online` does that" in _invoke("doctor").stdout
+        assert "doctor --online` does that" not in _invoke("doctor", "--online").stdout
 
 
 class TestVersionCommand:
@@ -303,7 +565,6 @@ class TestSaveAccount:
     def test_empty_token_saves_nothing(self, monkeypatch) -> None:
         calls = []
         self._fake_runtime(monkeypatch, lambda **kw: calls.append(kw))
-        monkeypatch.setattr(cli, "getpass", None, raising=False)
         monkeypatch.setattr("getpass.getpass", lambda prompt="": "   ")
 
         result = _invoke("doctor", "--save-account")
@@ -462,6 +723,18 @@ def test_prepare_credentials_file_creates_it_owner_only(tmp_path: Path, monkeypa
     assert target.read_text(encoding="utf-8") == "{}"
     assert stat.S_IMODE(target.stat().st_mode) == 0o600
     assert stat.S_IMODE(target.parent.stat().st_mode) == 0o700
+
+
+def test_tightening_permissions_on_a_file_that_is_not_there_is_not_a_failure(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Called again after saving, and qiskit may have written nothing to tighten.
+
+    Nothing to do is not the same as failing to do it: reporting a failure here
+    would tell the reader their key is loose when there is no key.
+    """
+    monkeypatch.setattr(doctor_module, "CREDENTIALS_PATH", tmp_path / "gone" / "qiskit-ibm.json")
+    assert cli._restrict_credentials_permissions() is True
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX modes only")

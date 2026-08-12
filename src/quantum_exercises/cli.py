@@ -6,6 +6,7 @@ import os
 import shutil
 import sys
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -387,11 +388,18 @@ def run(
     root, exercises, state = _context()
     exercise = _pick(name, exercises, state)
 
+    # Asked even when --timeout was given. A time limit is not consent, and
+    # passing one used to skip the question and send the job anyway.
+    decision = _confirm_hardware(exercise)
     if timeout is None:
-        timeout = _confirm_hardware(exercise)
+        timeout = decision.window
+    if decision.window is not None:
+        _announce_wait(timeout if timeout is not None else decision.window)
 
     target = exercise.solution_file if solution else exercise.exercise_file
-    result = run_exercise(exercise, root=root, target=target, timeout=timeout)
+    result = run_exercise(
+        exercise, root=root, target=target, timeout=timeout, allow_hardware=decision.allowed
+    )
     ui.render_run(exercise, result, root=root)
 
     if result.passed and not solution:
@@ -422,27 +430,71 @@ HARDWARE_WINDOW_SECONDS = 3 * 60 * 60
 COMPUTERS_URL = "https://quantum.cloud.ibm.com/computers"
 
 
-def _confirm_hardware(exercise: Exercise) -> int | None:
-    """Show the queue and ask before joining it. Returns the time limit to use.
+@dataclass(frozen=True)
+class _HardwareDecision:
+    """What one `qx run` settled on: may it reach a QPU, and for how long.
 
-    None means nothing changes: the exercise keeps its own limit. Only a yes turns
-    the limit into a window long enough for a real queue.
-
-    Silent unless there is a decision to make. No account, no network, QX_OFFLINE
-    or a pipe instead of a terminal all fall through, so scripts and CI behave
-    exactly as before.
+    ``window`` is the longer time limit a real queue needs, and only a yes
+    produces one. It is separate from ``allowed`` because a run can be free to
+    use hardware without needing that window, which is what happens when there
+    was no QPU to offer in the first place.
     """
-    if not exercise.hardware or not sys.stdin.isatty():
-        return None
 
-    from quantum_exercises.backends import queue_peek
+    allowed: bool
+    window: int | None = None
+
+
+def _interactive() -> bool:
+    """Whether there is a terminal here to put a question to.
+
+    stdin is None under a windowed interpreter and closed under some task
+    runners, and asking either of those whether it is a tty raises.
+    """
+    try:
+        return sys.stdin is not None and sys.stdin.isatty()
+    except (AttributeError, ValueError, OSError):
+        return False
+
+
+def _confirm_hardware(exercise: Exercise) -> _HardwareDecision:
+    """Show the queue and ask before joining it.
+
+    Nothing is asked when there is nothing to decide: a simulator exercise, or
+    hardware that is already out of reach. Without a terminal there is nobody to
+    ask, so the run stays on a simulator and says so rather than sending a job
+    that no one agreed to.
+    """
+    if not exercise.hardware:
+        return _HardwareDecision(allowed=True)
+
+    from quantum_exercises.backends import offline, queue_peek
+
+    if offline():
+        # QX_OFFLINE has already answered this. Repeating it on every CI run
+        # would be noise about a decision nobody has to make.
+        return _HardwareDecision(allowed=False)
+
+    if not _interactive():
+        ui.info(
+            "No terminal here to answer in, so this runs on a local simulator. "
+            f"Run `{invocation()} run {exercise.number}` from a terminal to use a real QPU."
+        )
+        return _HardwareDecision(allowed=False)
 
     ui.info("Asking IBM which QPU is free. This sends no job.")
     queue = queue_peek()
     if queue is None:
-        return None
+        # Fail closed. A peek comes back None for any failure at all, including
+        # ones that say nothing about whether a QPU is reachable: it also asks for
+        # the queue depth, which the child never does, so a status endpoint having
+        # a bad minute is enough. Reading that as consent meant the last line on
+        # screen was "this sends no job" and then a job went out.
+        ui.info(
+            "No QPU answered, so this runs on a local simulator. "
+            f"`{invocation()} doctor --online` reports whether IBM can be reached at all."
+        )
+        return _HardwareDecision(allowed=False)
 
-    hours = HARDWARE_WINDOW_SECONDS // 3600
     ui.console.print()
     ui.console.print(
         Text("  least busy  ", style=theme.DETAIL)
@@ -458,8 +510,25 @@ def _confirm_hardware(exercise: Exercise) -> int | None:
         ui.info(f"Nothing sent. Come back with `{invocation()} run {exercise.number}` any time.")
         raise typer.Exit(code=0)
 
-    ui.info(f"Waiting for the result, up to {hours} hours. Ctrl-C stops waiting, not the job.")
-    return HARDWARE_WINDOW_SECONDS
+    # The wait is announced by the caller, once the limit that will actually be
+    # used is known. Saying "up to 3 hours" here was a promise `--timeout 30`
+    # broke: the job went out and was abandoned half a minute later.
+    return _HardwareDecision(allowed=True, window=HARDWARE_WINDOW_SECONDS)
+
+
+def _announce_wait(seconds: int) -> None:
+    """Say how long a confirmed run will wait, in the limit it will really use."""
+    if seconds == HARDWARE_WINDOW_SECONDS:
+        ui.info(
+            f"Waiting for the result, up to {seconds // 3600} hours. "
+            "Ctrl-C stops waiting, not the job."
+        )
+        return
+    ui.info(
+        f"Waiting for the result, up to the {seconds} seconds you asked for. "
+        "A queue can take hours, so the job may outlive the wait: it keeps running "
+        "at IBM either way. Ctrl-C stops waiting, not the job."
+    )
 
 
 @app.command()

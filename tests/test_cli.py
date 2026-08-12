@@ -41,6 +41,18 @@ class TestListing:
         assert result.exit_code == 0
         assert "Your environment works" in result.stdout
 
+    def test_next_sends_the_reader_to_the_lesson_before_the_file(self, sandbox: Path) -> None:
+        """The teaching is in README.md, and this used to name exercise.py alone.
+
+        Someone following `qx next` landed among the TODOs having read none of the
+        material that explains them, which is most of what the exercise is.
+        """
+        output = _invoke("next").stdout
+
+        assert "README.md" in output, "the lesson was not offered"
+        assert "exercise.py" in output, "the file to edit is still needed"
+        assert output.index("README.md") < output.index("exercise.py"), "read comes before edit"
+
     def test_version(self) -> None:
         result = _invoke("version")
         assert result.exit_code == 0

@@ -110,7 +110,19 @@ def _number(function, first, second, label, hint):
     The hint is passed in rather than fixed: pointing a z_from_counts mistake at
     result[0].data.evs would send the reader to the wrong half of the exercise.
     """
-    value = function(first) if second is None else function(first, second)
+    try:
+        value = function(first) if second is None else function(first, second)
+    except KeyError as exc:
+        # The mistake hint 3 warns about. It used to escape as a raw KeyError,
+        # while exercise 15 answered the identical slip with a teaching message.
+        raise CheckFailed(
+            f"For {label}, the function raised KeyError({exc}).",
+            detail=(
+                f"Something was looked up by the key {exc} and was not there. Not every "
+                "outcome appears in every result: a lookup with [] raises, while "
+                f"counts.get(key, 0) returns 0. {hint}"
+            ),
+        ) from exc
     if isinstance(value, bool) or not isinstance(value, (int, float, np.floating, np.integer)):
         raise CheckFailed(
             f"For {label}, the function returned {value!r}, which is not a number.",

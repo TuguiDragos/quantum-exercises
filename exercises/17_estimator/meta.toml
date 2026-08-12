@@ -1,4 +1,4 @@
 title = "The Estimator, and what it returns"
-act = "Act IV - Expectation values, and a real Bell test"
+act = "Act IV - Expectation values, and the Bell inequality"
 summary = "Sampler hands back bitstrings. Estimator hands back one number. Learn which question each answers."
 hardware = false

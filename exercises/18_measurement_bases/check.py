@@ -110,12 +110,23 @@ def _check_rotation(to_x_basis):
             # Measuring before the rotation makes it a mid-circuit measurement, which
             # this sampler refuses outright. Without this the reader gets the raw
             # Qiskit error instead of being told which half they put first.
+            # Matched on the message rather than claimed for every failure: a circuit
+            # with two classical registers also lands here, and calling that one a
+            # measurement in the wrong place would send the reader after the wrong bug.
+            if "mid-circuit measurement" in str(exc):
+                raise CheckFailed(
+                    "Your circuit measures before it rotates.",
+                    detail=(
+                        "The rotation has to happen while the qubit is still a quantum state. "
+                        "Once it is measured there is nothing left for `h` to turn, and this "
+                        f"sampler rejects the circuit outright.\nQiskit said: {exc}"
+                    ),
+                ) from exc
             raise CheckFailed(
-                "Your circuit measures before it rotates.",
+                "to_x_basis() returned a circuit that could not be sampled.",
                 detail=(
-                    "The rotation has to happen while the qubit is still a quantum state. "
-                    "Once it is measured there is nothing left for `h` to turn, and this "
-                    f"sampler rejects the circuit outright.\nQiskit said: {exc}"
+                    "Expected one qubit, one classical register, and the rotation before "
+                    f"the measurement.\nQiskit said: {type(exc).__name__}: {exc}"
                 ),
             ) from exc
         exact = _exact(original, SparsePauliOp("X"))

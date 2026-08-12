@@ -79,7 +79,10 @@ qx run 10
 
 One query instead of two is not going to break anyone's encryption. Deutsch's
 algorithm is a proof of concept, and it was published in 1985 precisely to show
-that a separation exists at all.
+that a separation exists at all. The 1985 version was not quite the circuit you
+just built: it answered correctly only half the time and admitted as much on the
+other half. The deterministic one-query form here came later, in 1998, and it is
+the one everyone now means by the name.
 
 What matters is the mechanism, because it does not stop here. Deutsch-Jozsa
 generalises this to n bits, where classical needs up to 2^(n-1) + 1 queries and

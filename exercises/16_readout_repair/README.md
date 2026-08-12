@@ -82,9 +82,11 @@ the nearest valid distribution rather than inverting outright, which trades a
 little bias for an answer that is always physical. The raw inverse is the version
 worth meeting first, because you can see every step of it, including this one.
 
-**It only fixes readout.** The gates were noisy too, and no amount of readout
-calibration touches that. You will not land at a perfect 1.0, and the gap that
-remains after correction is the part of the damage that happened while the
+**It only fixes what the matrix saw.** `A` was built from four circuits that do
+almost nothing, so it carries readout error and the little that the preparing `x`
+gates contribute, and nothing else. The gates of the circuit you actually care
+about ran before any of this and are untouched. You will not land at a perfect
+1.0, and the gap that remains after correction is the damage done while that
 circuit was still running.
 
 ## Your task

@@ -94,8 +94,10 @@ def _check_explanation(mod) -> None:
             "Not a bug. The circuit that produced those counts was correct.",
             detail=(
                 "93% of the shots agreed, which is exactly what a working two-qubit circuit "
-                "looks like on current hardware. A genuine bug, such as a missing cx, shows up "
-                "as roughly 50% agreement, not 93%."
+                "looks like on current hardware. A missing cx would have left the two qubits "
+                "uncorrelated, near 50%. Anything that destroys the correlation lands there, "
+                "so 50% would not name the cause on its own; what it would rule out is this "
+                "circuit having worked, and 93% does not."
             ),
         )
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+import tempfile
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -191,12 +192,26 @@ BACKUP_SUFFIX = ".bak"
 COURSE_README = "README.md"
 
 
+def _default_target() -> Path:
+    """Where `qx init` goes when nobody said.
+
+    A new directory, unless the reader is standing in a course already, in which
+    case they mean this one. `qx init --refresh` run from inside a course used to
+    build a second course underneath it and report success, which is exactly what
+    the documented upgrade line told people to do.
+    """
+    # Written as `.` rather than the resolved path, so the report names the course
+    # as briefly as the reader would have typed it. Everything downstream works
+    # from the same directory either way.
+    return Path(".") if holds_exercises(Path.cwd()) else Path(DEFAULT_COURSE_DIR)
+
+
 @app.command()
 def init(
     directory: Annotated[
-        str,
+        str | None,
         typer.Argument(help="Where to put the course. Created if it is not there yet."),
-    ] = DEFAULT_COURSE_DIR,
+    ] = None,
     refresh: Annotated[
         bool,
         typer.Option(
@@ -215,7 +230,7 @@ def init(
         )
         raise typer.Exit(code=2) from exc
 
-    target = Path(directory).expanduser()
+    target = Path(directory).expanduser() if directory is not None else _default_target()
     _refuse_an_unsuitable_target(target)
     topping_up = holds_exercises(target)
 
@@ -224,16 +239,17 @@ def init(
     # as a flat failure is the one state a reader cannot make sense of.
     added: list[str] = []
     refreshed: list[str] = []
+    refused: list[str] = []
     try:
-        _copy_course(source, target, added, refreshed, refresh=refresh)
+        _copy_course(source, target, added, refreshed, refused, refresh=refresh)
     except OSError as exc:
         if added or refreshed:
-            _report_update(target, added, refreshed)
+            _report_update(target, added, refreshed, refused)
             ui.warn("That is how far it got. Fix what is below and run it again to finish.")
         ui.error(f"Could not write the course to {target}: {exc.strerror or exc}")
         raise typer.Exit(code=2) from exc
 
-    _report_init(target, added, refreshed, topping_up=topping_up)
+    _report_init(target, added, refreshed, refused, topping_up=topping_up)
 
 
 def _refuse_an_unsuitable_target(target: Path) -> None:
@@ -269,6 +285,7 @@ def _copy_course(
     target: Path,
     added: list[str],
     refreshed: list[str],
+    refused: list[str],
     *,
     refresh: bool = False,
 ) -> None:
@@ -305,19 +322,81 @@ def _copy_course(
                     shutil.copyfile(entry, landing)
                 added.append(label)
             elif refresh:
-                _refresh_entry(entry, landing, label, added, refreshed)
-    _place_course_readme(target, added)
+                _refresh_entry(entry, landing, label, added, refreshed, refused)
+    _place_course_readme(target, added, refreshed, refresh=refresh)
+
+
+def _backup_path(landing: Path) -> Path:
+    """Where the version a learner had goes, never onto an earlier one.
+
+    A second refresh used to write over the first backup, so an edit that had
+    already been set aside once was gone for good. Numbered from the second
+    onwards, which leaves the common case reading as it did.
+    """
+    candidate = landing.with_name(landing.name + BACKUP_SUFFIX)
+    index = 1
+    while candidate.exists() or candidate.is_symlink():
+        index += 1
+        candidate = landing.with_name(f"{landing.name}{BACKUP_SUFFIX}.{index}")
+    return candidate
+
+
+def _replace_atomically(data: bytes, landing: Path) -> None:
+    """Write beside the target, then move it into place.
+
+    A plain copy opens the destination for writing, which truncates it, and only
+    then starts copying. A disk that fills up half way through therefore left a
+    truncated lesson file behind. Writing to a neighbour and renaming means the
+    target holds either the old bytes or the new ones and never half of each.
+    state.py writes progress the same way, for the same reason.
+    """
+    handle = tempfile.NamedTemporaryFile(  # noqa: SIM115 - must outlive the block for os.replace
+        mode="wb", dir=landing.parent, prefix=".qx-refresh-", suffix=".tmp", delete=False
+    )
+    try:
+        with handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        # A temporary file is created readable by its owner alone, and the rename
+        # would carry that onto a lesson file the rest of the course keeps at 644.
+        # Taken from the file being replaced, so a refresh leaves the permissions
+        # it found rather than quietly tightening them.
+        shutil.copymode(landing, handle.name)
+        os.replace(handle.name, landing)
+    except BaseException:
+        Path(handle.name).unlink(missing_ok=True)
+        raise
 
 
 def _refresh_entry(
-    origin: Path, landing: Path, label: str, added: list[str], refreshed: list[str]
+    origin: Path,
+    landing: Path,
+    label: str,
+    added: list[str],
+    refreshed: list[str],
+    refused: list[str],
 ) -> None:
     """Bring one already-copied file, or one directory of them, back in step."""
+    # A symlink is not something this command put there, and following one writes
+    # outside the course entirely: a link in place of a lesson file was enough to
+    # overwrite a file elsewhere on the machine. The target of `qx init` may still
+    # be a link, since that is how a course lives on another disk; what is refused
+    # is a link standing in for something inside it.
+    if landing.is_symlink():
+        refused.append(label)
+        return
+
     if origin.is_dir():
+        # Created before descending, so an exercise that gains a subdirectory in a
+        # later release does not fail on the first file inside it.
+        landing.mkdir(parents=True, exist_ok=True)
         for entry in sorted(origin.iterdir()):
             if _skippable(entry.name):
                 continue
-            _refresh_entry(entry, landing / entry.name, f"{label}/{entry.name}", added, refreshed)
+            _refresh_entry(
+                entry, landing / entry.name, f"{label}/{entry.name}", added, refreshed, refused
+            )
         return
 
     if origin.name == LEARNER_FILE:
@@ -331,30 +410,45 @@ def _refresh_entry(
     if landing.read_bytes() == origin.read_bytes():
         return
 
-    backup = landing.with_name(landing.name + BACKUP_SUFFIX)
-    shutil.copyfile(landing, backup)
-    try:
-        shutil.copyfile(origin, landing)
-    except OSError:
-        # The replacement is what earns the backup. Left behind after a failed
-        # write it sits beside an unchanged file, claiming something happened.
-        backup.unlink(missing_ok=True)
-        raise
+    # Backup first, replacement second, and the backup is never taken away again.
+    # It used to be removed when the replacement failed, which was right only
+    # while a failure could not have damaged the original, and a truncating copy
+    # meant it could.
+    shutil.copyfile(landing, _backup_path(landing))
+    _replace_atomically(origin.read_bytes(), landing)
     refreshed.append(label)
 
 
-def _place_course_readme(target: Path, added: list[str]) -> None:
+COURSE_README_TITLE = "# Your quantum-exercises course"
+
+
+def _place_course_readme(
+    target: Path, added: list[str], refreshed: list[str], *, refresh: bool
+) -> None:
     """Leave a short note at the top of the course saying what the folder is.
 
-    Written only when there is nothing there already, never refreshed. `qx init`
-    pointed at a directory that has its own README, a clone of this repository
-    among them, must not replace it.
+    Refreshed only when the file there is one this command wrote, recognised by
+    its first line. `qx init .` in a clone of this repository would otherwise
+    replace the project's own README, and a course whose note was never brought
+    up to date keeps whatever instructions the release that made it carried.
     """
     landing = target / COURSE_README
-    if landing.exists():
+    body = _course_readme_text()
+    if landing.is_symlink():
         return
-    landing.write_text(_course_readme_text(), encoding="utf-8")
-    added.append(COURSE_README)
+    if not landing.exists():
+        landing.write_text(body, encoding="utf-8")
+        added.append(COURSE_README)
+        return
+    if not refresh:
+        return
+
+    current = landing.read_text(encoding="utf-8", errors="replace")
+    if current == body or not current.startswith(COURSE_README_TITLE):
+        return
+    shutil.copyfile(landing, _backup_path(landing))
+    _replace_atomically(body.encode("utf-8"), landing)
+    refreshed.append(COURSE_README)
 
 
 def _course_readme_text() -> str:
@@ -382,9 +476,13 @@ The exercises, and the labs that go with them. Everything here is yours to edit.
 
 ## Keeping it current
 
-`{qx} init` again brings across anything a newer release added, and never touches
-an answer you have written. `{qx} init --refresh` also updates the lesson files
-themselves, keeping a `{BACKUP_SUFFIX}` copy of any you had changed.
+Run these from this directory. `{qx} init` again brings across anything a newer
+release added, and never touches an answer you have written. `{qx} init --refresh`
+also updates the lesson files themselves, keeping a `{BACKUP_SUFFIX}` copy of any
+you had changed.
+
+    uv tool upgrade quantum-exercises
+    {qx} init --refresh
 
 https://github.com/TuguiDragos/quantum-exercises
 """
@@ -400,7 +498,9 @@ def _listed(items: list[str]) -> None:
         ui.console.print(Text(f"    {item}", style=theme.DETAIL), soft_wrap=True)
 
 
-def _report_update(target: Path, added: list[str], refreshed: list[str]) -> None:
+def _report_update(
+    target: Path, added: list[str], refreshed: list[str], refused: list[str]
+) -> None:
     """What happened to a course that was already there."""
     if added:
         ui.success(f"Added {len(added)} thing(s) to {target}:")
@@ -411,18 +511,25 @@ def _report_update(target: Path, added: list[str], refreshed: list[str]) -> None
         _listed(refreshed)
         ui.info(f"The version you had is beside each one, with a {BACKUP_SUFFIX} suffix.")
 
-    if not added and not refreshed:
+    if refused:
+        ui.warn(f"Left {len(refused)} alone, because a symlink stands where a course file goes:")
+        _listed(refused)
+        ui.info("Following one would write outside the course. Replace it with a real file.")
+
+    if not added and not refreshed and not refused:
         ui.info(f"{target} already has the whole course, so nothing was copied.")
     elif refreshed:
         ui.info(f"No {LEARNER_FILE} was touched, so your answers are as you left them.")
-    else:
+    elif added:
         ui.info("Everything already there was left alone.")
     ui.console.print()
 
 
-def _report_init(target: Path, added: list[str], refreshed: list[str], *, topping_up: bool) -> None:
+def _report_init(
+    target: Path, added: list[str], refreshed: list[str], refused: list[str], *, topping_up: bool
+) -> None:
     if topping_up or not added:
-        _report_update(target, added, refreshed)
+        _report_update(target, added, refreshed, refused)
         return
 
     exercises = sum(1 for item in added if item.startswith(f"{EXERCISES_DIR}/"))

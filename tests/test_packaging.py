@@ -136,6 +136,35 @@ class TestNothingPrivateIsTracked:
             f"`qx init --refresh` writes *{BACKUP_SUFFIX} files into the course, "
             "and in a clone the course is the repository"
         )
+        assert f"*{BACKUP_SUFFIX}.[0-9]*" in ignored, (
+            "the second backup of a file is numbered, and a pattern for the first does not match it"
+        )
+
+    def test_git_agrees_that_it_ignores_them(self, root: Path) -> None:
+        """The patterns above are read by hand. This asks the thing that enforces them."""
+        import subprocess
+
+        from quantum_exercises.cli import BACKUP_SUFFIX
+
+        names = [
+            f"exercises/01_environment/hints.md{BACKUP_SUFFIX}",
+            f"exercises/01_environment/hints.md{BACKUP_SUFFIX}.2",
+            "exercises/01_environment/.qx-refresh-abc.tmp",
+        ]
+        try:
+            asked = subprocess.run(  # noqa: S603 - fixed argv, no shell
+                ["git", "-C", str(root), "check-ignore", *names],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except (FileNotFoundError, OSError):  # pragma: no cover - git-less environment
+            pytest.skip("git is not available")
+        if asked.returncode not in (0, 1):  # pragma: no cover - only outside a checkout
+            pytest.skip("not a git checkout")
+
+        ignored_now = set(asked.stdout.split())
+        assert ignored_now == set(names), f"git would commit {sorted(set(names) - ignored_now)}"
 
     def test_none_of_them_are_tracked_right_now(self, root: Path) -> None:
         """The rule above, checked against what git is actually carrying."""

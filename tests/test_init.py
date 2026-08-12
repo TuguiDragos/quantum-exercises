@@ -9,6 +9,7 @@ added, and the bundled copy is never mistaken for the working one.
 from __future__ import annotations
 
 import io
+import os
 import shutil
 from pathlib import Path
 
@@ -25,19 +26,21 @@ def _invoke(*args: str):
 
 
 def _fail_writing(monkeypatch: pytest.MonkeyPatch, doomed: Path) -> None:
-    """Refuse to write one particular file, leaving every other copy alone.
+    """Refuse to replace one particular file, leaving every other write alone.
 
-    A read-only file would do it on POSIX and not on Windows, and would also stop
-    the backup rather than the replacement, which is the wrong half.
+    The refusal sits on the rename, because that is where a replacement lands: the
+    new bytes go to a neighbouring temporary file first. A read-only file would
+    stop the backup instead, which is the wrong half, and would behave differently
+    on Windows.
     """
-    real = cli.shutil.copyfile
+    real = cli.os.replace
 
     def guarded(source, destination, *args, **kwargs):
         if Path(destination) == doomed:
             raise OSError(28, "No space left on device")
         return real(source, destination, *args, **kwargs)
 
-    monkeypatch.setattr(cli.shutil, "copyfile", guarded)
+    monkeypatch.setattr(cli.os, "replace", guarded)
 
 
 @pytest.fixture
@@ -133,6 +136,23 @@ class TestFirstRun:
         assert _invoke("init").exit_code == 0
         assert (tmp_path / cli.DEFAULT_COURSE_DIR / "exercises").is_dir()
 
+    def test_standing_in_a_course_means_this_one(self, tmp_path: Path, monkeypatch) -> None:
+        """The documented upgrade line is run from inside the course.
+
+        With the default target fixed to a name, it built a second course one
+        level down and said the course was ready, while the one the reader was
+        standing in went untouched.
+        """
+        target = tmp_path / "my-course"
+        _invoke("init", str(target))
+        monkeypatch.chdir(target)
+        (target / "exercises" / "01_environment" / "hints.md").write_text("x", encoding="utf-8")
+
+        result = _invoke("init", "--refresh")
+
+        assert not (target / cli.DEFAULT_COURSE_DIR).exists(), "it made a course inside the course"
+        assert "up to date" in " ".join(result.stdout.split())
+
     def test_a_path_whose_parents_do_not_exist_yet_is_made(self, tmp_path: Path) -> None:
         """`qx init work/quantum/course` on a machine with none of those directories."""
         target = tmp_path / "work" / "quantum" / "course"
@@ -200,7 +220,7 @@ class TestTheCourseReadme:
         assert f"{registry.EXERCISES_DIR}/" in said
         assert cli.LEARNER_FILE in said
 
-    def test_one_already_there_is_never_replaced(self, tmp_path: Path) -> None:
+    def test_a_readme_this_command_did_not_write_is_never_replaced(self, tmp_path: Path) -> None:
         """`qx init .` in a clone would otherwise overwrite the project's own README."""
         target = tmp_path / "my-course"
         target.mkdir()
@@ -210,6 +230,39 @@ class TestTheCourseReadme:
         _invoke("init", str(target), "--refresh")
 
         assert (target / cli.COURSE_README).read_text(encoding="utf-8") == "mine\n"
+
+    def test_a_readme_that_is_a_symlink_is_left_where_it_points(self, tmp_path: Path) -> None:
+        """Writing through it would land outside the course, as it did for lesson files."""
+        outside = tmp_path / "somewhere-else.md"
+        outside.write_text("not the course's to write\n", encoding="utf-8")
+        target = tmp_path / "my-course"
+        _invoke("init", str(target))
+        readme = target / cli.COURSE_README
+        readme.unlink()
+        readme.symlink_to(outside)
+
+        _invoke("init", str(target), "--refresh")
+
+        assert outside.read_text(encoding="utf-8") == "not the course's to write\n"
+
+    def test_one_this_command_wrote_is_brought_up_to_date(self, tmp_path: Path) -> None:
+        """Its instructions age with the tool, and a stale one keeps sending people wrong.
+
+        Recognised by the title line, so only a note this command wrote is
+        replaced. Everything else there belongs to whoever put it there.
+        """
+        target = tmp_path / "my-course"
+        _invoke("init", str(target))
+        readme = target / cli.COURSE_README
+        readme.write_text(cli.COURSE_README_TITLE + "\n\nwritten by an older release\n", "utf-8")
+
+        result = _invoke("init", str(target), "--refresh")
+
+        assert readme.read_text(encoding="utf-8") == cli._course_readme_text()
+        assert "written by an older release" in (
+            readme.with_name(readme.name + cli.BACKUP_SUFFIX).read_text(encoding="utf-8")
+        )
+        assert cli.COURSE_README in " ".join(result.stdout.split())
 
 
 class TestRefresh:
@@ -337,20 +390,91 @@ class TestRefresh:
         assert "Could not write the course" in said
         assert first.read_text(encoding="utf-8") != "stale\n"
 
-    def test_a_replacement_that_fails_leaves_no_backup_behind(
-        self, target: Path, monkeypatch
-    ) -> None:
-        """The backup is earned by the replacement, and there was not one."""
+    def test_a_replacement_that_fails_keeps_both_copies(self, target: Path, monkeypatch) -> None:
+        """The one case where an update can destroy work, and it did.
+
+        A plain copy truncates the destination before it writes, so a disk filling
+        up part way through left a half written lesson file. The backup was then
+        removed, on the reasoning that a failed replacement had not earned one, and
+        the learner's edit was gone from both places. Proved on a real full disk.
+        """
         hints = target / "exercises" / "01_environment" / "hints.md"
-        hints.write_text("stale\n", encoding="utf-8")
+        hints.write_text("hours of my own notes\n", encoding="utf-8")
         _fail_writing(monkeypatch, hints)
+
+        result = _invoke("init", str(target), "--refresh")
+
+        assert result.exit_code == 2
+        assert hints.read_text(encoding="utf-8") == "hours of my own notes\n", (
+            "the file has to hold the old bytes or the new ones, never half of each"
+        )
+        assert hints.with_name(hints.name + cli.BACKUP_SUFFIX).exists(), (
+            "the backup is the second copy, and a failure is when it is needed"
+        )
+        assert not list(hints.parent.glob(".qx-refresh-*")), "a temporary file was left behind"
+
+    @pytest.mark.skipif(os.name == "nt", reason="POSIX modes only")
+    def test_a_refreshed_file_keeps_the_permissions_it_had(self, target: Path) -> None:
+        """The replacement writes a neighbour and renames it into place.
+
+        A temporary file is created readable by its owner alone, so the rename
+        handed a lesson file 0600 where the rest of the course sits at 0644. On a
+        machine where the course is shared read-only with anyone else, a refresh
+        would have taken it away from them.
+        """
+        hints = target / "exercises" / "01_environment" / "hints.md"
+        untouched = target / "exercises" / "02_dictionaries" / "hints.md"
+        hints.chmod(0o644)
+        hints.write_text("stale\n", encoding="utf-8")
 
         _invoke("init", str(target), "--refresh")
 
-        assert hints.read_text(encoding="utf-8") == "stale\n"
-        assert not hints.with_name(hints.name + cli.BACKUP_SUFFIX).exists(), (
-            "a backup beside an unchanged file claims something happened that did not"
-        )
+        assert hints.stat().st_mode & 0o777 == untouched.stat().st_mode & 0o777
+
+    def test_a_second_refresh_does_not_write_over_the_first_backup(self, target: Path) -> None:
+        """Two rounds of edits, two backups. The first used to be overwritten."""
+        hints = target / "exercises" / "01_environment" / "hints.md"
+
+        hints.write_text("the first thing I wrote\n", encoding="utf-8")
+        _invoke("init", str(target), "--refresh")
+        hints.write_text("the second thing I wrote\n", encoding="utf-8")
+        _invoke("init", str(target), "--refresh")
+
+        kept = sorted(p.read_text(encoding="utf-8") for p in hints.parent.glob("hints.md.bak*"))
+        assert kept == ["the first thing I wrote\n", "the second thing I wrote\n"]
+
+    def test_a_symlink_in_place_of_a_lesson_file_is_refused(self, target: Path, tmp_path) -> None:
+        """Following one writes outside the course, which it did.
+
+        A link left where `hints.md` belongs was enough to overwrite a file
+        elsewhere on the machine, and the run reported success.
+        """
+        outside = tmp_path / "not-mine.txt"
+        outside.write_text("someone else's file\n", encoding="utf-8")
+        hints = target / "exercises" / "01_environment" / "hints.md"
+        hints.unlink()
+        hints.symlink_to(outside)
+
+        result = _invoke("init", str(target), "--refresh")
+        said = " ".join(result.stdout.split())
+
+        assert outside.read_text(encoding="utf-8") == "someone else's file\n"
+        assert "symlink" in said
+        assert "exercises/01_environment/hints.md" in said
+        assert hints.is_symlink(), "the link itself is the learner's, so it stays"
+
+    def test_a_directory_a_release_adds_inside_an_exercise_arrives(self, course: Path) -> None:
+        """The recursion used to copy into a directory it had not made yet."""
+        target = course.parent / "with-new-data"
+        _invoke("init", str(target))
+        added = course / registry.EXERCISES_DIR / "01_environment" / "data"
+        added.mkdir()
+        (added / "table.csv").write_text("shipped later\n", encoding="utf-8")
+
+        result = _invoke("init", str(target), "--refresh")
+
+        assert result.exit_code == 0, result.output
+        assert (target / "exercises" / "01_environment" / "data" / "table.csv").is_file()
 
     def test_the_names_it_lists_survive_a_narrow_terminal(self, target: Path, monkeypatch) -> None:
         """A path broken across two lines reads as two files, and says nothing.

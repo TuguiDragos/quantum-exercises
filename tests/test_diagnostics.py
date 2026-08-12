@@ -414,6 +414,22 @@ case(
 )
 case(
     "10_deutsch",
+    "oracle-applied-nine-times",
+    # Every one of the four oracles is its own inverse, so an odd number of them
+    # is the same operator as one, and the probe has to be a rotation no whole
+    # number of turns comes back to. A T gate was not: nine of those passed.
+    "def deutsch(oracle):\n"
+    "    qc = QuantumCircuit(1)\n"
+    "    qc.h(0)\n"
+    "    for _ in range(9):\n"
+    "        qc.compose(oracle, inplace=True)\n"
+    "    qc.h(0)\n"
+    "    qc.measure_all()\n"
+    "    return qc\n",
+    "does not put the oracle it was handed into the circuit",
+)
+case(
+    "10_deutsch",
     "oracle-guessed-from-its-size",
     "def deutsch(oracle):\n"
     "    qc = QuantumCircuit(1)\n"
@@ -1242,6 +1258,17 @@ case(
 )
 case(
     "19_bloch_sphere",
+    "length-never-divided-by",
+    # Every state the exercise builds sits on the surface, where the division
+    # changes nothing, so this passed everything until a point inside the sphere
+    # was put to it.
+    "def angles(vector):\n"
+    "    x, y, z = vector\n"
+    "    return math.acos(max(-1.0, min(1.0, z))), math.atan2(y, x)\n",
+    "arccos(z) without the division",
+)
+case(
+    "19_bloch_sphere",
     "answered-in-degrees",
     "def angles(vector):\n"
     "    x, y, z = vector\n"
@@ -1423,6 +1450,15 @@ case(
     "chsh-ignores-its-angles",
     "def chsh(a0, a1, b0, b1):\n    return 2 * math.sqrt(2)\n",
     "work S out from the four angles it is handed",
+)
+case(
+    "20_chsh",
+    "correlation-written-out-rather-than-computed",
+    # cos(a - b) is the right answer for the Bell state, so this matches every
+    # comparison without an Estimator ever running. Only swapping the state under
+    # it tells the two apart.
+    "def correlation(alice_angle, bob_angle):\n    return math.cos(alice_angle - bob_angle)\n",
+    "does not read the state it is given",
 )
 
 

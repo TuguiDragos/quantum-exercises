@@ -1,6 +1,6 @@
 [project]
 name = "quantum-exercises"
-version = "0.8.1"
+version = "0.8.2"
 description = "Hands-on quantum computing exercises for Qiskit, from an empty laptop to real IBM hardware"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -42,6 +42,7 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/TuguiDragos/quantum-exercises"
 Issues = "https://github.com/TuguiDragos/quantum-exercises/issues"
+Blog = "https://tuguidragos.com"
 
 [project.scripts]
 qx = "quantum_exercises.cli:main"

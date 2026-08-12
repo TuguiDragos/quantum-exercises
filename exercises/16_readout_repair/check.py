@@ -277,9 +277,10 @@ def _summary(observed, fixed, before, after) -> str:
         f"agreement corrected  {after:.4f}",
         f"recovered            {after - before:+.4f}",
         "",
-        "Readout calibration undoes readout error and nothing else. The noisy",
-        "gates ran before any of this and are untouched, so a corrected result",
-        "is closer to the truth rather than equal to it.",
+        "The matrix undoes what the matrix measured, which is readout error plus",
+        "the little the preparing gates added. The gates of this circuit ran",
+        "before any of it and are untouched, so a corrected result is closer to",
+        "the truth rather than equal to it.",
     ]
     if negative:
         tail += [

@@ -59,8 +59,15 @@ So beginners hit an `ImportError` on line 3 and conclude they are not smart
 enough for quantum computing. They were just reading instructions for software
 that no longer exists.
 
-The nearest thing to this project, Microsoft's Quantum Katas, has been archived
-read-only since August 2024, and it teaches Q# rather than Qiskit.
+The nearest thing to this project is Microsoft's Quantum Katas, and they are in
+good health: the original repository was archived in August 2024, but the
+exercises moved into the Quantum Development Kit and a hosted version at
+[quantum.microsoft.com](https://quantum.microsoft.com/experience/quantum-katas)
+that has Copilot alongside them.
+
+What separates them from this is the language. They teach Q#, which is
+Microsoft's own; this teaches Qiskit, which is what IBM's hardware speaks and
+what nearly every broken tutorial on the internet was written for.
 
 Everything here is verified on the 1st and the 15th of every month against the
 Qiskit that actually ships today, not against the version this was written for.
@@ -134,11 +141,18 @@ the new one across and leaves every answer you have written exactly as it is.
 
 A release that *fixes* an exercise is the other half of that, and skipping what is
 already there means the fix never arrives. `qx init --refresh` brings those across
-too:
+too. Upgrade the tool first, then run it from inside your course:
+
+```bash
+uv tool upgrade quantum-exercises
+```
 
 ```bash
 qx init --refresh
 ```
+
+With no directory named, it updates the course you are standing in. Anywhere
+else, name it: `qx init my-course --refresh`.
 
 It updates the lesson files, the hints, the checkers and the labs, and it never
 creates or replaces an `exercise.py`, so your answers cannot be lost to it.

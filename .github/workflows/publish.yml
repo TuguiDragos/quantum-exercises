@@ -19,8 +19,47 @@ on:
 
 permissions: {}
 
+env:
+  QX_OFFLINE: "1"
+
 jobs:
+  # An index accepts a version once, so the upload has to be the last thing that
+  # happens rather than the first. 0.8.1 went to PyPI four minutes before the CI
+  # run on the same commit finished, which means it was published before anything
+  # had confirmed the commit was good. This job is that confirmation, and the
+  # upload below waits for it.
+  #
+  # It also settles the other question nothing asked: that the tag being released
+  # is the version the build will carry. On workflow_dispatch from a branch the
+  # ref is a branch name, which matches no version, so the manual trigger cannot
+  # publish anything unless it is pointed at a tag.
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: "3.13"
+      - run: uv sync --locked --all-extras --dev
+      - name: The ref has to name the version being published
+        run: |
+          set -euo pipefail
+          version="$(uv run python -c 'import quantum_exercises; print(quantum_exercises.__version__)')"
+          if [ "$GITHUB_REF_NAME" != "$version" ]; then
+            echo "ref $GITHUB_REF_NAME does not name version $version"
+            echo "release from the tag, and only after the version bump is committed"
+            exit 1
+          fi
+          echo "publishing $version from $GITHUB_REF_NAME"
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -q
+
   publish:
+    needs: gate
     runs-on: ubuntu-latest
     # A named environment, so the upload can be held behind a review rule if that
     # is ever wanted. It costs nothing while no rule is set.

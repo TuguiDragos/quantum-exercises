@@ -84,7 +84,10 @@ So treat the course you are about to run the way you would treat any other code:
   `qx init --refresh` does replace lesson files, which is the point of it, and it
   cannot do so quietly either: whatever was there is copied aside with a `.bak`
   suffix and every replaced file is named on screen. Read those names if you did
-  not fetch the update yourself.
+  not fetch the update yourself. Neither of them follows a symlink standing in
+  for part of a course. A link where a lesson file, an exercise or a whole folder
+  belongs is left alone and named on screen, so nothing either command writes can
+  land outside the directory you pointed it at.
 - On a shared machine, or if you would rather not have the key reachable at all,
   run with `QX_OFFLINE=1` and skip `qx doctor --save-account` entirely. The whole
   course works that way.

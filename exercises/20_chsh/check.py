@@ -1,11 +1,12 @@
 """Verification for exercise 20."""
 
+import contextlib
 import itertools
 import math
 
 import numpy as np
 from qiskit import QuantumCircuit
-from qiskit.quantum_info import SparsePauliOp
+from qiskit.quantum_info import SparsePauliOp, Statevector
 
 from quantum_exercises.checks import CheckFailed, require, text_artifact
 
@@ -36,7 +37,7 @@ def check(mod):
 
     _check_order(joint_observable)
     _check_correlation(correlation)
-    _check_the_state_is_used(mod, correlation)
+    _check_it_is_computed(mod, correlation)
     _check_chsh(chsh, correlation)
 
     return [text_artifact(_summary(correlation, chsh), caption="S, against the classical ceiling")]
@@ -105,43 +106,99 @@ def _check_correlation(correlation):
             )
 
 
-# What the two qubits are in when the state is swapped underneath correlation.
-# |00> is a product state, so the joint expectation factorises into cos(a)cos(b),
-# which is nothing like cos(a - b) at these angles.
-STATE_SWAP_CASES = [(0.3, 1.1), (0.9, -0.4)]
+# The angles the substitutions below are put at. Nothing turns on the pair beyond
+# every replacement below giving something clearly apart from cos(a - b) there.
+SUBSTITUTION_AT = (0.3, 1.1)
+SUBSTITUTION_LABEL = f"correlation({SUBSTITUTION_AT[0]:.4f}, {SUBSTITUTION_AT[1]:.4f})"
+
+# The three pieces this exercise hands the reader, and something else of the same
+# kind to put in their place. |00> is a product state, and ZZ is exactly 1 on the
+# Bell state, so any of them being used moves the answer well away from cos(a - b).
+SUBSTITUTIONS = [
+    ("bell", lambda: QuantumCircuit(2)),
+    ("joint_observable", lambda *_: SparsePauliOp("ZZ")),
+    ("observable_at", lambda *_: SparsePauliOp("Z")),
+]
 
 
-def _check_the_state_is_used(mod, correlation):
-    """Swap the state under correlation() and see whether the answer follows.
-
-    cos(a - b) is the right answer for the Bell state, so returning it directly
-    passes every comparison above without an Estimator ever running. Nothing in
-    the returned number can show that, and the exercise is about computing the
-    quantity rather than knowing it. So the input moves instead: bell() is
-    replaced with a circuit that prepares |00>, where the same observable has a
-    different expectation value.
-    """
-    original = mod.bell
-    plain = QuantumCircuit(2)
+@contextlib.contextmanager
+def _swapped(mod, name, replacement):
+    """Put something else in the module under that name, then put the real one back."""
+    original = getattr(mod, name)
+    setattr(mod, name, replacement)
     try:
-        mod.bell = lambda: plain.copy()
-        for alice, bob in STATE_SWAP_CASES:
-            got = _number(correlation, (alice, bob), f"correlation({alice:.4f}, {bob:.4f})")
-            want = math.cos(alice) * math.cos(bob)
-            if math.isclose(got, want, abs_tol=1e-4):
-                continue
-            raise CheckFailed(
-                "correlation() does not read the state it is given.",
-                detail=(
-                    "Handed a circuit preparing |00> instead of the Bell state, it still "
-                    f"answered {got:+.6f}, where that state gives {want:+.6f}.\n"
-                    "cos(a - b) is the right answer for the Bell state, and writing it out "
-                    "directly returns the right number without measuring anything. Build the "
-                    "observable, hand it and bell() to the Estimator, and read what comes back."
-                ),
-            )
+        yield
     finally:
-        mod.bell = original
+        setattr(mod, name, original)
+
+
+def _follows(mod, correlation, name, replacement, baseline):
+    """Whether correlation's answer moves when the module's `name` does."""
+    with _swapped(mod, name, replacement):
+        try:
+            moved = _number(correlation, SUBSTITUTION_AT, SUBSTITUTION_LABEL)
+        except Exception:
+            # It stopped returning that number at all, which is still a dependency.
+            return True
+    return not math.isclose(moved, baseline, abs_tol=1e-4)
+
+
+def _kept_states(mod):
+    """Module-level circuits and statevectors, which is `bell()` saved off to one side.
+
+    Naming `bell` is not enough on its own: `_BELL = bell()` at the top of the file
+    binds the circuit under some other name, and rebinding the function afterwards
+    cannot reach it. These are found by type rather than by name, so whatever the
+    reader called it is covered.
+    """
+    swaps = []
+    for name, value in vars(mod).items():
+        if isinstance(value, QuantumCircuit) and value.num_qubits == 2:
+            swaps.append((name, QuantumCircuit(2)))
+        elif isinstance(value, Statevector) and value.num_qubits == 2:
+            swaps.append((name, Statevector.from_label("00")))
+    return swaps
+
+
+def _check_it_is_computed(mod, correlation):
+    """Move a piece underneath correlation() and see whether the answer follows.
+
+    cos(a - b) is the right answer for the Bell state, so writing it out directly
+    passes every comparison above without computing anything, and no property of
+    the returned number can show that. The input has to move instead.
+
+    Several pieces are moved rather than one, and following any of them is enough.
+    Swapping only the state punished a correct answer: `bell()` returns a constant,
+    so caching it once at the top of the file is an ordinary thing to write, and
+    such a correlation cannot see the swap however honestly it computes. Hence the
+    observable as well, reached whether it is built through joint_observable or
+    inline from observable_at, and hence a saved circuit being swapped by type
+    rather than only by the name `bell`.
+
+    What this establishes is narrower than it looks, and worth saying plainly: that
+    the answer is a function of something this exercise handed over, not that an
+    Estimator was ever called. Together with the five angle pairs checked above it
+    means a number that both equals cos(a - b) and moves with the state or the
+    observable it was built from. Nothing here can, or tries to, dictate which
+    route was taken to it.
+    """
+    baseline = _number(correlation, SUBSTITUTION_AT, SUBSTITUTION_LABEL)
+
+    for name, replacement in [*SUBSTITUTIONS, *_kept_states(mod)]:
+        if hasattr(mod, name) and _follows(mod, correlation, name, replacement, baseline):
+            return
+
+    raise CheckFailed(
+        "correlation() gives the same answer whatever it is handed.",
+        detail=(
+            f"It answered {baseline:+.6f} on the Bell state, and the same on |00>, and the "
+            "same again with a different observable entirely. A value that does not move "
+            "when the state and the observable both move was not computed from them.\n"
+            "cos(a - b) is the right answer here, and writing it out returns the right number "
+            "without measuring anything. Build the observable, hand it and bell() to the "
+            "Estimator, and read what comes back."
+        ),
+    )
 
 
 def _check_chsh(chsh, correlation):

@@ -66,10 +66,20 @@ Exercise 06 made a point of `Ry(theta)` producing `cos(theta/2)` and
 `sin(theta/2)`, and warned you the half was easy to miss. On the sphere the same
 gate rotates by exactly `theta`, with no half in sight.
 
-Both statements are true, and the sphere is why. A rotation of the sphere by
-`theta` corresponds to a rotation of the state by `theta/2`, because the sphere
-has thrown away the phase that would distinguish them. The factor of two is not a
-convention someone chose to annoy you, it is the price of the picture.
+Both statements are true, and neither one causes the other. The half is in the
+amplitudes before any sphere is drawn: `Ry(theta)` is `exp(-i * theta * Y / 2)`,
+and the 2 sitting in that exponent is the whole of it. The sphere does not put it
+there and does not take it away.
+
+What the two do is keep different books, and you can watch them disagree. Set
+`theta = 2 * pi`. The Bloch vector is back exactly where it started, so the
+sphere reports a full turn and nothing to show for it. The state is now `-|0>`.
+Turn again, to `4 * pi`, and the minus sign goes away too.
+
+So the sphere comes home after one turn and the state needs two, and that is the
+factor of two, stated as something you can measure. The sphere is not lying about
+the first turn. It simply has no column for the sign that turn cost, because a
+global phase is one of the two degrees of freedom it threw away above.
 
 ## Your task
 

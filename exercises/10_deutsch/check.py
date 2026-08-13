@@ -154,14 +154,24 @@ def _check_the_oracle_is_composed(deutsch) -> None:
     the returned circuit separates the two. The separation comes from the input
     instead: composing works for any oracle, classifying works only for the four.
 
-    The probe also has to be an oracle no repetition can imitate. Every one of the
-    four is its own inverse, so composing them twice is the identity and any odd
-    number of times is the same operator as once; the same held for the T gate
-    used here at first, where nine applications passed. A rotation by one radian
-    fixes that, and with it the check means one query rather than one that counts.
+    The probe also has to be an oracle plain repetition cannot imitate. Every one
+    of the four is its own inverse, so composing one twice is the identity and any
+    odd number of times is the same operator as once; the same held for the T gate
+    used here at first, where nine applications passed. One radian divides 2*pi
+    nowhere, so U**k matches U only at k = 1 and stacking the probe fails.
 
-    A deutsch() that rebuilds the oracle from its matrix passes this, and should.
-    It applies the oracle once, which is the entire claim being made.
+    What that establishes, exactly: between the two Hadamards the circuit is the
+    oracle applied once, up to global phase. It is not a count of how many times
+    deutsch() reached for the oracle. `U ; U ; U.inverse()` is three queries whose
+    product is U, and it passes; so does `U ; U.inverse() ; U`. Both were run.
+
+    That gap is not closable from here, and deliberately so. A deutsch() that
+    rebuilds the oracle from its matrix has to pass, because applying it once is
+    the entire claim the algorithm makes, and by the time the oracle is a matrix
+    there is nothing left in the circuit to count. Anything that counted calls
+    would reject that solution too. The narrower claim is the true one, and it is
+    the one that catches the answer this check exists for: a deutsch() that reads
+    which of the four it was handed and writes the outcome out itself.
     """
     probe = _probe()
     try:

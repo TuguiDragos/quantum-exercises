@@ -62,6 +62,14 @@ def course(tmp_path: Path, root: Path) -> Path:
     return template
 
 
+@pytest.fixture
+def target(tmp_path: Path) -> Path:
+    """A course already copied out, which is what a top-up or a refresh runs on."""
+    course = tmp_path / "my-course"
+    _invoke("init", str(course))
+    return course
+
+
 @pytest.fixture(autouse=True)
 def bundled(course: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(registry, "BUNDLED_COURSE", course)
@@ -241,9 +249,11 @@ class TestTheCourseReadme:
         readme.unlink()
         readme.symlink_to(outside)
 
-        _invoke("init", str(target), "--refresh")
+        said = " ".join(_invoke("init", str(target), "--refresh").stdout.split())
 
         assert outside.read_text(encoding="utf-8") == "not the course's to write\n"
+        # Left alone silently, once, which reads as having been written.
+        assert f"symlink stands where the course goes: {cli.COURSE_README}" in said
 
     def test_one_this_command_wrote_is_brought_up_to_date(self, tmp_path: Path) -> None:
         """Its instructions age with the tool, and a stale one keeps sending people wrong.
@@ -272,12 +282,6 @@ class TestRefresh:
     and also means a fixed `check.py` never arrives. This brings those across while
     keeping the one promise that matters: `exercise.py` is not touched.
     """
-
-    @pytest.fixture
-    def target(self, tmp_path: Path) -> Path:
-        course = tmp_path / "my-course"
-        _invoke("init", str(course))
-        return course
 
     def test_an_edited_lesson_file_is_brought_up_to_date(self, target: Path) -> None:
         hints = target / "exercises" / "01_environment" / "hints.md"
@@ -525,7 +529,9 @@ class TestRefusals:
         result = _invoke("init", str(target))
 
         assert result.exit_code == 2
-        assert "is a file" in result.stdout
+        # Collapsed for the same reason as test_run_names_the_repair: the path
+        # comes first, so the wrap point moves with its length.
+        assert "is a file" in " ".join(result.stdout.split())
         assert target.read_text(encoding="utf-8") == "x"
 
     def test_a_directory_that_cannot_be_read_is_reported(self, tmp_path: Path, monkeypatch) -> None:
@@ -552,6 +558,66 @@ class TestRefusals:
 
         assert result.exit_code == 2
         assert "Could not write the course" in result.stdout
+
+    def test_a_symlink_in_place_of_a_whole_part_is_refused(self, target: Path, tmp_path) -> None:
+        """A link where `notebooks/` belongs sends every file in it elsewhere.
+
+        No `--refresh` here, and that is the point: a plain top-up writes through
+        a link just as readily, and mkdir(exist_ok=True) follows one without a
+        word. Every notebook landed in the directory at the far end.
+        """
+        outside = tmp_path / "somewhere-else"
+        outside.mkdir()
+        notebooks = target / registry.NOTEBOOKS_DIR
+        shutil.rmtree(notebooks)
+        notebooks.symlink_to(outside, target_is_directory=True)
+
+        result = _invoke("init", str(target))
+        said = " ".join(result.stdout.split())
+
+        assert result.exit_code == 0, result.output
+        assert list(outside.iterdir()) == [], "it wrote the course outside the course"
+        assert "symlink" in said
+        assert registry.NOTEBOOKS_DIR in said
+
+    def test_a_symlink_that_points_nowhere_is_refused_rather_than_followed(
+        self, target: Path, tmp_path
+    ) -> None:
+        """A dangling link reads as absent, so the copy created the file at its far end.
+
+        Plain top-up again, and the file the link named did not exist before the
+        run, which is what made this reachable without anything to overwrite.
+        """
+        outside = tmp_path / "not-mine.ipynb"
+        landing = target / registry.NOTEBOOKS_DIR / "playground.ipynb"
+        landing.unlink()
+        landing.symlink_to(outside)
+
+        result = _invoke("init", str(target))
+        said = " ".join(result.stdout.split())
+
+        assert result.exit_code == 0, result.output
+        assert not outside.exists(), "it created a file outside the course"
+        assert "symlink" in said
+        assert "notebooks/playground.ipynb" in said
+
+    def test_a_dangling_symlink_where_an_exercise_goes_is_reported_not_crashed(
+        self, target: Path, tmp_path
+    ) -> None:
+        """copytree hit the link and raised, so the whole command ended at exit 2.
+
+        Nothing was written outside, but the reader was told `File exists` about a
+        directory that does not, and the rest of the course was never topped up.
+        """
+        exercise = target / registry.EXERCISES_DIR / "01_environment"
+        shutil.rmtree(exercise)
+        exercise.symlink_to(tmp_path / "nowhere", target_is_directory=True)
+
+        result = _invoke("init", str(target))
+
+        assert result.exit_code == 0, result.output
+        assert not (tmp_path / "nowhere").exists()
+        assert "exercises/01_environment" in " ".join(result.stdout.split())
 
     def test_no_course_anywhere_says_so(self, tmp_path: Path, monkeypatch) -> None:
         """Neither bundled nor cloned, which is not a state a release can be in.

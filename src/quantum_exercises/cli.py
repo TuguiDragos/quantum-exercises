@@ -307,12 +307,25 @@ def _copy_course(
         if not origin.is_dir():
             continue
         destination = target / part
+        # Refused here and not only on the refresh path below, because a plain
+        # `qx init` over an existing course writes through a link just as readily.
+        # A link standing in for the whole part sends every file in it elsewhere,
+        # and mkdir(exist_ok=True) follows one without a word.
+        if destination.is_symlink():
+            refused.append(part)
+            continue
         destination.mkdir(parents=True, exist_ok=True)
         for entry in sorted(origin.iterdir()):
             if _skippable(entry.name):
                 continue
             landing = destination / entry.name
             label = f"{part}/{entry.name}"
+            # A link that points nowhere reads as absent, so the copy below would
+            # follow it and create the file at the far end. One that does point
+            # somewhere is refused for the same reason `--refresh` refuses it.
+            if landing.is_symlink():
+                refused.append(label)
+                continue
             if not landing.exists():
                 if entry.is_dir():
                     shutil.copytree(
@@ -323,7 +336,7 @@ def _copy_course(
                 added.append(label)
             elif refresh:
                 _refresh_entry(entry, landing, label, added, refreshed, refused)
-    _place_course_readme(target, added, refreshed, refresh=refresh)
+    _place_course_readme(target, added, refreshed, refused, refresh=refresh)
 
 
 def _backup_path(landing: Path) -> Path:
@@ -423,7 +436,7 @@ COURSE_README_TITLE = "# Your quantum-exercises course"
 
 
 def _place_course_readme(
-    target: Path, added: list[str], refreshed: list[str], *, refresh: bool
+    target: Path, added: list[str], refreshed: list[str], refused: list[str], *, refresh: bool
 ) -> None:
     """Leave a short note at the top of the course saying what the folder is.
 
@@ -435,6 +448,7 @@ def _place_course_readme(
     landing = target / COURSE_README
     body = _course_readme_text()
     if landing.is_symlink():
+        refused.append(COURSE_README)
         return
     if not landing.exists():
         landing.write_text(body, encoding="utf-8")
@@ -512,9 +526,9 @@ def _report_update(
         ui.info(f"The version you had is beside each one, with a {BACKUP_SUFFIX} suffix.")
 
     if refused:
-        ui.warn(f"Left {len(refused)} alone, because a symlink stands where a course file goes:")
+        ui.warn(f"Left {len(refused)} alone, because a symlink stands where the course goes:")
         _listed(refused)
-        ui.info("Following one would write outside the course. Replace it with a real file.")
+        ui.info("Following one would write outside the course. Put a real file or folder there.")
 
     if not added and not refreshed and not refused:
         ui.info(f"{target} already has the whole course, so nothing was copied.")

@@ -488,6 +488,13 @@ class TestRefresh:
         made private came back out of a refresh as a 0644 `.bak` with the same
         contents in it. Worth its own test rather than sharing the one above: the
         replacement and the copy are separate calls and only one of them was fixed.
+
+        The two modes are compared against each other rather than against 0600,
+        which is the same reason the test above compares two files. Windows has no
+        Unix permission bits, `chmod` there moves the read-only flag alone, and an
+        absolute figure asserted here failed the whole suite on that platform while
+        saying nothing about it. Compared this way it still catches the bug where
+        the bug exists, because the live file kept 0600 while the copy took 0644.
         """
         hints = target / "exercises" / "01_environment" / "hints.md"
         hints.write_text("mine, and not for anyone else\n", encoding="utf-8")
@@ -497,8 +504,7 @@ class TestRefresh:
 
         backup = hints.with_name(hints.name + cli.BACKUP_SUFFIX)
         assert backup.read_text(encoding="utf-8") == "mine, and not for anyone else\n"
-        assert backup.stat().st_mode & 0o777 == 0o600
-        assert hints.stat().st_mode & 0o777 == 0o600
+        assert backup.stat().st_mode & 0o777 == hints.stat().st_mode & 0o777
 
     def test_a_second_refresh_does_not_write_over_the_first_backup(self, target: Path) -> None:
         """Two rounds of edits, two backups. The first used to be overwritten."""

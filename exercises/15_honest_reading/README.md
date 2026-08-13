@@ -34,8 +34,10 @@ agreement = (count("00") + count("11")) / total_shots
 ```
 
 An ideal Bell state gives 1.0. The real `ibm_fez` run above gives 0.933. Around
-0.5 would mean the two qubits came out uncorrelated, which for this circuit means
-the `cx` never ran, and *that* is a real bug worth hunting.
+0.5 would mean the two qubits came out uncorrelated, and *that* is worth hunting.
+It does not say what went wrong, only that something did: a missing `cx` lands
+there, and so does anything else that destroys the correlation. What 0.5 rules
+out is this circuit having worked, which is the useful part.
 
 Read the number in one direction only. A low one tells you something is broken. A
 high one does **not** tell you the qubits were entangled: exercise 11's sealed

@@ -61,8 +61,12 @@ jobs:
           print(f"{wheel.name}: {len(exercises)} exercises and the notebooks are in")
           PY
 
-      - name: Upload to TestPyPI
-        run: |
-          uv publish --trusted-publishing always \
-            --publish-url https://test.pypi.org/legacy/ \
-            --check-url https://test.pypi.org/simple/
+      # The same action publish.yml uses, for the same reason and so that the
+      # rehearsal still rehearses the real thing. Attestations are the part worth
+      # proving here: TestPyPI shows a provenance file exactly as PyPI does, so a
+      # release can be checked for one before the version number is spent.
+      - name: Upload to TestPyPI, with attestations
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          attestations: true
+          repository-url: https://test.pypi.org/legacy/

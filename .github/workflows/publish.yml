@@ -30,9 +30,10 @@ jobs:
   # upload below waits for it.
   #
   # It also settles the other question nothing asked: that the tag being released
-  # is the version the build will carry. On workflow_dispatch from a branch the
-  # ref is a branch name, which matches no version, so the manual trigger cannot
-  # publish anything unless it is pointed at a tag.
+  # is the version the build will carry. The ref type is checked as well as the
+  # name, because the name alone only held while nobody named a branch after a
+  # version. A branch called 0.8.4 would have satisfied it on workflow_dispatch,
+  # which made a comment claiming tags-only into a naming convention.
   gate:
     runs-on: ubuntu-latest
     permissions:
@@ -44,16 +45,16 @@ jobs:
           enable-cache: true
           python-version: "3.13"
       - run: uv sync --locked --all-extras --dev
-      - name: The ref has to name the version being published
+      - name: The ref has to be a tag that names the version being published
         run: |
           set -euo pipefail
           version="$(uv run python -c 'import quantum_exercises; print(quantum_exercises.__version__)')"
-          if [ "$GITHUB_REF_NAME" != "$version" ]; then
-            echo "ref $GITHUB_REF_NAME does not name version $version"
+          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$version" ]; then
+            echo "ref $GITHUB_REF_NAME is a $GITHUB_REF_TYPE, and version is $version"
             echo "release from the tag, and only after the version bump is committed"
             exit 1
           fi
-          echo "publishing $version from $GITHUB_REF_NAME"
+          echo "publishing $version from tag $GITHUB_REF_NAME"
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest -q
@@ -94,5 +95,14 @@ jobs:
           print(f"{wheel.name}: {len(exercises)} exercises and the notebooks are in")
           PY
 
-      - name: Upload to PyPI
-        run: uv publish --trusted-publishing always
+      # Not `uv publish`, and the reason is narrow: it uploads attestations that
+      # are already sitting beside the files, and does not make any. Nothing in
+      # this workflow made them, so every release so far went up unattested while
+      # the upload reported success. Trusted publishing was never the gap; it says
+      # who uploaded, not what was uploaded. This action signs the distributions
+      # with the same short lived identity and sends the PEP 740 attestations with
+      # them, which is what puts a provenance file on the project page.
+      - name: Upload to PyPI, with attestations
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          attestations: true

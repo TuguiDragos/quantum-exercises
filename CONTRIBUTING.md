@@ -236,7 +236,12 @@ published.
 Publishing the release is what uploads to PyPI. `publish.yml` fires on a
 published release, builds both distributions, refuses to upload a wheel carrying
 fewer than twenty exercises, and pushes them with trusted publishing, so there is
-no token in this repository to leak or rotate. PyPI has to be told once to trust
+no token in this repository to leak or rotate. The upload itself runs through
+PyPA's action rather than `uv publish`, for one reason: `uv publish` sends
+attestations that already sit beside the files and creates none, so every release
+before this change went up unattested while reporting success. The action signs
+the distributions with the same short lived identity and uploads the PEP 740
+attestations with them. PyPI has to be told once to trust
 that workflow, under the project's Publishing settings, naming the repository,
 `publish.yml` and the `pypi` environment. Until that is done the job fails at the
 upload step and nothing else happens.

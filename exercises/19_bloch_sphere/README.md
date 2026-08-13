@@ -71,15 +71,22 @@ amplitudes before any sphere is drawn: `Ry(theta)` is `exp(-i * theta * Y / 2)`,
 and the 2 sitting in that exponent is the whole of it. The sphere does not put it
 there and does not take it away.
 
-What the two do is keep different books, and you can watch them disagree. Set
-`theta = 2 * pi`. The Bloch vector is back exactly where it started, so the
-sphere reports a full turn and nothing to show for it. The state is now `-|0>`.
-Turn again, to `4 * pi`, and the minus sign goes away too.
+Set `theta = 2 * pi` and look carefully at what differs. The Bloch vector is back
+where it started, and so is the state: same density matrix, same X, same Y, same
+Z, and nothing you can measure on this qubit tells the two apart. What changed is
+the statevector Qiskit hands you, which now reads `-|0>`. At `4 * pi` even that
+comes back.
 
-So the sphere comes home after one turn and the state needs two, and that is the
-factor of two, stated as something you can measure. The sphere is not lying about
-the first turn. It simply has no column for the sign that turn cost, because a
-global phase is one of the two degrees of freedom it threw away above.
+So be careful what you claim from it. The section above already settled that a
+global sign is unobservable, and this is that same sign. On a single qubit the
+factor of two is bookkeeping, and the sphere is right to draw both at the same
+point.
+
+It stops being bookkeeping the moment the turn is given to part of a system
+rather than all of it. Rotate one branch of a superposition by `2 * pi` and leave
+the other alone, and a sign that was global to that branch is now relative
+between the two, which is measurable: it is exactly what takes `|+>` to `|->`. A
+full turn is not nothing. It needs something left behind to be compared against.
 
 ## Your task
 

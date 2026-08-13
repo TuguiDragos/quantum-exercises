@@ -161,6 +161,52 @@ class TestFirstRun:
         assert not (target / cli.DEFAULT_COURSE_DIR).exists(), "it made a course inside the course"
         assert "up to date" in " ".join(result.stdout.split())
 
+    def test_standing_inside_an_exercise_still_means_that_course(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """The exercise directory is where a reader stands, because exercise.py is there.
+
+        Fixing the default target to the course root left this one behind: from any
+        directory below it, `holds_exercises` said no and a second course was built
+        underneath the exercise being worked on. Every other command finds its
+        course by walking up, and now so does this one.
+        """
+        target = tmp_path / "my-course"
+        _invoke("init", str(target))
+        inside = target / registry.EXERCISES_DIR / "01_environment"
+        (inside / "hints.md").write_text("x", encoding="utf-8")
+        monkeypatch.chdir(inside)
+
+        result = _invoke("init", "--refresh")
+
+        assert result.exit_code == 0, result.output
+        assert not (inside / cli.DEFAULT_COURSE_DIR).exists(), "it made a course inside an exercise"
+        assert "up to date" in " ".join(result.stdout.split())
+        current = (inside / "hints.md").read_text(encoding="utf-8")
+        assert current != "x", "it reported an update without making one"
+
+    def test_a_target_inside_the_course_being_copied_is_refused(
+        self, tmp_path: Path, course: Path
+    ) -> None:
+        """Copying a directory into itself feeds the copy its own output.
+
+        copytree descends into what it is creating, and only ENAMETOOLONG ends it.
+        Reachable from a checkout, where the course copied from is the repository.
+        """
+        result = _invoke("init", str(course / registry.EXERCISES_DIR / "underneath"))
+
+        assert result.exit_code == 2
+        assert "would never finish" in " ".join(result.stdout.split())
+        assert not (course / registry.EXERCISES_DIR / "underneath").exists()
+
+    def test_the_top_of_the_course_it_copies_from_is_still_allowed(self, course: Path) -> None:
+        """`qx init .` in a clone, which is the source and the target at once.
+
+        The guard above refuses a strict descendant for that reason: equal paths
+        are the ordinary case and copy nothing, rather than recursing.
+        """
+        assert _invoke("init", str(course)).exit_code == 0
+
     def test_a_path_whose_parents_do_not_exist_yet_is_made(self, tmp_path: Path) -> None:
         """`qx init work/quantum/course` on a machine with none of those directories."""
         target = tmp_path / "work" / "quantum" / "course"
@@ -434,6 +480,25 @@ class TestRefresh:
         _invoke("init", str(target), "--refresh")
 
         assert hints.stat().st_mode & 0o777 == untouched.stat().st_mode & 0o777
+
+    def test_the_copy_set_aside_keeps_them_too(self, target: Path) -> None:
+        """The live file kept its mode and the backup beside it did not.
+
+        copyfile carries the bytes and nothing else, so a lesson file its owner had
+        made private came back out of a refresh as a 0644 `.bak` with the same
+        contents in it. Worth its own test rather than sharing the one above: the
+        replacement and the copy are separate calls and only one of them was fixed.
+        """
+        hints = target / "exercises" / "01_environment" / "hints.md"
+        hints.write_text("mine, and not for anyone else\n", encoding="utf-8")
+        hints.chmod(0o600)
+
+        _invoke("init", str(target), "--refresh")
+
+        backup = hints.with_name(hints.name + cli.BACKUP_SUFFIX)
+        assert backup.read_text(encoding="utf-8") == "mine, and not for anyone else\n"
+        assert backup.stat().st_mode & 0o777 == 0o600
+        assert hints.stat().st_mode & 0o777 == 0o600
 
     def test_a_second_refresh_does_not_write_over_the_first_backup(self, target: Path) -> None:
         """Two rounds of edits, two backups. The first used to be overwritten."""

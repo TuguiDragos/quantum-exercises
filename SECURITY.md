@@ -68,10 +68,13 @@ The consequence: **a `check.py` from a repository you clone can read
 Where those files came from depends on how you installed. `qx init` copies them
 out of the wheel you installed from PyPI, so they are the ones this project
 published through trusted publishing, with no long-lived token anywhere in the
-chain. That is not the same as a signature: no attestation is uploaded, so there
-is nothing for you to verify locally. A clone gives you whatever that clone
-contains, which is the same thing when it came from here and is not when it came
-from a fork.
+chain. Trusted publishing establishes who uploaded, not what was uploaded, so the
+release workflow signs the distributions as well and sends PEP 740 attestations
+with them. PyPI shows those as a provenance file beside the download, which is
+the thing you can actually check. Releases up to and including 0.8.3 were
+published before that was added and carry none. A clone gives you whatever that
+clone contains, which is the same thing when it came from here and is not when it
+came from a fork.
 
 So treat the course you are about to run the way you would treat any other code:
 

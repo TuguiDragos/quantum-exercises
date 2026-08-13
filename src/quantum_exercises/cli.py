@@ -192,18 +192,41 @@ BACKUP_SUFFIX = ".bak"
 COURSE_README = "README.md"
 
 
+def _course_around(start: Path) -> Path | None:
+    """The course this directory sits inside, if there is one.
+
+    Every other command finds its course by walking up, which is why `qx run` works
+    from inside an exercise directory. This one looked at the working directory and
+    nowhere else, so the same standing point, the one holding the `exercise.py` a
+    reader is editing, meant "no course here" and built a second one underneath the
+    first.
+
+    Deliberately narrower than find_project_root: no QX_ROOT and no falling back to
+    where the package is installed. Both are right for finding the course a command
+    should act on, and neither is right for choosing a directory to write a new
+    course into.
+    """
+    for directory in [start, *start.parents]:
+        if holds_exercises(directory):
+            return directory
+    return None
+
+
 def _default_target() -> Path:
     """Where `qx init` goes when nobody said.
 
     A new directory, unless the reader is standing in a course already, in which
-    case they mean this one. `qx init --refresh` run from inside a course used to
-    build a second course underneath it and report success, which is exactly what
-    the documented upgrade line told people to do.
+    case they mean that one, from wherever inside it they happen to be.
     """
-    # Written as `.` rather than the resolved path, so the report names the course
-    # as briefly as the reader would have typed it. Everything downstream works
-    # from the same directory either way.
-    return Path(".") if holds_exercises(Path.cwd()) else Path(DEFAULT_COURSE_DIR)
+    here = Path.cwd()
+    found = _course_around(here.resolve())
+    if found is None:
+        return Path(DEFAULT_COURSE_DIR)
+    # Written as `.` when that is where they are, so the report names the course as
+    # briefly as the reader would have typed it. From further down it is named in
+    # full, which is the part worth being explicit about: the course being brought
+    # up to date is not the directory they are standing in.
+    return Path(".") if found == here.resolve() else found
 
 
 @app.command()
@@ -231,6 +254,7 @@ def init(
         raise typer.Exit(code=2) from exc
 
     target = Path(directory).expanduser() if directory is not None else _default_target()
+    _refuse_a_target_inside_the_source(source, target)
     _refuse_an_unsuitable_target(target)
     topping_up = holds_exercises(target)
 
@@ -250,6 +274,29 @@ def init(
         raise typer.Exit(code=2) from exc
 
     _report_init(target, added, refreshed, refused, topping_up=topping_up)
+
+
+def _refuse_a_target_inside_the_source(source: Path, target: Path) -> None:
+    """A directory cannot be copied into itself, and trying does not fail quickly.
+
+    copytree descends into the directory it is creating, so the copy feeds itself.
+    Nothing stops it except the filesystem refusing a path that long: measured at
+    twenty levels and a hundred and twenty-seven files before ENAMETOOLONG, with
+    the error naming a path several kilobytes wide.
+
+    Only reachable from a checkout, where the course being copied is the repository
+    itself. A wheel copies out of the package, which nothing sensible sits inside.
+    The two being equal is the ordinary `qx init .` at the top of a clone, so it is
+    a strict descendant that is refused rather than any overlap.
+    """
+    inside = target.expanduser().resolve()
+    origin = source.resolve()
+    if inside != origin and inside.is_relative_to(origin):
+        ui.error(
+            f"{target} is inside the course being copied from, so the copy would "
+            "never finish. Give the course a directory of its own."
+        )
+        raise typer.Exit(code=2)
 
 
 def _refuse_an_unsuitable_target(target: Path) -> None:
@@ -354,6 +401,20 @@ def _backup_path(landing: Path) -> Path:
     return candidate
 
 
+def _copy_aside(landing: Path) -> None:
+    """Set the current version aside before replacing it, permissions included.
+
+    copyfile carries the bytes and nothing else, so a file its owner had made
+    private came back out of a refresh world-readable: the live file kept its 0600
+    and the copy beside it was 0644, with the same contents in it. The replacement
+    already takes its mode from the file it lands on; this is the same care for the
+    copy that is kept.
+    """
+    backup = _backup_path(landing)
+    shutil.copyfile(landing, backup)
+    shutil.copymode(landing, backup)
+
+
 def _replace_atomically(data: bytes, landing: Path) -> None:
     """Write beside the target, then move it into place.
 
@@ -427,7 +488,7 @@ def _refresh_entry(
     # It used to be removed when the replacement failed, which was right only
     # while a failure could not have damaged the original, and a truncating copy
     # meant it could.
-    shutil.copyfile(landing, _backup_path(landing))
+    _copy_aside(landing)
     _replace_atomically(origin.read_bytes(), landing)
     refreshed.append(label)
 
@@ -460,7 +521,7 @@ def _place_course_readme(
     current = landing.read_text(encoding="utf-8", errors="replace")
     if current == body or not current.startswith(COURSE_README_TITLE):
         return
-    shutil.copyfile(landing, _backup_path(landing))
+    _copy_aside(landing)
     _replace_atomically(body.encode("utf-8"), landing)
     refreshed.append(COURSE_README)
 

@@ -180,10 +180,13 @@ DEFAULT_COURSE_DIR = "quantum-exercises"
 # is working on the project rather than to whoever is taking it.
 COURSE_PARTS = (EXERCISES_DIR, NOTEBOOKS_DIR)
 
-# The one file in an exercise a learner writes in. `--refresh` neither creates
-# nor replaces it, without exception, so an answer can never be lost to an
-# update. `qx reset` is what restores it, out of a template.py that --refresh
-# does keep current.
+# The one file in an exercise a learner writes in. The refresh walk skips it
+# outright, so no update can replace an answer, and a missing one is not restored
+# either: `qx reset` does that, out of a template.py that --refresh does keep
+# current. The skip is per file and cannot reach an exercise that is not there at
+# all, which arrives whole through the plain copy above, starting exercise.py
+# included. Nothing is lost that way, since a directory that is absent holds no
+# answer, but "never creates it" would be the wrong thing to promise.
 LEARNER_FILE = "exercise.py"
 
 # Where the version a learner had goes before an update replaces it.
@@ -239,7 +242,7 @@ def init(
         bool,
         typer.Option(
             "--refresh",
-            help="Also update lesson files already copied. Never touches exercise.py.",
+            help="Also update lesson files already copied. Never replaces your exercise.py.",
         ),
     ] = False,
 ) -> None:
@@ -501,10 +504,15 @@ def _place_course_readme(
 ) -> None:
     """Leave a short note at the top of the course saying what the folder is.
 
-    Refreshed only when the file there is one this command wrote, recognised by
-    its first line. `qx init .` in a clone of this repository would otherwise
-    replace the project's own README, and a course whose note was never brought
-    up to date keeps whatever instructions the release that made it carried.
+    Refreshed only when what is there opens with the title this command writes.
+    `qx init .` in a clone of this repository would otherwise replace the
+    project's own README, and a course whose note was never brought up to date
+    keeps whatever instructions the release that made it carried.
+
+    The title is the whole of the test, which is a guess and not a proof: a
+    README of someone's own that happens to start the same way is replaced too.
+    Left as it is on purpose. Tightening it would mean a marker in the file, and
+    the copy set aside first is already the answer to being wrong about this.
     """
     landing = target / COURSE_README
     body = _course_readme_text()

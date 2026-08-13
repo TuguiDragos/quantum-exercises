@@ -155,9 +155,11 @@ With no directory named, it updates the course you are standing in. Anywhere
 else, name it: `qx init my-course --refresh`.
 
 It updates the lesson files, the hints, the checkers and the labs, and it never
-creates or replaces an `exercise.py`, so your answers cannot be lost to it.
-Anything you had edited yourself is copied aside with a `.bak` suffix first, and
-every file it touched is listed on screen.
+replaces an existing `exercise.py`, so your answers cannot be lost to it. An
+exercise that is missing altogether arrives whole, its starting `exercise.py`
+included, the same as it would from a plain `qx init`. Anything you had edited
+yourself is copied aside with a `.bak` suffix first, and every file it touched is
+listed on screen.
 
 ### Or clone it instead
 

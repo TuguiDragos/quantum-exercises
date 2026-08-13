@@ -44,8 +44,11 @@ out.
 Strictly, `A` catches slightly more than readout. Preparing `01` takes an `x`
 gate, and that gate is noisy too, so a little of its error lands in the column
 with the readout error. On this device the readout term is more than fifty times
-the gate term, which is why the matrix is named for readout. The careful name is
-assignment error, or SPAM, for state preparation and measurement.
+the gate term, which is why the matrix is named for readout. The careful name for
+what its entries measure is assignment error: the chance a state prepared as one
+thing is reported as another. The error it is picking up is SPAM, for state
+preparation and measurement, which is the wider bucket the preparation gate falls
+into as well. One is the quantity, the other is what makes it nonzero.
 
 ## Undoing it
 

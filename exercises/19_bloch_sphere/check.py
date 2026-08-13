@@ -480,25 +480,44 @@ def _amplitudes(data) -> str:
     return "[" + ", ".join(f"{value.real:+.3f}{value.imag:+.3f}i" for value in data) + "]"
 
 
+# One full turn, kept out of RY_ANGLES because the checks there compare the angle
+# the sphere reports against the angle asked for, and the sphere reports 0 here.
+# That is the entire point of the last row of the table below.
+FULL_TURN = 2 * math.pi
+
+
+def _half_angle_row(bloch_vector, angles, theta) -> str:
+    circuit = QuantumCircuit(1)
+    circuit.ry(theta, 0)
+    amplitude = float(np.real(np.asarray(Statevector(circuit).data)[0]))
+    return (
+        f"{theta:>10.4f}{angles(bloch_vector(circuit))[0]:>12.4f}"
+        f"{math.cos(theta / 2):>15.4f}{amplitude:>19.4f}"
+    )
+
+
 def _half_angle_table(bloch_vector, angles) -> str:
     rows = [f"{'ry angle':>10}{'theta':>12}{'cos(theta/2)':>15}{'amplitude of |0>':>19}"]
-    for theta in RY_ANGLES:
-        circuit = QuantumCircuit(1)
-        circuit.ry(theta, 0)
-        vector = bloch_vector(circuit)
-        amplitude = float(np.real(np.asarray(Statevector(circuit).data)[0]))
-        rows.append(
-            f"{theta:>10.4f}{angles(vector)[0]:>12.4f}"
-            f"{math.cos(theta / 2):>15.4f}{amplitude:>19.4f}"
-        )
+    rows += [_half_angle_row(bloch_vector, angles, theta) for theta in RY_ANGLES]
     rows += [
         "",
         "Column two is the full theta. Column three is the half that exercise 06",
         "warned you about, and column four confirms it is really the amplitude.",
         "",
-        "Both are correct. Turning the sphere by theta turns the state by theta/2,",
-        "because the sphere threw away the phase that would tell the two apart.",
-        "The factor of two is the price of being able to draw the picture.",
+        "Both are correct, and neither one explains the other. The half is already",
+        "in the amplitudes: Ry(theta) is exp(-i * theta * Y / 2), and the 2 in that",
+        "exponent is where it comes from. Drawing a sphere neither adds it nor",
+        "removes it. What the sphere does is keep a different set of books, and one",
+        "more row is enough to catch the two disagreeing:",
+        "",
+        _half_angle_row(bloch_vector, angles, FULL_TURN),
+        "",
+        "That is a full turn. The sphere is back where it started and says theta = 0.",
+        "The amplitude is -1: the state is -|0>, and it takes a second turn to come",
+        "back. The sphere comes home in one, the state needs two, and that is the",
+        "factor of two as something you can read off rather than take on trust. The",
+        "sphere is not wrong about the first turn. It has no column for the sign that",
+        "turn cost, because a global phase is one of the things it threw away.",
     ]
     return "\n".join(rows)
 

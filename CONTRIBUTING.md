@@ -85,8 +85,11 @@ that path. It compares every file the course owns against the one shipped,
 replaces what differs, and keeps the old one beside it as `.bak`. `exercise.py`
 is excluded outright rather than compared, so no answer can be lost to it, and
 `template.py` staying current is what keeps `qx reset` honest afterwards. The
-course README at the top is written once and never refreshed, because `qx init .`
-in a clone would otherwise overwrite this repository's own.
+course README at the top is refreshed only when it is one this command wrote,
+recognised by its title line, because `qx init .` in a clone would otherwise
+overwrite this repository's own README and anything a reader put there instead is
+theirs. A symlink in place of any of these is refused rather than followed, so a
+link left where a course file belongs cannot send a write outside the course.
 
 The packaging lives in `[tool.hatch.build.targets.wheel]`. `force-include` maps
 `exercises` and `notebooks` under the package; `exclude` keeps out the

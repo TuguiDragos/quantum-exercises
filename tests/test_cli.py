@@ -6,6 +6,7 @@ edits the real exercise files or the real progress file.
 
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 
@@ -31,6 +32,22 @@ def sandbox(tmp_path: Path, root: Path, monkeypatch: pytest.MonkeyPatch) -> Path
 
 def _invoke(*args: str):
     return runner.invoke(app, list(args))
+
+
+# The Box Drawing block, which is every glyph a rich panel or table is framed in.
+_BOX = re.compile(r"[─-╿]")
+
+
+def _said(result) -> str:
+    """The output as one line, with the frame taken out.
+
+    A message inside a panel wraps to the panel's width, and the border glyphs sit
+    between the two halves, so a phrase broken across lines is not a substring of
+    the output even once whitespace is collapsed. Where the break falls depends on
+    how long the temporary directory happens to be, which is how this stayed
+    hidden until a macOS runner drew a path in the one band that splits it.
+    """
+    return " ".join(_BOX.sub(" ", result.stdout).split())
 
 
 class TestListing:
@@ -169,9 +186,10 @@ class TestRecoveryFromADeletedFile:
     def test_run_names_the_repair(self, sandbox: Path) -> None:
         self._delete(sandbox, "01_environment")
         result = _invoke("run", "1")
+        said = _said(result)
         assert result.exit_code == 1
-        assert "does not exist" in result.stdout
-        assert "reset" in result.stdout
+        assert "does not exist" in said
+        assert "reset" in said
 
     def test_reset_actually_repairs_it(self, sandbox: Path) -> None:
         target = self._delete(sandbox, "01_environment")

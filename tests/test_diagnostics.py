@@ -1455,10 +1455,86 @@ case(
     "20_chsh",
     "correlation-written-out-rather-than-computed",
     # cos(a - b) is the right answer for the Bell state, so this matches every
-    # comparison without an Estimator ever running. Only swapping the state under
-    # it tells the two apart.
+    # comparison without an Estimator ever running. Only swapping something out
+    # from under it tells the two apart.
     "def correlation(alice_angle, bob_angle):\n    return math.cos(alice_angle - bob_angle)\n",
-    "does not read the state it is given",
+    "the same answer whatever it is handed",
+)
+case(
+    "20_chsh",
+    "correlation-written-out-as-a-product",
+    # The same cheat with the identity expanded, so the text of the line shares
+    # nothing with cos(a - b). It has to fail for the same reason, not by its shape.
+    "def correlation(alice_angle, bob_angle):\n"
+    "    return math.cos(alice_angle) * math.cos(bob_angle) + math.sin(alice_angle)"
+    " * math.sin(bob_angle)\n",
+    "the same answer whatever it is handed",
+)
+
+
+# --------------------------------------------------------------------------
+# Right answers that do not look like the reference one
+# --------------------------------------------------------------------------
+#
+# The cases above all ask "is this rejected". These ask the opposite, and they
+# exist because the opposite is where the damage is. A checker that lets a cheat
+# through teaches nobody anything; a checker that rejects a correct answer stops
+# someone who did the work, and they have no way to tell which of the two it is.
+#
+# Both checkers below verify their exercise by substitution, which is the only
+# handle there is when the right answer can also be written out from memory. That
+# technique is what makes this list necessary: it fails on the shape of a solution
+# rather than on its result, and shapes vary.
+
+ALTERNATIVES: list[tuple] = []
+
+
+def accepted(slug: str, name: str, override: str) -> None:
+    ALTERNATIVES.append((slug, name, override))
+
+
+accepted(
+    "20_chsh",
+    "bell-cached-at-module-level",
+    # bell() returns a constant, so building it once is an ordinary thing to write.
+    # Swapping the state alone rejected this, which is the regression this guards.
+    "_BELL = bell()\n\n\n"
+    "def correlation(alice_angle, bob_angle):\n"
+    "    observable = joint_observable(alice_angle, bob_angle)\n"
+    "    return float(StatevectorEstimator().run([(_BELL, observable)]).result()[0].data.evs)\n",
+)
+accepted(
+    "20_chsh",
+    "observable-inlined-and-state-cached",
+    # Neither given helper is called by name, and the circuit is kept aside too.
+    "from qiskit.quantum_info import Statevector as _SV\n\n"
+    "_PSI = _SV(bell())\n\n\n"
+    "def correlation(alice_angle, bob_angle):\n"
+    "    observable = observable_at(bob_angle).tensor(observable_at(alice_angle))\n"
+    "    return float(_PSI.expectation_value(observable).real)\n",
+)
+accepted(
+    "20_chsh",
+    "statevector-instead-of-the-estimator",
+    # The exercise points at the Estimator. Nothing requires it.
+    "from qiskit.quantum_info import Statevector as _SV\n\n\n"
+    "def correlation(alice_angle, bob_angle):\n"
+    "    observable = joint_observable(alice_angle, bob_angle)\n"
+    "    return float(_SV(bell()).expectation_value(observable).real)\n",
+)
+accepted(
+    "10_deutsch",
+    "oracle-rebuilt-from-its-matrix",
+    # One application of the oracle, which is the whole claim, with nothing left in
+    # the circuit to recognise it by. Any check that counted calls would reject it.
+    "from qiskit.quantum_info import Operator as _Op\n\n\n"
+    "def deutsch(oracle):\n"
+    "    qc = QuantumCircuit(1)\n"
+    "    qc.h(0)\n"
+    "    qc.unitary(_Op(oracle).data, [0])\n"
+    "    qc.h(0)\n"
+    "    qc.measure_all()\n"
+    "    return qc\n",
 )
 
 
@@ -1515,6 +1591,31 @@ def test_a_wrong_answer_gets_the_diagnosis_it_earned(
     assert fragment in said, (
         f"{slug}/{name} was rejected, but not for the reason it should be:\n{said}"
     )
+
+
+@pytest.mark.parametrize(
+    ("slug", "name", "override"),
+    ALTERNATIVES,
+    ids=[f"{slug}-{name}" for slug, name, _ in ALTERNATIVES],
+)
+def test_a_correct_answer_written_differently_is_still_accepted(
+    slug: str,
+    name: str,
+    override: str,
+    exercises: list[Exercise],
+    tmp_path: Path,
+) -> None:
+    exercise = next(e for e in exercises if e.slug == slug)
+    base = exercise.solution_file.read_text(encoding="utf-8")
+    module = _learner_module(f"{base}\n\n{override}\n", tmp_path / "exercise.py")
+
+    try:
+        _load_check(exercise).check(module)
+    except CheckFailed as exc:
+        pytest.fail(
+            f"{slug}/{name} is a correct answer and was rejected:\n"
+            f"{exc.message}\n{exc.detail or ''}"
+        )
 
 
 def test_every_exercise_has_diagnostics_of_its_own(exercises: list[Exercise]) -> None:

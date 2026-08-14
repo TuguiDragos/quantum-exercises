@@ -255,7 +255,7 @@ def _duplicate_bits(exc: BaseException) -> Translation | None:
 def _classical_bits_in_conversion(exc: BaseException) -> Translation | None:
     """Name the object the learner actually asked for.
 
-    Verified against Qiskit 2.5.1: `Operator()` raises "Cannot apply operation with
+    Verified against Qiskit 2.5.2: `Operator()` raises "Cannot apply operation with
     classical bits" (operator.py), while `Statevector()`, `DensityMatrix()` and the
     Pauli and Clifford paths raise "instruction". Exercise 08 is about `Operator`,
     so reporting a statevector problem there points at the wrong line entirely.

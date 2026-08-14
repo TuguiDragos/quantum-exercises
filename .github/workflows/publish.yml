@@ -22,6 +22,15 @@ permissions: {}
 env:
   QX_OFFLINE: "1"
 
+# Neither job below caches. setup-uv v10 turns its cache off by default for
+# `release`, `pull_request_target` and `workflow_run`, because a job triggered
+# that way runs with more privilege than whatever filled the cache, and this one
+# holds `id-token: write` and uploads to PyPI. Setting `enable-cache: true` here
+# would have opted straight back into that, so it is simply gone: it ran once per
+# release and saved seconds, against a restore path into the most privileged job
+# in the repository. ci.yml and verify.yml keep theirs, since neither runs on
+# those events and both run often enough for it to matter.
+
 jobs:
   # An index accepts a version once, so the upload has to be the last thing that
   # happens rather than the first. 0.8.1 went to PyPI four minutes before the CI
@@ -40,9 +49,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
         with:
-          enable-cache: true
           python-version: "3.13"
       - run: uv sync --locked --all-extras --dev
       - name: The ref has to be a tag that names the version being published
@@ -69,9 +77,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
         with:
-          enable-cache: true
           python-version: "3.13"
 
       - name: Build the wheel and the sdist

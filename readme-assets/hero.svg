@@ -163,7 +163,7 @@
 <g class="mono" font-family="ui-monospace, SFMono-Regular, &#39;JetBrains Mono&#39;, Menlo, Consolas, monospace" font-size="14.5" fill="#7e8299" xml:space="preserve">
   <text x="84" y="114" font-size="16" fill="#9184d9">$</text>
   <text x="100" y="114" font-size="16" fill="#e9e9ed">qx doctor</text>
-  <text x="100" y="134">  <tspan fill="#b5abfc">ok</tspan>  Qiskit SDK          version <tspan fill="#cfd3e5">2.5.1</tspan></text>
+  <text x="100" y="134">  <tspan fill="#b5abfc">ok</tspan>  Qiskit SDK          version <tspan fill="#cfd3e5">2.5.2</tspan></text>
   <text x="100" y="154">  <tspan fill="#b5abfc">ok</tspan>  Circuit smoke test  ran a Hadamard on <tspan fill="#cfd3e5">64</tspan> shots</text>
   <text x="100" y="174">  Environment is ready. Run `<tspan fill="#b5abfc">qx next</tspan>` to begin.</text>
 

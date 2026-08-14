@@ -1,4 +1,4 @@
-# Revisions verified against each repository's tags on 2026-08-04.
+# Revisions verified against each repository's tags on 2026-08-14.
 # Note nbstripout tags have no leading "v", unlike the others.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -13,7 +13,7 @@ repos:
       - id: mixed-line-ending
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.1
+    rev: v0.16.3
     hooks:
       # ruff-check replaced the older id "ruff"; both exist, only this one is current.
       - id: ruff-check

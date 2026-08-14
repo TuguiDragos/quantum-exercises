@@ -26,8 +26,8 @@ contact:
     given-names: "Dragos"
     email: contact@tuguidragos.com
     website: "https://tuguidragos.com"
-version: 0.8.4
-date-released: "2026-08-13"
+version: 0.8.5
+date-released: "2026-08-14"
 license: MIT
 license-url: "https://github.com/TuguiDragos/quantum-exercises/blob/main/LICENSE"
 url: "https://github.com/TuguiDragos/quantum-exercises"

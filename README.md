@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://pypi.org/project/qiskit/"><img alt="qiskit 2.5.1" src="https://img.shields.io/badge/qiskit-2.5.1-161826?style=flat&labelColor=161826&logo=qiskit&logoColor=9184D9" /></a>
+  <a href="https://pypi.org/project/qiskit/"><img alt="qiskit 2.5.2" src="https://img.shields.io/badge/qiskit-2.5.2-161826?style=flat&labelColor=161826&logo=qiskit&logoColor=9184D9" /></a>
   <a href="https://pypi.org/project/qiskit-ibm-runtime/"><img alt="qiskit-ibm-runtime 0.49.0" src="https://img.shields.io/badge/qiskit--ibm--runtime-0.49.0-161826?style=flat&labelColor=161826&logo=qiskit&logoColor=9184D9" /></a>
   <a href="https://pypi.org/project/qiskit-aer/"><img alt="qiskit-aer 0.17.2" src="https://img.shields.io/badge/qiskit--aer-0.17.2-161826?style=flat&labelColor=161826&logo=qiskit&logoColor=9184D9" /></a>
   <a href="https://github.com/astral-sh/uv"><img alt="uv" src="https://img.shields.io/badge/uv-161826?style=flat&labelColor=161826&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTE4NEQ5IiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTIgMy4yIDMuOCA3LjR2OS4yTDEyIDIwLjhsOC4yLTQuMlY3LjR6Ii8%2BPHBhdGggZD0iTTMuOCA3LjQgMTIgMTEuNmw4LjItNC4yTTEyIDExLjZ2OS4yIi8%2BPC9nPjwvc3ZnPg%3D%3D" /></a>

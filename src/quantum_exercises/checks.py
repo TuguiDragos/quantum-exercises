@@ -141,7 +141,7 @@ def as_statevector(source: QuantumCircuit | Statevector) -> Statevector:
     """Build a Statevector, tolerating a circuit that already has measurements.
 
     Statevector(qc) raises QiskitError on any classical-bit instruction, so final
-    measurements are stripped first. Verified against Qiskit 2.5.1.
+    measurements are stripped first. Verified against Qiskit 2.5.2.
     """
     if isinstance(source, Statevector):
         return source

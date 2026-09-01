@@ -527,11 +527,11 @@ metadata; GitHub turns it into a formatted citation from the sidebar.
 Everything I learn about quantum computing, written down in order, at [tuguidragos.com](https://tuguidragos.com). Five notes, picked fresh on the 1st and the 15th:
 
 <!-- NOTES:START -->
-- [The density matrix: what the state vector misses](https://tuguidragos.com/the-density-matrix-what-the-state-vector-misses/)
-- [Six defects in a verified n8n node for IBM Quantum](https://tuguidragos.com/six-defects-verified-n8n-node-ibm-quantum/)
+- [Running a quantum job like an automation pipeline](https://tuguidragos.com/running-a-quantum-job-like-an-automation-pipeline/)
+- [Complex numbers are the gateway to quantum](https://tuguidragos.com/complex-numbers-are-the-gateway-to-quantum/)
+- [The version trap that cost me an evening (Qiskit 2.x)](https://tuguidragos.com/the-version-trap-that-cost-me-an-evening-qiskit-2-x/)
 - [Measurement is not magic: the Born rule by hand](https://tuguidragos.com/measurement-is-not-magic-the-born-rule-by-hand/)
-- [Running Quantum Circuits on Real IBM Hardware from n8n](https://tuguidragos.com/quantum-circuits-ibm-hardware-n8n/)
-- [Three quantum ways to diagonalize a giant matrix](https://tuguidragos.com/three-quantum-ways-to-diagonalize-a-giant-matrix/)
+- [Quantum gates are just matrices you can run by hand](https://tuguidragos.com/quantum-gates-are-just-matrices-you-can-run-by-hand/)
 <!-- NOTES:END -->
 
 <br>

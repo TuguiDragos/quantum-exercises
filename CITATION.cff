@@ -26,11 +26,11 @@ contact:
     given-names: "Dragos"
     email: contact@tuguidragos.com
     website: "https://tuguidragos.com"
-version: 0.8.5
-date-released: "2026-08-14"
+version: 1.0.0
+date-released: "2026-10-07"
 license: MIT
 license-url: "https://github.com/TuguiDragos/quantum-exercises/blob/main/LICENSE"
-url: "https://github.com/TuguiDragos/quantum-exercises"
+url: "https://quantum-exercises.tuguidragos.com/"
 repository-code: "https://github.com/TuguiDragos/quantum-exercises"
 keywords:
   - quantum computing

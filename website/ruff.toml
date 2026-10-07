@@ -1,5 +1,4 @@
-# The repository's settings, with one exception: the page templates are HTML, and a line of markup is as long as the
-# markup is.
+# Page templates are HTML, so no line length limit.
 extend = "../pyproject.toml"
 
 [lint.per-file-ignores]

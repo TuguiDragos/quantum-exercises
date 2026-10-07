@@ -135,9 +135,7 @@ _ORDERINGS = tuple(order for order in itertools.permutations((0, 1, 2)) if order
 def _ordering_used(bloch_vector) -> str | None:
     """Name the order a learner returned the coordinates in, or None if unclear.
 
-    Weighed against all six cardinal states rather than the one that failed. For
-    |0>, which is (0, 0, 1), several orderings fit the numbers equally well, and
-    naming the wrong one sends the reader to inspect a line that is correct.
+    Weighed against all six cardinal states: for |0> alone several orderings fit.
     """
     measured = [
         (_vector(bloch_vector, circuit, name), _reference(circuit)) for name, circuit, _ in CARDINAL
@@ -209,8 +207,7 @@ def _check_polar(bloch_vector, angles) -> None:
                     "of the vector rather than going back through the amplitudes."
                 ),
             )
-        # Kept for an angle small enough that its degree form is still under pi.
-        # For every angle in RY_ANGLES the range guard in _angles answers first.
+        # Only reachable below pi in degrees; for RY_ANGLES the guard in _angles fires first.
         if math.isclose(got_theta, math.degrees(theta), abs_tol=1e-6):
             raise CheckFailed(
                 f"`angles` gave theta = {got_theta:.4f}, which is {theta:.4f} in degrees.",
@@ -236,12 +233,7 @@ INSIDE = (0.3, 0.0, 0.4)
 
 
 def _check_polar_uses_the_length(angles) -> None:
-    """The README asks for arccos(z / length), and every vector above has length 1.
-
-    On the surface the division changes nothing, so `arccos(z)` passed all of it.
-    A point inside the sphere is where the two part company, and it is a state a
-    real device produces: every mixed state sits in there.
-    """
+    """Inside the sphere, where arccos(z) and arccos(z / length) differ."""
     got_theta, _ = _angles(angles, INSIDE, "a point inside the sphere")
     want = math.acos(INSIDE[2] / math.sqrt(sum(c * c for c in INSIDE)))
     if math.isclose(got_theta, want, abs_tol=1e-6):
@@ -348,11 +340,8 @@ def _angles(angles, vector, name) -> tuple[float, float]:
             )
     theta, phi = (float(component) for component in value)
     if theta < -1e-9 or theta > math.pi + 1e-9:
-        # An answer in degrees lands here, not in the rule below in _check_polar:
-        # every angle this exercise asks about is past pi once converted, so the
-        # range guard reaches it first. Saying "the pair is swapped" to someone who
-        # only forgot the units sends them to rewrite the wrong line.
-        # The 2*pi floor keeps a merely out of range radian out of this branch.
+        # Degrees land here before the swap rule in _check_polar: every angle asked
+        # about exceeds pi once converted. The 2*pi floor keeps radians out.
         if theta > 2 * math.pi and math.radians(theta) <= math.pi:
             raise CheckFailed(
                 f"`angles` gave theta = {theta:.4f} for {name}, which is that angle in degrees.",
@@ -373,10 +362,6 @@ def _fmt(vector) -> str:
     return "(" + ", ".join(f"{component:+.3f}" for component in vector) + ")"
 
 
-# --------------------------------------------------------------------------
-# The picture
-# --------------------------------------------------------------------------
-
 VIEW_WIDTH = 25
 VIEW_HEIGHT = 13
 
@@ -384,8 +369,7 @@ VIEW_HEIGHT = 13
 def _view(across: float, up: float) -> list[str]:
     """One orthographic view of the sphere, with the point marked.
 
-    Twice as wide as tall, because a terminal cell is about twice as tall as it
-    is wide and a square grid would draw an egg.
+    Twice as wide as tall, because a terminal cell is about twice as tall as wide.
     """
     rows = []
     for row in range(VIEW_HEIGHT):
@@ -480,9 +464,7 @@ def _amplitudes(data) -> str:
     return "[" + ", ".join(f"{value.real:+.3f}{value.imag:+.3f}i" for value in data) + "]"
 
 
-# One full turn, kept out of RY_ANGLES because the checks there compare the angle
-# the sphere reports against the angle asked for, and the sphere reports 0 here.
-# That is the entire point of the last row of the table below.
+# Kept out of RY_ANGLES: the sphere reports 0 for a full turn, the point of the last row.
 FULL_TURN = 2 * math.pi
 
 

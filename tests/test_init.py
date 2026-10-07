@@ -1,9 +1,7 @@
-"""`qx init`, which is how a course reaches someone who installed rather than cloned.
+"""`qx init`, which copies the bundled course somewhere writable.
 
-The tool ships the exercises inside the wheel, and this is the command that copies
-them somewhere writable. Two properties carry the feature: it never overwrites
-anything, so running it again is how a reader picks up an exercise a new release
-added, and the bundled copy is never mistaken for the working one.
+It never overwrites anything, so rerunning it picks up new exercises, and the
+bundled copy is never mistaken for the working one.
 """
 
 from __future__ import annotations
@@ -28,10 +26,8 @@ def _invoke(*args: str):
 def _fail_writing(monkeypatch: pytest.MonkeyPatch, doomed: Path) -> None:
     """Refuse to replace one particular file, leaving every other write alone.
 
-    The refusal sits on the rename, because that is where a replacement lands: the
-    new bytes go to a neighbouring temporary file first. A read-only file would
-    stop the backup instead, which is the wrong half, and would behave differently
-    on Windows.
+    The refusal sits on the rename, where a replacement lands. A read-only file would
+    stop the backup instead and behave differently on Windows.
     """
     real = cli.os.replace
 
@@ -49,9 +45,7 @@ def course(tmp_path: Path, root: Path) -> Path:
     template = tmp_path / "template"
     (template / registry.EXERCISES_DIR).mkdir(parents=True)
     for slug in ("01_environment", "02_dictionaries"):
-        # Without the ignore this picks up whatever bytecode the repository has
-        # lying about, which is exactly what one of the tests below puts there on
-        # purpose, and it would then be there before that test started.
+        # Ignore stray bytecode: one test below plants some on purpose.
         shutil.copytree(
             root / "exercises" / slug,
             template / registry.EXERCISES_DIR / slug,
@@ -81,23 +75,14 @@ class TestWhereTheTemplateComesFrom:
         assert registry.course_template() == course
 
     def test_a_clone_uses_itself(self, tmp_path: Path, root: Path, monkeypatch) -> None:
-        """A checkout carries no bundle, and its own exercises are the template.
-
-        Which is what a contributor wants: `qx init` from a working copy hands
-        over the exercises in that working copy, edits included.
-        """
+        """A checkout carries no bundle, so its own exercises, edits included, are the template."""
         monkeypatch.setattr(registry, "BUNDLED_COURSE", tmp_path / "not-here")
         monkeypatch.setenv("QX_ROOT", str(root))
         assert registry.course_template() == root
 
     def test_the_bundled_course_is_never_found_by_the_root_search(self, root: Path) -> None:
-        """The whole reason it sits below the package directory.
-
-        find_project_root walks up from the package looking for `exercises/` in
-        each ancestor. A course nested inside the package is never on that path,
-        so an installed read-only copy cannot be picked up as the one to edit.
-        Were it beside the package instead, `qx run` would try to check answers in
-        site-packages and `qx reset` would try to write there.
+        """find_project_root walks up from the package, so a course nested inside it is
+        never found, and an installed read-only copy is never the one edited.
         """
         package = Path(registry.__file__).resolve().parent
         for directory in [package, *package.parents]:
@@ -118,8 +103,7 @@ class TestFirstRun:
         assert (target / "exercises" / "01_environment" / "check.py").is_file()
 
     def test_the_copy_is_a_course_the_tool_can_find(self, tmp_path: Path) -> None:
-        """The point of the command. A directory that discovery does not accept
-        would leave the reader with files and no way to run them."""
+        """A directory discovery does not accept would leave files with no way to run them."""
         target = tmp_path / "my-course"
         _invoke("init", str(target))
 
@@ -145,12 +129,7 @@ class TestFirstRun:
         assert (tmp_path / cli.DEFAULT_COURSE_DIR / "exercises").is_dir()
 
     def test_standing_in_a_course_means_this_one(self, tmp_path: Path, monkeypatch) -> None:
-        """The documented upgrade line is run from inside the course.
-
-        With the default target fixed to a name, it built a second course one
-        level down and said the course was ready, while the one the reader was
-        standing in went untouched.
-        """
+        """The documented upgrade line is run from inside the course."""
         target = tmp_path / "my-course"
         _invoke("init", str(target))
         monkeypatch.chdir(target)
@@ -164,13 +143,7 @@ class TestFirstRun:
     def test_standing_inside_an_exercise_still_means_that_course(
         self, tmp_path: Path, monkeypatch
     ) -> None:
-        """The exercise directory is where a reader stands, because exercise.py is there.
-
-        Fixing the default target to the course root left this one behind: from any
-        directory below it, `holds_exercises` said no and a second course was built
-        underneath the exercise being worked on. Every other command finds its
-        course by walking up, and now so does this one.
-        """
+        """Like every other command, init finds its course by walking up from an exercise."""
         target = tmp_path / "my-course"
         _invoke("init", str(target))
         inside = target / registry.EXERCISES_DIR / "01_environment"
@@ -188,11 +161,7 @@ class TestFirstRun:
     def test_a_target_inside_the_course_being_copied_is_refused(
         self, tmp_path: Path, course: Path
     ) -> None:
-        """Copying a directory into itself feeds the copy its own output.
-
-        copytree descends into what it is creating, and only ENAMETOOLONG ends it.
-        Reachable from a checkout, where the course copied from is the repository.
-        """
+        """copytree would descend into its own output until ENAMETOOLONG."""
         result = _invoke("init", str(course / registry.EXERCISES_DIR / "underneath"))
 
         assert result.exit_code == 2
@@ -200,11 +169,7 @@ class TestFirstRun:
         assert not (course / registry.EXERCISES_DIR / "underneath").exists()
 
     def test_the_top_of_the_course_it_copies_from_is_still_allowed(self, course: Path) -> None:
-        """`qx init .` in a clone, which is the source and the target at once.
-
-        The guard above refuses a strict descendant for that reason: equal paths
-        are the ordinary case and copy nothing, rather than recursing.
-        """
+        """`qx init .` in a clone: equal paths are the ordinary case and copy nothing."""
         assert _invoke("init", str(course)).exit_code == 0
 
     def test_a_path_whose_parents_do_not_exist_yet_is_made(self, tmp_path: Path) -> None:
@@ -235,11 +200,7 @@ class TestRunningItAgain:
         assert "nothing was copied" in " ".join(result.stdout.split())
 
     def test_an_answer_already_written_is_never_overwritten(self, tmp_path: Path) -> None:
-        """The property the whole command rests on.
-
-        A reader upgrades to pick up a new exercise, and the twelve they have
-        already solved have to survive it untouched.
-        """
+        """A reader upgrades for a new exercise; their solved ones must survive untouched."""
         target = tmp_path / "my-course"
         _invoke("init", str(target))
         mine = target / "exercises" / "01_environment" / "exercise.py"
@@ -298,15 +259,10 @@ class TestTheCourseReadme:
         said = " ".join(_invoke("init", str(target), "--refresh").stdout.split())
 
         assert outside.read_text(encoding="utf-8") == "not the course's to write\n"
-        # Left alone silently, once, which reads as having been written.
         assert f"symlink stands where the course goes: {cli.COURSE_README}" in said
 
     def test_one_this_command_wrote_is_brought_up_to_date(self, tmp_path: Path) -> None:
-        """Its instructions age with the tool, and a stale one keeps sending people wrong.
-
-        Recognised by the title line, so only a note this command wrote is
-        replaced. Everything else there belongs to whoever put it there.
-        """
+        """Recognized by its title line, so only a note this command wrote is replaced."""
         target = tmp_path / "my-course"
         _invoke("init", str(target))
         readme = target / cli.COURSE_README
@@ -322,11 +278,10 @@ class TestTheCourseReadme:
 
 
 class TestRefresh:
-    """`--refresh` is how a correction to a lesson reaches a course already copied.
+    """`--refresh` brings lesson fixes into a course already copied.
 
-    Plain `qx init` skips anything that is already there, which keeps answers safe
-    and also means a fixed `check.py` never arrives. This brings those across while
-    keeping the one promise that matters: `exercise.py` is not touched.
+    Plain `qx init` skips existing files, so a fixed `check.py` never arrives.
+    `exercise.py` is never touched.
     """
 
     def test_an_edited_lesson_file_is_brought_up_to_date(self, target: Path) -> None:
@@ -419,12 +374,7 @@ class TestRefresh:
     def test_a_run_that_stops_part_way_says_what_it_had_already_done(
         self, target: Path, monkeypatch
     ) -> None:
-        """A course left part new, reported as a flat failure, is unreadable.
-
-        The reader has no way to tell whether anything changed, and the honest
-        answer is that some of it did. Naming it is also what keeps the promise in
-        SECURITY.md that no lesson file is ever replaced silently.
-        """
+        """A partial refresh must name what changed, as SECURITY.md promises."""
         first = target / "exercises" / "01_environment" / "hints.md"
         later = target / "exercises" / "02_dictionaries" / "hints.md"
         first.write_text("stale\n", encoding="utf-8")
@@ -441,12 +391,9 @@ class TestRefresh:
         assert first.read_text(encoding="utf-8") != "stale\n"
 
     def test_a_replacement_that_fails_keeps_both_copies(self, target: Path, monkeypatch) -> None:
-        """The one case where an update can destroy work, and it did.
+        """A disk filling up mid-copy must not lose the learner's edit.
 
-        A plain copy truncates the destination before it writes, so a disk filling
-        up part way through left a half written lesson file. The backup was then
-        removed, on the reasoning that a failed replacement had not earned one, and
-        the learner's edit was gone from both places. Proved on a real full disk.
+        A plain copy truncates first, so the backup has to survive a failed replacement.
         """
         hints = target / "exercises" / "01_environment" / "hints.md"
         hints.write_text("hours of my own notes\n", encoding="utf-8")
@@ -465,13 +412,7 @@ class TestRefresh:
 
     @pytest.mark.skipif(os.name == "nt", reason="POSIX modes only")
     def test_a_refreshed_file_keeps_the_permissions_it_had(self, target: Path) -> None:
-        """The replacement writes a neighbour and renames it into place.
-
-        A temporary file is created readable by its owner alone, so the rename
-        handed a lesson file 0600 where the rest of the course sits at 0644. On a
-        machine where the course is shared read-only with anyone else, a refresh
-        would have taken it away from them.
-        """
+        """The rename from a temporary file must not turn a 0644 lesson file into 0600."""
         hints = target / "exercises" / "01_environment" / "hints.md"
         untouched = target / "exercises" / "02_dictionaries" / "hints.md"
         hints.chmod(0o644)
@@ -482,19 +423,10 @@ class TestRefresh:
         assert hints.stat().st_mode & 0o777 == untouched.stat().st_mode & 0o777
 
     def test_the_copy_set_aside_keeps_them_too(self, target: Path) -> None:
-        """The live file kept its mode and the backup beside it did not.
+        """The backup keeps the original mode too; copyfile carries only the bytes.
 
-        copyfile carries the bytes and nothing else, so a lesson file its owner had
-        made private came back out of a refresh as a 0644 `.bak` with the same
-        contents in it. Worth its own test rather than sharing the one above: the
-        replacement and the copy are separate calls and only one of them was fixed.
-
-        The two modes are compared against each other rather than against 0600,
-        which is the same reason the test above compares two files. Windows has no
-        Unix permission bits, `chmod` there moves the read-only flag alone, and an
-        absolute figure asserted here failed the whole suite on that platform while
-        saying nothing about it. Compared this way it still catches the bug where
-        the bug exists, because the live file kept 0600 while the copy took 0644.
+        Modes are compared with each other rather than with 0600, because Windows has no
+        Unix permission bits.
         """
         hints = target / "exercises" / "01_environment" / "hints.md"
         hints.write_text("mine, and not for anyone else\n", encoding="utf-8")
@@ -507,7 +439,6 @@ class TestRefresh:
         assert backup.stat().st_mode & 0o777 == hints.stat().st_mode & 0o777
 
     def test_a_second_refresh_does_not_write_over_the_first_backup(self, target: Path) -> None:
-        """Two rounds of edits, two backups. The first used to be overwritten."""
         hints = target / "exercises" / "01_environment" / "hints.md"
 
         hints.write_text("the first thing I wrote\n", encoding="utf-8")
@@ -519,11 +450,7 @@ class TestRefresh:
         assert kept == ["the first thing I wrote\n", "the second thing I wrote\n"]
 
     def test_a_symlink_in_place_of_a_lesson_file_is_refused(self, target: Path, tmp_path) -> None:
-        """Following one writes outside the course, which it did.
-
-        A link left where `hints.md` belongs was enough to overwrite a file
-        elsewhere on the machine, and the run reported success.
-        """
+        """A link where `hints.md` belongs must not let the refresh write elsewhere."""
         outside = tmp_path / "not-mine.txt"
         outside.write_text("someone else's file\n", encoding="utf-8")
         hints = target / "exercises" / "01_environment" / "hints.md"
@@ -539,7 +466,6 @@ class TestRefresh:
         assert hints.is_symlink(), "the link itself is the learner's, so it stays"
 
     def test_a_directory_a_release_adds_inside_an_exercise_arrives(self, course: Path) -> None:
-        """The recursion used to copy into a directory it had not made yet."""
         target = course.parent / "with-new-data"
         _invoke("init", str(target))
         added = course / registry.EXERCISES_DIR / "01_environment" / "data"
@@ -552,11 +478,7 @@ class TestRefresh:
         assert (target / "exercises" / "01_environment" / "data" / "table.csv").is_file()
 
     def test_the_names_it_lists_survive_a_narrow_terminal(self, target: Path, monkeypatch) -> None:
-        """A path broken across two lines reads as two files, and says nothing.
-
-        The longest label the shipped course produces is over forty characters, so
-        this is not a hypothetical width.
-        """
+        """The longest shipped label is over forty characters, so a wrap is realistic."""
         from rich.console import Console
 
         from quantum_exercises import ui
@@ -600,8 +522,7 @@ class TestRefusals:
         result = _invoke("init", str(target))
 
         assert result.exit_code == 2
-        # Collapsed for the same reason as test_run_names_the_repair: the path
-        # comes first, so the wrap point moves with its length.
+        # Whitespace collapsed: the path comes first, so the wrap point moves with its length.
         assert "is a file" in " ".join(result.stdout.split())
         assert target.read_text(encoding="utf-8") == "x"
 
@@ -631,12 +552,7 @@ class TestRefusals:
         assert "Could not write the course" in result.stdout
 
     def test_a_symlink_in_place_of_a_whole_part_is_refused(self, target: Path, tmp_path) -> None:
-        """A link where `notebooks/` belongs sends every file in it elsewhere.
-
-        No `--refresh` here, and that is the point: a plain top-up writes through
-        a link just as readily, and mkdir(exist_ok=True) follows one without a
-        word. Every notebook landed in the directory at the far end.
-        """
+        """Plain top-up writes through a link too; mkdir(exist_ok=True) follows it silently."""
         outside = tmp_path / "somewhere-else"
         outside.mkdir()
         notebooks = target / registry.NOTEBOOKS_DIR
@@ -654,11 +570,7 @@ class TestRefusals:
     def test_a_symlink_that_points_nowhere_is_refused_rather_than_followed(
         self, target: Path, tmp_path
     ) -> None:
-        """A dangling link reads as absent, so the copy created the file at its far end.
-
-        Plain top-up again, and the file the link named did not exist before the
-        run, which is what made this reachable without anything to overwrite.
-        """
+        """A dangling link reads as absent, so the copy would create the file at its far end."""
         outside = tmp_path / "not-mine.ipynb"
         landing = target / registry.NOTEBOOKS_DIR / "playground.ipynb"
         landing.unlink()
@@ -675,11 +587,7 @@ class TestRefusals:
     def test_a_dangling_symlink_where_an_exercise_goes_is_reported_not_crashed(
         self, target: Path, tmp_path
     ) -> None:
-        """copytree hit the link and raised, so the whole command ended at exit 2.
-
-        Nothing was written outside, but the reader was told `File exists` about a
-        directory that does not, and the rest of the course was never topped up.
-        """
+        """copytree raised on the link, ending the command with a misleading `File exists`."""
         exercise = target / registry.EXERCISES_DIR / "01_environment"
         shutil.rmtree(exercise)
         exercise.symlink_to(tmp_path / "nowhere", target_is_directory=True)
@@ -691,12 +599,7 @@ class TestRefusals:
         assert "exercises/01_environment" in " ".join(result.stdout.split())
 
     def test_no_course_anywhere_says_so(self, tmp_path: Path, monkeypatch) -> None:
-        """Neither bundled nor cloned, which is not a state a release can be in.
-
-        It is reachable by running a source checkout with the exercises moved
-        away, and the message has to name the situation rather than the
-        traceback.
-        """
+        """Reachable only from a source checkout with the exercises moved away."""
         monkeypatch.setattr(registry, "BUNDLED_COURSE", tmp_path / "not-here")
         monkeypatch.setenv("QX_ROOT", str(tmp_path / "also-not-here"))
 
@@ -708,8 +611,7 @@ class TestRefusals:
 
 class TestWhatIsCopied:
     def test_bytecode_and_hidden_files_are_left_behind(self, course: Path, tmp_path: Path) -> None:
-        """An in-process import of a check.py leaves __pycache__ in the tree it
-        was imported from, and none of that belongs in a fresh course."""
+        """Importing a check.py in-process leaves __pycache__ behind; none of it is copied."""
         (course / registry.EXERCISES_DIR / "01_environment" / "__pycache__").mkdir()
         (course / registry.EXERCISES_DIR / "__pycache__").mkdir()
         (course / registry.EXERCISES_DIR / ".DS_Store").write_text("", encoding="utf-8")

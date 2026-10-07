@@ -15,24 +15,19 @@ from quantum_exercises.checks import (
 LABELS = ("00", "01", "10", "11")
 SHOTS = 4096
 
-# Fixed seeds everywhere: the learner's three functions are pure, so the whole
-# check is reproducible and cannot flake on a resample.
+# Fixed seeds: the learner's functions are pure, so the check cannot flake.
 CALIBRATION_SEEDS = (101, 102, 103, 104)
-# Chosen so the raw inverse lands two outcomes slightly below zero, which the
-# README warns about. It happens on roughly two seeds in five here, so this is
-# the ordinary case rather than a staged one.
+# Chosen so the raw inverse lands two outcomes slightly below zero, as the README warns.
 BELL_SEED = 708
 TRANSPILE_SEED = 7
 LAYOUT = [0, 1]
 
-# Readout correction recovers most of the readout share and none of the gate
-# share. On this device the measured gain is about 0.055, so this bar is well
-# clear of noise without pretending the method is perfect.
+# Correction recovers readout error but not gate error. The measured gain here is
+# about 0.055, so this bar clears noise without demanding perfection.
 MIN_IMPROVEMENT = 0.02
 
-# How far A @ your_answer may sit from the counts the device reported, in shots.
-# An honest solve lands within 1e-13 of them, so half a shot is twelve orders of
-# margin, while an answer that never used the matrix misses by tens.
+# Shots A @ your_answer may differ from the device counts. An honest solve is
+# within 1e-13; an answer that never used the matrix misses by tens.
 RECONSTRUCTION_TOL = 0.5
 
 
@@ -71,8 +66,7 @@ def check(mod):
             ),
         )
 
-    # Last, and after the improvement bar on purpose: an answer that corrects
-    # nothing is better described by the message above than by this one.
+    # After the improvement bar: an answer that corrects nothing fits that message better.
     _check_it_reproduces_the_observation(matrix, fixed, observed)
 
     return [
@@ -203,11 +197,7 @@ def _check_corrected(corrected, matrix, observed) -> dict:
 def _check_it_reproduces_the_observation(matrix, fixed, observed) -> None:
     """Put the answer back through the matrix and see if the device's counts come out.
 
-    Everything before this asks whether the answer has the right shape and whether
-    it helps. A distribution invented outright, half the shots on 00 and half on
-    11, has both: it is a valid distribution, it keeps the shot total, and it
-    scores a perfect agreement. Only the equation itself tells the two apart, and
-    it is the equation the exercise is about.
+    An invented half-00, half-11 distribution passes every earlier check; this does not.
     """
     answer = np.array([float(fixed[label]) for label in LABELS])
     reproduced = matrix @ answer

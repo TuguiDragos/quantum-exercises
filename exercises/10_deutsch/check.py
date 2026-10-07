@@ -65,7 +65,6 @@ def check(mod):
     _check_the_oracle_is_composed(deutsch)
     _check_majority(is_balanced)
 
-    # The classical comparison, stated with the numbers just produced.
     summary = [f"{'function':<20} {'kind':<10} {'measured':<16} {'your verdict'}"]
     for name, balanced, counts, verdict in rows:
         kind = "balanced" if balanced else "constant"
@@ -88,9 +87,8 @@ def check(mod):
     return text_artifact("\n".join(summary), caption="One query, four functions")
 
 
-# A simulator answers unanimously, so the four cases above never distinguish a
-# majority vote from "did this outcome occur at all". Hardware always leaks a few
-# shots the other way, and there the difference decides the answer.
+# A simulator is unanimous, so the cases above cannot tell a majority vote from
+# "did this outcome occur at all". On hardware, which leaks shots, that decides it.
 NOISY_CASES = [
     ({"1": 231, "0": 25}, True),
     ({"0": 240, "1": 16}, False),
@@ -126,21 +124,13 @@ def _sandwich(oracle: QuantumCircuit) -> QuantumCircuit:
     return qc
 
 
-# An angle no whole number of turns comes back to. Any rotation by a rational
-# multiple of pi would: a T gate is an eighth of a turn, so nine of them are the
-# same operator as one, and a deutsch() that composed the oracle nine times
-# passed. One radian divides 2*pi nowhere, so U**k is equivalent to U only at
-# k = 1. Checked out to k = 400.
+# Not a rational multiple of pi, so U**k equals U only at k = 1 (checked to 400).
+# With a T gate, T**9 == T and composing the oracle nine times passed.
 PROBE_ANGLE = 1.0
 
 
 def _probe() -> QuantumCircuit:
-    """An oracle from outside the four.
-
-    A rotation by one radian is a phase oracle for no Boolean function at all,
-    which is the point: the algorithm never asks which function it was handed, so
-    it has to work for anything that arrives.
-    """
+    """An oracle outside the four: a phase oracle for no Boolean function at all."""
     qc = QuantumCircuit(1)
     qc.rz(PROBE_ANGLE, 0)
     return qc
@@ -149,36 +139,13 @@ def _probe() -> QuantumCircuit:
 def _check_the_oracle_is_composed(deutsch) -> None:
     """Hand deutsch() an oracle it cannot have anticipated.
 
-    Reading one of the four and writing the answer out by hand builds the same
-    circuit as composing it, gate for gate in two cases out of four, so nothing in
-    the returned circuit separates the two. The separation comes from the input
-    instead: composing works for any oracle, classifying works only for the four.
-
-    The probe also has to be an oracle plain repetition cannot imitate. Every one
-    of the four is its own inverse, so composing one twice is the identity and any
-    odd number of times is the same operator as once; the same held for the T gate
-    used here at first, where nine applications passed. One radian divides 2*pi
-    nowhere, so U**k matches U only at k = 1 and stacking the probe fails.
-
-    What that establishes, exactly: between the two Hadamards the circuit is the
-    oracle applied once, up to global phase. It is not a count of how many times
-    deutsch() reached for the oracle. `U ; U ; U.inverse()` is three queries whose
-    product is U, and it passes; so does `U ; U.inverse() ; U`. Both were run.
-
-    That gap is not closable from here, and deliberately so. A deutsch() that
-    rebuilds the oracle from its matrix has to pass, because applying it once is
-    the entire claim the algorithm makes, and by the time the oracle is a matrix
-    there is nothing left in the circuit to count. Anything that counted calls
-    would reject that solution too. The narrower claim is the true one, and it is
-    the one that catches the answer this check exists for: a deutsch() that reads
-    which of the four it was handed and writes the outcome out itself.
+    Catches a deutsch() that classifies the four oracles instead of composing them.
+    It proves the oracle is applied once up to global phase, not how many queries ran.
     """
     probe = _probe()
     try:
         circuit = deutsch(probe)
     except Exception as exc:  # noqa: BLE001 - re-raised as a teaching message
-        # The four have already been through it by now, so this is not a general
-        # fault: it is a deutsch() that only knows the oracles it expected.
         raise CheckFailed(
             f"deutsch() raised {type(exc).__name__} on an oracle outside the four.",
             detail=(
@@ -215,16 +182,7 @@ def _check_the_oracle_is_composed(deutsch) -> None:
 
 
 def _oracle_missing(circuit, oracle) -> bool:
-    """Whether the oracle left no trace at all in the returned circuit.
-
-    Only conclusive for an oracle that has gates to look for. constant_zero has
-    none and constant_one carries a global phase rather than a gate, so nothing
-    can be said about those two, and nothing is.
-
-    Used for the wording of a failure rather than to decide one. The check that
-    the oracle is really used is _check_the_oracle_is_composed, which works by
-    choosing the input rather than by inspecting the output.
-    """
+    """Whether the oracle left no trace in the circuit. Picks wording, decides nothing."""
     if not oracle.data:
         return False
     return all(instruction.operation.name in SCAFFOLDING for instruction in circuit.data)

@@ -44,11 +44,9 @@ def check(mod):
         artifacts_state[name] = state
         artifacts.append(statevector_artifact(state, caption=f"{name} = {description}"))
 
-    # Show that global phase really is ignored, using the learner's own state.
-    # Built from the Statevector the comparison already produced, so a circuit
-    # that also contains a measurement cannot break the demonstration.
+    # Built from the existing Statevector, so a circuit with a measurement still works.
     state_a = artifacts_state["qc_a"]
-    rotated = Statevector(state_a.data * 1j)  # multiplies the whole state by i
+    rotated = Statevector(state_a.data * 1j)
 
     same = rotated.equiv(state_a)
     identical = rotated == state_a

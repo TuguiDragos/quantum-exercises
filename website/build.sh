@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Builds the website into website/_site from the repository it sits in. It needs the project's environment
-# (uv sync --locked --all-extras --dev) and the website's own packages (npm ci --prefix website), and stops at the first
-# figure or quoted sentence that no longer holds, so a page that would say something untrue is never written.
+# Builds website/_site. Needs `uv sync --locked --all-extras --dev` and `npm ci --prefix website`.
+# Fails if any figure or quote the page uses no longer holds.
 set -euo pipefail
 web="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(dirname "$web")"
@@ -12,9 +11,8 @@ export QX_OFFLINE=1 NO_COLOR=1 TERM=dumb COLUMNS=100
 
 uv run --no-sync pytest --collect-only -q -p no:cacheprovider > "$web/_build/collect.txt"
 
-# What qx prints in a fresh course, as a learner meets it: exercise 11 before the fix (NOT YET exits 1) and after it,
-# then an exercise that does not exist, which is what the 404 page shows. qx init will not copy the course into a
-# folder inside it, so the copy goes to a temporary directory.
+# Real qx output for the page: exercise 11 failing then passing, and a missing exercise for the 404 page.
+# qx init refuses a target inside the course, hence the temporary directory.
 qx() { uv run --project "$root" --no-sync qx "$@"; }
 course="$(mktemp -d)"
 trap 'rm -rf "$course"' EXIT

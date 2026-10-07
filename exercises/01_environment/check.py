@@ -32,10 +32,7 @@ def check(mod):
 
 
 def _require_asking_the_package(mod) -> None:
-    """Typing the right number in also matches, and stops being right next sync.
-
-    The exercise is about asking the package, so read the file and insist on it.
-    """
+    """Insist the version is asked of the package, not typed in as a literal."""
     source_file = getattr(mod, "__file__", None)
     if not source_file:
         return

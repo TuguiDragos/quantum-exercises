@@ -1,9 +1,4 @@
-"""The contract every exercise must satisfy.
-
-This is what the scheduled verify job is really watching: if a new Qiskit changes
-an API the curriculum depends on, a reference solution stops passing and the badge
-goes red.
-"""
+"""The contract every exercise must satisfy, watched by the scheduled verify job."""
 
 from __future__ import annotations
 
@@ -38,18 +33,14 @@ def test_template_fails(exercise: Exercise, root: Path) -> None:
 def test_solution_produces_artifacts(exercise: Exercise, root: Path) -> None:
     """Every exercise ends in something executed and shown, not just a green tick."""
     result = run_exercise(exercise, root=root, target=exercise.solution_file)
-    # Report the outcome, not just the empty list. An artifact list is empty either
-    # because check() returned nothing or because the run never got that far, and
-    # a bare assertion cannot tell those apart afterwards.
+    # Report the outcome too: an empty list alone cannot say whether the run got that far.
     assert result.artifacts, (
         f"{exercise.slug} produced no artifact to show the learner "
         f"({result.outcome}): {result.message}\n{result.detail or ''}\n"
         f"{result.stderr.strip()}"
     )
 
-    # The worker bounds what a verdict may carry, so an exercise approaching that
-    # bound would silently arrive clipped. Asserted on the same run rather than in
-    # a test of its own, which would mean starting all twenty workers again.
+    # The worker clips oversized verdicts. Checked here to avoid a second run of every worker.
     blob = json.dumps(result.artifacts)
     assert "further characters were cut" not in blob, f"{exercise.slug} had an artifact clipped"
     assert "artifacts too large" not in blob, f"{exercise.slug} had its artifacts replaced"
@@ -90,18 +81,15 @@ def _committed(root: Path, path: Path) -> str | None:
         return None
     if shown.returncode != 0:
         return None
-    # Normalise line endings: git stores LF, a Windows checkout may hold CRLF.
+    # Normalize line endings: git stores LF, a Windows checkout may hold CRLF.
     return shown.stdout.replace("\r\n", "\n")
 
 
 def test_template_matches_the_committed_exercise(exercise: Exercise, root: Path) -> None:
     """template.py and exercise.py must be identical in the shipped repository.
 
-    Both sides are read from git rather than the working tree, so neither a
-    learner solving an exercise nor a maintainer editing one can trip this. It
-    exists because `ruff check --fix` once stripped the deliberately unused
-    imports out of template.py, which would have made `qx reset` hand back a file
-    missing the imports the exercise needs.
+    Both are read from git, so local edits cannot trip this. Guards against tools
+    like `ruff check --fix` stripping the template's deliberately unused imports.
     """
     template = _committed(root, exercise.template_file)
     original = _committed(root, exercise.exercise_file)
@@ -117,10 +105,6 @@ def test_template_matches_the_committed_exercise(exercise: Exercise, root: Path)
 
 
 def test_readme_heading_carries_the_right_number(exercise: Exercise) -> None:
-    """Four READMEs drifted two behind their directory when exercises were inserted.
-
-    Nothing else reads the heading, so nothing else noticed for four releases.
-    """
     first_line = exercise.readme_file.read_text(encoding="utf-8").splitlines()[0]
     expected = f"# {exercise.number:02d} - "
     assert first_line.startswith(expected), (
@@ -138,9 +122,7 @@ def test_has_three_hints(exercise: Exercise) -> None:
 def test_title_and_slug_fit_their_columns(exercise: Exercise) -> None:
     """`qx list` uses fixed widths so the per-act tables line up with each other.
 
-    A title one character too long wraps onto a second row and the alignment the
-    fixed widths exist for is gone. ui.py sizes the columns to the longest of
-    each; this is the other half of that arrangement.
+    A title one character too long wraps and breaks the alignment.
     """
     from quantum_exercises.ui import LIST_COLUMNS
 
@@ -173,9 +155,8 @@ def test_no_hardware_exercise_outside_act_three(exercises: list[Exercise]) -> No
             assert "III" in exercise.act, f"{exercise.slug} touches hardware but is not in Act III"
 
 
-# Reading the learner's file back is how a check stops testing the answer and
-# starts testing the spelling. Everything that pulls source text in one way or
-# another, so a rewrite through a different call is caught too.
+# Reading the learner's file back tests the spelling, not the answer. Every way
+# of pulling source text in is listed, so a rewrite through another call is caught.
 SOURCE_READING = frozenset(
     {
         "getsource",
@@ -190,15 +171,13 @@ SOURCE_READING = frozenset(
     }
 )
 
-# The one exercise allowed to do it, and why. Exercise 01 asks the learner to
-# read the version out of the package rather than typing the number in. Both
-# produce the identical string, so no amount of object inspection can tell them
-# apart, and the file itself is the only evidence there is.
+# Exercise 01 asks for the version read from the package rather than typed in.
+# Both give the same string, so the file itself is the only evidence.
 SOURCE_READING_ALLOWED = frozenset({"01_environment"})
 
 
 def test_check_does_not_read_the_learners_source(exercise: Exercise) -> None:
-    """CONTRIBUTING promises the suite blocks this. Until now nothing looked."""
+    """CONTRIBUTING promises the suite blocks this."""
     tree = ast.parse(exercise.check_file.read_text(encoding="utf-8"))
     found = sorted(
         {

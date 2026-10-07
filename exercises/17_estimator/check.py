@@ -105,16 +105,11 @@ def _check_from_counts(z_from_counts):
 
 
 def _number(function, first, second, label, hint):
-    """Call the learner's function and insist the answer is a real number.
-
-    The hint is passed in rather than fixed: pointing a z_from_counts mistake at
-    result[0].data.evs would send the reader to the wrong half of the exercise.
-    """
+    """Call the learner's function and insist the answer is a real number."""
     try:
         value = function(first) if second is None else function(first, second)
     except KeyError as exc:
-        # The mistake hint 3 warns about. It used to escape as a raw KeyError,
-        # while exercise 15 answered the identical slip with a teaching message.
+        # The mistake hint 3 warns about.
         raise CheckFailed(
             f"For {label}, the function raised KeyError({exc}).",
             detail=(

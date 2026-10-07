@@ -1,10 +1,7 @@
 """Backend selection and the two sampling branches.
 
-The hardware branch cannot run in CI, so it is driven here with a result built
-from the real container classes. The shape and the counts below were taken from
-an actual job: Bell circuit on ibm_fez, 1024 shots, 4 August 2026, job
-d9p0u0jbvhrs73a21710. That run returned PrimitiveResult / SamplerPubResult with
-a single DataBin field named `meas`, which is exactly what is reconstructed here.
+The hardware branch is driven with a result shaped like a real ibm_fez Bell job
+(1024 shots, job d9p0u0jbvhrs73a21710): one DataBin field named `meas`.
 """
 
 from __future__ import annotations
@@ -17,7 +14,7 @@ from qiskit.primitives.containers import BitArray, DataBin, PrimitiveResult, Sam
 
 from quantum_exercises import backends
 
-# Verbatim from the ibm_fez run described above.
+# Verbatim from that ibm_fez job.
 FEZ_COUNTS = {"00": 507, "11": 448, "01": 25, "10": 44}
 
 
@@ -192,11 +189,7 @@ class TestQueuePeek:
 
 class TestBackendSelectionContinued:
     def test_a_revoked_key_says_what_ibm_said(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """The class name alone leaves a reader with a word and no next step.
-
-        This is what a key that has expired or been revoked produces, and the
-        sentence IBM returns with it is the one that says what to go and fix.
-        """
+        """An expired or revoked key shows IBM's own sentence, which says what to fix."""
         from qiskit_ibm_runtime.accounts import InvalidAccountError
 
         told = "Unable to retrieve instances. Please check that you are using a valid API token."
@@ -266,13 +259,10 @@ class TestBackendSelectionContinued:
 
         selection = backends.get_backend(min_num_qubits=2)
 
-        # Recorded and checked out here rather than asserted inside the fake.
-        # get_backend wraps that call in `except Exception`, so an assertion in
-        # there is swallowed and comes back as "could not reach a QPU".
+        # Asserted here, not in the fake: get_backend swallows exceptions from that call.
         assert asked["operational"] is True
         assert asked["simulator"] is False
-        # Passed on as well: dropping it would offer a one-qubit QPU for a
-        # two-qubit circuit, and the failure would land at submission time.
+        # Without it a one-qubit QPU could be offered for a two-qubit circuit.
         assert asked["min_num_qubits"] == 2
         assert selection.kind == "hardware"
         assert selection.is_hardware
@@ -281,13 +271,7 @@ class TestBackendSelectionContinued:
 
     @pytest.mark.hardware
     def test_a_bell_pair_on_a_real_qpu(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """The one test that reaches IBM. Deselected by default; opt in with -m hardware.
-
-        Everything above this reaches the hardware branch through a fake, which
-        proves the code path and nothing about IBM still answering the way it is
-        called here. This is the test that would notice, and it costs real queue
-        time, so it is never part of an ordinary run.
-        """
+        """The one test that reaches IBM. Deselected by default; opt in with -m hardware."""
         from qiskit import QuantumCircuit
 
         monkeypatch.delenv(backends.OFFLINE_ENV, raising=False)
@@ -355,9 +339,7 @@ class TestNoiseModelIsActuallyUsed:
         circuit.measure_all()
         isa = backends.to_isa(circuit, selection.backend)
 
-        # A Bell state forbids 01 and 10. A noise-modelled backend produces them
-        # anyway, which is the entire point of exercises 13 and 14. Sampling with
-        # a default Aer sampler instead would silently give a perfect result.
+        # A Bell state forbids 01 and 10; only a noisy backend produces them.
         disagreeing = 0
         for _ in range(3):
             counts = backends.sample(isa, selection, shots=1024)
@@ -415,13 +397,7 @@ def test_selection_describe_covers_every_kind() -> None:
 
 
 class TestPeekIsQuiet:
-    """The peek runs in the reader's own terminal, not in the piped worker.
-
-    Every other construction of the client happens inside the run subprocess, whose
-    output the runner captures. This one prints where the question is about to be
-    asked, so the client's log landed on top of it: three WARNING lines with
-    timestamps and module paths, then "Send it now?".
-    """
+    """The peek prints in the reader's terminal, so the client's log must stay quiet."""
 
     @staticmethod
     def _talkative(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -1,8 +1,4 @@
-"""Verification for exercise 14.
-
-This is the one exercise that may talk to a real QPU. It never does so silently:
-the backend that was used is printed with the result and recorded in `qx list`.
-"""
+"""Verification for exercise 14, the one exercise that may run on a real QPU."""
 
 import math
 
@@ -92,9 +88,7 @@ def check(mod):
             ),
         )
 
-    # Agreeing is not enough on its own: a circuit that always answers 11 also
-    # agrees every time. A Bell state has to be genuinely undecided between the
-    # two, so require a real share of each.
+    # A circuit that always answers 11 also agrees, so require a real share of each.
     for outcome in ("00", "11"):
         share = counts.get(outcome, 0) / SHOTS
         if share < MIN_SHARE:
@@ -117,12 +111,7 @@ def check(mod):
 
 
 def _assert_executable(circuit: QuantumCircuit, target, backend_name: str) -> None:
-    """Every instruction must be one this backend can run, on those exact qubits.
-
-    Checking the gate names alone is not enough: a QPU's qubits are not all wired
-    to each other, so a native two-qubit gate on an unconnected pair is rejected
-    just as firmly as a gate the machine does not implement.
-    """
+    """Every instruction must be native to this backend and on coupled qubits."""
     unsupported: list[str] = []
     for instruction in circuit.data:
         name = instruction.operation.name

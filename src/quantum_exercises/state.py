@@ -16,23 +16,20 @@ from typing import Literal
 STATE_FILENAME = ".qx-state.json"
 SCHEMA_VERSION = 1
 
-# Where a state file this version cannot read is copied before being replaced.
 UNREADABLE_SUFFIX = ".unreadable"
 
-# Guards the read-modify-write below. Its own file, because the state file is
-# replaced rather than written in place, and a lock on a replaced inode is lost.
+# A separate file: the state file is replaced, and a lock on a replaced inode is lost.
 LOCK_FILENAME = ".qx-state.lock"
 
 if os.name == "nt":  # pragma: no cover - exercised only on Windows
     import msvcrt
 
     def _acquire(handle: int) -> None:
-        # LK_LOCK retries once a second, ten times, then raises. Locking one byte
-        # is enough: the region may extend past the end of an empty file.
+        # LK_LOCK retries ten times, then raises. The byte may lie past EOF.
         msvcrt.locking(handle, msvcrt.LK_LOCK, 1)
 
     def _release(handle: int) -> None:
-        # LK_UNLCK unlocks from the current position, so rewind to what was locked.
+        # LK_UNLCK works from the current position, so rewind first.
         os.lseek(handle, 0, os.SEEK_SET)
         msvcrt.locking(handle, msvcrt.LK_UNLCK, 1)
 
@@ -54,7 +51,6 @@ class ExerciseState:
     status: Status = "todo"
     hints_revealed: int = 0
     completed_at: str | None = None
-    # Set for the hardware exercise so `qx list` can say simulator versus QPU.
     ran_on: str | None = None
 
 
@@ -71,8 +67,7 @@ class State:
 
     def mark_done(self, slug: str, *, ran_on: str | None = None) -> None:
         entry = self.get(slug)
-        # A solved exercise stays solved: revealing the answer is not undone by
-        # later passing the check.
+        # Revealing the answer is not undone by passing later.
         if entry.status != "solved":
             entry.status = "done"
         entry.completed_at = _now()
@@ -88,13 +83,7 @@ class State:
         self.exercises[slug] = ExerciseState()
 
     def reveal_hint(self, slug: str, total: int) -> int:
-        """Advance the hint counter and return how many hints are now visible.
-
-        Never more than there are. The caller indexes a list with this, and a
-        counter larger than the list crashed it with an IndexError. That happened
-        to anyone who had revealed every hint of an exercise that later lost one,
-        with nothing edited by hand.
-        """
+        """Advance the hint counter and return how many hints are visible, capped at ``total``."""
         entry = self.get(slug)
         if entry.hints_revealed < total:
             entry.hints_revealed += 1
@@ -110,16 +99,9 @@ def state_path(root: Path) -> Path:
 
 
 def _readable_exercises(raw: object) -> dict | None:
-    """The exercises mapping out of a parsed state file, or None if unreadable.
+    """The exercises mapping from a parsed state file, or None if unreadable.
 
-    One definition of "readable" for both callers below. load() turns None into a
-    fresh start, and _preserve_unreadable() copies the file aside before it is
-    overwritten. They used to disagree: a file whose `exercises` key held a string
-    rather than an object passed the version check, so it was destroyed without a
-    backup, and reading it raised AttributeError instead of starting fresh.
-
-    A missing or null `exercises` key is readable and simply means nothing has been
-    recorded yet, so it is not worth preserving.
+    The single definition of "readable" shared by load() and _preserve_unreadable().
     """
     if not isinstance(raw, dict) or raw.get("version") != SCHEMA_VERSION:
         return None
@@ -150,12 +132,8 @@ def load(root: Path) -> State:
         if status not in ("todo", "done", "solved"):
             status = "todo"
         hints = entry.get("hints_revealed", 0)
-        # bool is a subclass of int, so `true` would have counted as one revealed
-        # hint. Registry rejects it the same way for timeout.
+        # bool is a subclass of int, so reject `true` explicitly.
         readable_hints = isinstance(hints, int) and not isinstance(hints, bool) and hints >= 0
-        # Both fields are declared str or None and both used to be taken as read.
-        # `qx list` looks ran_on up in a dict, so a value of any unhashable type
-        # raised TypeError there rather than starting fresh the way load promises.
         completed_at = entry.get("completed_at")
         ran_on = entry.get("ran_on")
         exercises[str(slug)] = ExerciseState(
@@ -168,13 +146,7 @@ def load(root: Path) -> State:
 
 
 def unreadable(root: Path) -> bool:
-    """Whether a state file exists that this version cannot read.
-
-    load() turns that into a fresh start, which is the right call, but it is a
-    silent one: every exercise came back as unfinished with nothing on screen to
-    say why, and the file still sitting there intact. Saving already warns; this
-    lets reading do the same.
-    """
+    """Whether a state file exists that this version cannot read, so callers can warn."""
     path = state_path(root)
     if not path.is_file():
         return False
@@ -186,13 +158,7 @@ def unreadable(root: Path) -> bool:
 
 
 def _preserve_unreadable(path: Path) -> Path | None:
-    """Copy aside a state file this version cannot read, and say where it went.
-
-    Treating an unknown schema version or a corrupt file as a fresh start is the
-    right call for reading. Writing over it afterwards was not: running a newer qx
-    once and then an older one destroyed every recorded exercise, permanently and
-    with nothing on screen to say it had happened.
-    """
+    """Copy aside a state file this version cannot read before it is overwritten."""
     if not path.is_file():
         return None
     try:
@@ -216,8 +182,7 @@ def lock_path(root: Path) -> Path:
 def _open_lock(root: Path) -> int | None:
     """Take the lock, or return None when this filesystem will not give it."""
     try:
-        # O_RDWR, not O_RDONLY: an exclusive flock needs a writable descriptor on
-        # some systems, even though macOS allows it either way.
+        # Some systems need a writable descriptor for an exclusive flock.
         handle = os.open(lock_path(root), os.O_CREAT | os.O_RDWR, 0o600)
     except OSError:
         return None
@@ -240,17 +205,8 @@ def _close_lock(handle: int) -> None:
 def locked(root: Path) -> Iterator[None]:
     """Hold the progress file for a whole read-modify-write, across qx processes.
 
-    The write itself was already atomic. The sequence around it was not: two runs
-    finishing together each read the file, each added their own exercise, and
-    whichever wrote second erased the other's. Measured at roughly one loss per
-    two runs of eight concurrent commands.
-
-    Failing to lock is not fatal. A read-only clone cannot create the file at all,
-    and some network mounts refuse the lock; recording progress unserialised is
-    better than refusing to record it, so both fall through to the old behaviour.
-
-    The kernel drops the lock when the process dies, so a crash leaves nothing
-    stale behind.
+    If the lock is unavailable (read-only clone, some network mounts), proceed
+    unlocked rather than refuse to record progress.
     """
     handle = _open_lock(root)
     if handle is None:
@@ -272,8 +228,7 @@ def save(root: Path, state: State) -> Path | None:
     preserved = _preserve_unreadable(path)
     payload = json.dumps(asdict(state), indent=2, sort_keys=True) + "\n"
 
-    # Not a context manager: the file has to outlive the block so os.replace can
-    # move it into place, which is what makes the write atomic.
+    # Not a context manager: the file must outlive the block for os.replace.
     handle = tempfile.NamedTemporaryFile(  # noqa: SIM115
         mode="w",
         encoding="utf-8",

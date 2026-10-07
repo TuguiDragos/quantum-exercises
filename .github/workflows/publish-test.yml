@@ -1,22 +1,12 @@
 name: publish-test
 
-# A rehearsal of publish.yml against TestPyPI, which is a throwaway copy of PyPI.
+# Rehearses publish.yml against TestPyPI. An index accepts a version only once,
+# so this checks the upload before a real version number is spent.
 #
-# Same build, same guard, same trusted publishing, different endpoint. The point
-# is to find out whether the upload works before the version number is spent:
-# an index accepts a given version exactly once, so a first attempt on the real
-# PyPI is also the last one.
+# Trusted publisher on test.pypi.org: owner `TuguiDragos`, repository
+# `quantum-exercises`, workflow `publish-test.yml`, environment `testpypi`.
 #
-# Run by hand only. There is no release trigger here, so nothing reaches TestPyPI
-# unless someone asks for it from the Actions tab.
-#
-# The PyPI side is a one time thing, under the project's Publishing settings on
-# test.pypi.org: owner `TuguiDragos`, repository `quantum-exercises`, workflow
-# `publish-test.yml`, environment `testpypi`. Until that exists the job fails at
-# the upload step and changes nothing.
-#
-# Installing the result needs the real PyPI as well, because qiskit and the rest
-# are not on TestPyPI:
+# qiskit is not on TestPyPI, so installing the result needs PyPI too:
 #
 #   uv pip install quantum-exercises \
 #     --index-url https://test.pypi.org/simple/ \
@@ -29,9 +19,7 @@ on:
 permissions: {}
 
 jobs:
-  # No cache, matching publish.yml. This one is dispatched by hand rather than by
-  # a release, so setup-uv would allow one, but a rehearsal that differs from the
-  # real thing in how it fetches its tools is worth less than the seconds saved.
+  # No cache, to match publish.yml exactly.
   publish-test:
     runs-on: ubuntu-latest
     environment: testpypi
@@ -46,8 +34,7 @@ jobs:
       - name: Build the wheel and the sdist
         run: uv build
 
-      # Kept identical to publish.yml on purpose. A rehearsal that skips the
-      # guard does not rehearse the thing that matters.
+      # Keep identical to publish.yml.
       - name: Refuse to publish a wheel with no course in it
         run: |
           set -euo pipefail
@@ -63,10 +50,7 @@ jobs:
           print(f"{wheel.name}: {len(exercises)} exercises and the notebooks are in")
           PY
 
-      # The same action publish.yml uses, for the same reason and so that the
-      # rehearsal still rehearses the real thing. Attestations are the part worth
-      # proving here: TestPyPI shows a provenance file exactly as PyPI does, so a
-      # release can be checked for one before the version number is spent.
+      # Same action as publish.yml; TestPyPI shows the attestations as PyPI would.
       - name: Upload to TestPyPI, with attestations
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:

@@ -1,8 +1,4 @@
-"""Unit tests for the verification primitives.
-
-The statistical thresholds get the most attention here: a check that is too tight
-makes CI flake, and one that is too loose passes wrong answers.
-"""
+"""Unit tests for the verification primitives, the statistical thresholds above all."""
 
 from __future__ import annotations
 
@@ -173,11 +169,6 @@ class TestChiSquare:
         assert math.isinf(statistic)
 
     def test_an_outcome_predicted_impossible_that_stayed_impossible_costs_nothing(self) -> None:
-        """p = 0 contributes no chi-square term when the outcome never occurred.
-
-        Dividing by its expected count would be a division by zero, so the term is
-        skipped rather than computed. Only an outcome that did occur is infinite.
-        """
         statistic, _, dof = checks.chi_square_counts({"0": 1024, "1": 0}, {"0": 1.0, "1": 0.0})
         assert statistic == pytest.approx(0.0, abs=1e-9)
         assert math.isfinite(statistic)
@@ -186,10 +177,7 @@ class TestChiSquare:
 
 
 class TestInvariants:
-    """Properties that must hold across the whole input space, not at sampled points.
-
-    Swept rather than randomised, so a failure names the same case every time.
-    """
+    """Swept rather than randomized, so a failure names the same case every time."""
 
     SAMPLES = [
         {"0": 512, "1": 512},
@@ -216,11 +204,6 @@ class TestInvariants:
         assert statistic == pytest.approx(0.0, abs=1e-9)
 
     def test_chi_square_grows_as_the_sample_drifts(self) -> None:
-        """Drift one way from a perfect fit and the statistic can only rise.
-
-        A test that fell as the answer got worse would pass wrong answers at some
-        distance and reject them at others.
-        """
         expected = {"0": 0.5, "1": 0.5}
         shots = 1000
         previous = -1.0
@@ -232,11 +215,7 @@ class TestInvariants:
 
     @pytest.mark.parametrize("shots", [64, 1024, 8192])
     def test_the_four_sigma_band_widens_with_the_sample(self, shots: int) -> None:
-        """More shots means a tighter band in proportion, which is the point of it.
-
-        The check is on the proportion, so the same absolute drift has to become
-        less acceptable as the sample grows.
-        """
+        """Wider in counts but tighter in proportion as the sample grows."""
         expected = {"0": 0.5, "1": 0.5}
         band = 0
         while band <= shots // 2:

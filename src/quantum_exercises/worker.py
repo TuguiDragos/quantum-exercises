@@ -1,12 +1,8 @@
 """Child process that imports a learner's file and runs its check.
 
-What the child process buys: a crash, a `sys.exit`, an `os._exit` or an endless
-loop in exercise.py costs one run instead of the whole CLI session, and the
-verdict travels back over a file so nothing the learner prints can corrupt it.
-
-What it does not buy: this is not a sandbox. The worker inherits the environment,
-the filesystem and the network. exercise.py is written by the person running it,
-and check.py is repository code reviewed like any other source file.
+Isolates crashes, exits and endless loops, and returns the verdict through a file
+so nothing the learner prints can corrupt it. This is not a sandbox: the worker
+inherits the environment, filesystem and network.
 """
 
 from __future__ import annotations
@@ -14,16 +10,9 @@ from __future__ import annotations
 import os
 import sys
 
-# Drop the working directory from sys.path before importing anything else.
-# `python -m` puts it at the front, so a scratch file named qiskit.py or json.py
-# in the repository root would shadow the real module and break every run, with
-# the failure landing on the learner. PYTHONSAFEPATH handles this on 3.11 and up;
-# doing it here covers 3.10 as well.
-#
-# Compared by real path, not by string: PYTHONSAFEPATH does not filter PYTHONPATH,
-# and an entry naming this same directory through a symlink is a different string.
-# On macOS everything under /tmp is reached that way, so a string comparison would
-# quietly let the directory back in.
+# Drop the cwd from sys.path before any other import, so a stray qiskit.py or
+# json.py cannot shadow the real module (PYTHONSAFEPATH covers only 3.11+).
+# Compared by real path, since a PYTHONPATH entry may reach it via a symlink.
 _CWD = os.path.realpath(os.getcwd())
 sys.path[:] = [
     entry for entry in sys.path if entry not in ("", ".") and os.path.realpath(entry) != _CWD
@@ -45,21 +34,12 @@ from quantum_exercises.errors import UNTRANSLATED_HINT, translate  # noqa: E402
 
 EXIT_OK = 0
 
-# The parent bounds stdout and stderr at 64 KB each. The verdict file is the other
-# way out of this process, and it was not bounded at all: an exception whose string
-# form is enormous, say a large array interpolated into a message, travelled whole,
-# was held in the parent's memory and printed in full. Generous enough that no real
-# message is ever touched.
+# Bounds on the verdict file, like the parent's bounds on stdout and stderr.
 MAX_FIELD_CHARS = 8000
 
-# The same reasoning for what an artifact carries. Clipping the fields above left
-# the one that is not a string, an artifact payload, travelling whole: a check
-# returning a megabyte of text reached the parent's memory and the terminal in
-# full. The largest artifact any shipped exercise produces is under 4 KB.
 MAX_ARTIFACT_CHARS = 64 * 1024
 
-# How far _clip_strings descends. Deeper than any artifact here, and a hard stop
-# so a payload holding a reference to itself cannot recurse until Python raises.
+# Also stops a self-referencing payload from recursing forever.
 MAX_ARTIFACT_DEPTH = 12
 
 
@@ -70,11 +50,7 @@ def _clip(text: str, limit: int = MAX_FIELD_CHARS) -> str:
 
 
 def _clip_strings(value: Any, depth: int = 0) -> Any:
-    """Clip every string inside an artifact, leaving its shape alone.
-
-    Keys are left as they are: two long keys cut to the same prefix would land on
-    one entry and silently replace each other.
-    """
+    """Clip every string value inside an artifact. Keys are kept, so none collide."""
     if isinstance(value, str):
         return _clip(value)
     if depth >= MAX_ARTIFACT_DEPTH:
@@ -87,16 +63,12 @@ def _clip_strings(value: Any, depth: int = 0) -> Any:
 
 
 def _bounded_artifacts(artifacts: list) -> list:
-    """Keep the artifact list small enough to travel, whatever shape it has.
-
-    Strings are clipped first, so one long caption costs only itself. The size
-    check then catches what clipping cannot, such as a dict of a million keys.
-    """
+    """Clip strings, then replace the artifacts with a notice if they are still too large."""
     clipped = [_clip_strings(artifact) for artifact in artifacts]
     try:
         rendered = json.dumps(clipped)
     except (TypeError, ValueError, RecursionError):
-        return clipped  # not serializable, which _write reports on its own
+        return clipped  # _write reports the serialization error
     if len(rendered) <= MAX_ARTIFACT_CHARS:
         return clipped
     return [
@@ -269,8 +241,6 @@ def _failure_payload(exc: BaseException, target: Path, caught: list, *, stage: s
         message, hint = translation.message, translation.hint
         detail = f"Python reported: {raw}"
     else:
-        # No rule matched, so the learner gets the raw error. Tell them that is a
-        # gap in this tool rather than in their understanding.
         message, hint = raw, UNTRANSLATED_HINT
         detail = None
 
@@ -298,17 +268,10 @@ def _format_warnings(caught: list) -> list[str]:
 
 
 def _write(path: Path, payload: dict) -> None:
-    """Serialize defensively: an artifact that cannot be JSON is an authoring bug.
-
-    Without this, the write raises, no file is produced, and the parent reports it
-    as though the learner had killed the process.
-    """
+    """Always write a verdict, or the parent reports the learner as crashing the process."""
     try:
         text = json.dumps(_bounded(payload))
     except (TypeError, ValueError, RecursionError) as exc:
-        # RecursionError too: a deeply nested payload makes json.dumps raise it,
-        # and an uncaught one here killed the worker without writing anything,
-        # which the parent then reported as the learner crashing the process.
         recorded = payload.get("warnings")
         text = json.dumps(
             {
@@ -320,8 +283,7 @@ def _write(path: Path, payload: dict) -> None:
                 ),
                 "hint": None,
                 "artifacts": [],
-                # Rebuilt as clipped text: whatever broke the dump above may sit
-                # in here too, and this fallback has to serialize.
+                # As clipped text: whatever broke the dump may be in here too.
                 "warnings": [
                     _clip(str(item)) for item in (recorded if isinstance(recorded, list) else [])
                 ],

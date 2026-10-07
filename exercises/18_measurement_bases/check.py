@@ -13,9 +13,7 @@ from quantum_exercises.checks import CheckFailed, require, text_artifact
 SHOTS = 8192
 ATOL = 1e-6
 
-# Seeded, so this check is reproducible rather than merely probable. Verified
-# empirically: the worst of the four phis below lands 0.009 from the exact value, so the
-# tolerance below has a factor of five of headroom.
+# Seeded. The worst phi below lands 0.009 from exact: five times inside the tolerance.
 SEED = 16
 SAMPLING_TOL = 0.05
 
@@ -107,12 +105,8 @@ def _check_rotation(to_x_basis):
         try:
             measured = _sampled_z(rotated)
         except Exception as exc:  # noqa: BLE001 - re-raised as a teaching message
-            # Measuring before the rotation makes it a mid-circuit measurement, which
-            # this sampler refuses outright. Without this the reader gets the raw
-            # Qiskit error instead of being told which half they put first.
-            # Matched on the message rather than claimed for every failure: a circuit
-            # with two classical registers also lands here, and calling that one a
-            # measurement in the wrong place would send the reader after the wrong bug.
+            # Measuring before the rotation is a mid-circuit measurement, which this
+            # sampler refuses. Matched on the message: two classical registers fail here too.
             if "mid-circuit measurement" in str(exc):
                 raise CheckFailed(
                     "Your circuit measures before it rotates.",

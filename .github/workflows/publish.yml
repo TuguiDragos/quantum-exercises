@@ -1,16 +1,9 @@
 name: publish
 
-# Uploads the distributions to PyPI when a release is published.
-#
-# No token lives anywhere. PyPI is told, once, to trust releases coming from this
-# workflow in this repository, and the job asks GitHub for a short lived identity
-# at run time. That is why the job needs `id-token: write` and nothing else, and
-# why nobody has to rotate a secret.
-#
-# Setting it up on the PyPI side is a one time thing, under the project's
-# Publishing settings: owner `TuguiDragos`, repository `quantum-exercises`,
-# workflow `publish.yml`, environment `pypi`. Until that exists the job fails at
-# the upload step and changes nothing.
+# Trusted publishing, no token: PyPI trusts this workflow and the job gets a
+# short-lived identity via `id-token: write`. Publisher on pypi.org: owner
+# `TuguiDragos`, repository `quantum-exercises`, workflow `publish.yml`,
+# environment `pypi`.
 
 on:
   release:
@@ -22,27 +15,13 @@ permissions: {}
 env:
   QX_OFFLINE: "1"
 
-# Neither job below caches. setup-uv v10 turns its cache off by default for
-# `release`, `pull_request_target` and `workflow_run`, because a job triggered
-# that way runs with more privilege than whatever filled the cache, and this one
-# holds `id-token: write` and uploads to PyPI. Setting `enable-cache: true` here
-# would have opted straight back into that, so it is simply gone: it ran once per
-# release and saved seconds, against a restore path into the most privileged job
-# in the repository. ci.yml and verify.yml keep theirs, since neither runs on
-# those events and both run often enough for it to matter.
+# No cache on purpose: a cache filled by less privileged runs must not be
+# restored into the job that holds `id-token: write`. setup-uv already disables
+# it on `release`; do not add `enable-cache: true`.
 
 jobs:
-  # An index accepts a version once, so the upload has to be the last thing that
-  # happens rather than the first. 0.8.1 went to PyPI four minutes before the CI
-  # run on the same commit finished, which means it was published before anything
-  # had confirmed the commit was good. This job is that confirmation, and the
-  # upload below waits for it.
-  #
-  # It also settles the other question nothing asked: that the tag being released
-  # is the version the build will carry. The ref type is checked as well as the
-  # name, because the name alone only held while nobody named a branch after a
-  # version. A branch called 0.8.4 would have satisfied it on workflow_dispatch,
-  # which made a comment claiming tags-only into a naming convention.
+  # An index accepts a version only once, so lint and tests pass before upload.
+  # Also checks the ref is a tag (not a branch) named after the package version.
   gate:
     runs-on: ubuntu-latest
     permissions:
@@ -70,8 +49,6 @@ jobs:
   publish:
     needs: gate
     runs-on: ubuntu-latest
-    # A named environment, so the upload can be held behind a review rule if that
-    # is ever wanted. It costs nothing while no rule is set.
     environment: pypi
     permissions:
       id-token: write
@@ -84,9 +61,7 @@ jobs:
       - name: Build the wheel and the sdist
         run: uv build
 
-      # A wheel without the course installs cleanly and then has nothing to give
-      # `qx init`, which is the one packaging mistake that would reach a reader
-      # rather than a maintainer. Cheaper to check here than to yank a release.
+      # A wheel without the course installs fine but leaves `qx init` nothing to copy.
       - name: Refuse to publish a wheel with no course in it
         run: |
           set -euo pipefail
@@ -102,13 +77,8 @@ jobs:
           print(f"{wheel.name}: {len(exercises)} exercises and the notebooks are in")
           PY
 
-      # Not `uv publish`, and the reason is narrow: it uploads attestations that
-      # are already sitting beside the files, and does not make any. Nothing in
-      # this workflow made them, so every release so far went up unattested while
-      # the upload reported success. Trusted publishing was never the gap; it says
-      # who uploaded, not what was uploaded. This action signs the distributions
-      # with the same short lived identity and sends the PEP 740 attestations with
-      # them, which is what puts a provenance file on the project page.
+      # Not `uv publish`: it only uploads existing attestations, never creates them.
+      # This action signs the distributions and sends PEP 740 attestations.
       - name: Upload to PyPI, with attestations
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:

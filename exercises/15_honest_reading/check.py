@@ -7,9 +7,7 @@ from quantum_exercises.checks import CheckFailed, require, text_artifact
 AGREEING = ("00", "11")
 DISAGREEING = ("01", "10")
 
-# Not every case runs 1024 shots, and that is deliberate. With one shot count
-# throughout, dividing by a hardcoded 1024 rather than by the total gives the
-# right answer everywhere and the mistake ships. The 4096 case is what catches it.
+# The 4096-shot case catches dividing by a hardcoded 1024 instead of the total.
 CASES = [
     ("ideal simulator", {"00": 512, "11": 512}),
     ("good hardware", {"00": 507, "11": 448, "01": 25, "10": 44}),

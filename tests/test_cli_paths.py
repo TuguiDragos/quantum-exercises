@@ -23,9 +23,7 @@ runner = CliRunner()
 def sandbox(tmp_path: Path, root: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     shutil.copytree(root / "exercises", tmp_path / "exercises")
     monkeypatch.setenv("QX_ROOT", str(tmp_path))
-    # The saved account belongs to whoever runs the suite, and `qx doctor` reads
-    # it. Pointed somewhere empty so a real one, valid or retired, cannot decide
-    # the exit code of a test about something else.
+    # Isolated from the real saved account, which `qx doctor` reads.
     monkeypatch.setattr(doctor_module, "CREDENTIALS_PATH", tmp_path / "no-account.json")
     return tmp_path
 
@@ -58,11 +56,6 @@ class TestRunGuards:
     def test_passing_one_that_was_already_done_says_nothing_about_what_is_next(
         self, sandbox: Path
     ) -> None:
-        """Re-running a finished exercise is a check, not progress.
-
-        The pointer to the next one belongs to the moment it is first passed.
-        Repeating it on every later run would read as though something moved.
-        """
         shutil.copyfile(
             sandbox / "exercises" / "01_environment" / "solution.py",
             sandbox / "exercises" / "01_environment" / "exercise.py",
@@ -92,11 +85,6 @@ class TestHintGuards:
         assert "has no hints" in result.stdout
 
     def test_an_exercise_that_lost_a_hint_does_not_crash(self, sandbox: Path) -> None:
-        """Reveal every hint, then take one away. This used to raise IndexError.
-
-        Nothing here is hand edited. The counter was honest when it was written,
-        and the exercise changed underneath it.
-        """
         import json
 
         hints = sandbox / "exercises" / "01_environment" / "hints.md"
@@ -118,12 +106,6 @@ class TestHintGuards:
         assert "That was the last hint" in result.stdout
 
     def test_a_hint_added_after_all_were_revealed_shows_up(self, sandbox: Path) -> None:
-        """The other direction, which `--all` makes reachable.
-
-        `--all` sets the counter to however many hints there were. A release that
-        adds one leaves the reader a hint short, and asking again has to hand it
-        over rather than repeat the last one.
-        """
         hints = sandbox / "exercises" / "01_environment" / "hints.md"
         _invoke("hint", "1", "--all")
         hints.write_text(
@@ -139,22 +121,14 @@ class TestHintGuards:
 
 
 class TestHardwareConfirmation:
-    """A queue is measured in hours. Joining one should be a decision, not a surprise.
-
-    Two things are settled here, and they are not the same: whether the run may
-    reach a QPU at all, and the longer time limit a confirmed one needs.
-    """
+    """Whether a run may reach a QPU, and the longer time limit a confirmed one needs."""
 
     @staticmethod
     def _peek(monkeypatch, queue) -> None:
-        # QX_OFFLINE is set for the whole session by conftest, and it answers the
-        # question before the queue is ever consulted. These cases are about what
-        # happens when it has not been set.
+        # conftest sets QX_OFFLINE, which would answer before the queue is consulted.
         monkeypatch.delenv(OFFLINE_ENV, raising=False)
         monkeypatch.setattr("quantum_exercises.backends.queue_peek", lambda **k: queue)
-        # The seam rather than sys.stdin, because CliRunner installs a stream of
-        # its own for the length of an invoke and a patched isatty does not
-        # survive that. What counts as a terminal is settled in its own tests.
+        # The seam rather than sys.stdin: CliRunner swaps the stream during an invoke.
         monkeypatch.setattr(cli, "_interactive", lambda: True)
 
     def test_a_simulator_exercise_is_never_interrupted(self, sandbox: Path, monkeypatch) -> None:
@@ -173,11 +147,6 @@ class TestHardwareConfirmation:
     def test_a_pipe_is_never_asked_and_never_sends(
         self, sandbox: Path, monkeypatch, capsys
     ) -> None:
-        """No terminal means no way to get a yes, so nothing may be sent.
-
-        It used to fall through here and submit a real job, which is what a task
-        runner or `echo | qx run 14` would have done with a saved account.
-        """
         asked = []
         monkeypatch.delenv(OFFLINE_ENV, raising=False)
         monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: asked.append(True))
@@ -188,8 +157,7 @@ class TestHardwareConfirmation:
         assert decision.allowed is False
         assert decision.window is None
         assert asked == []
-        # One word, because the console wraps to the terminal it finds and
-        # "local simulator" splits across the break in a narrow pane.
+        # One word: "local simulator" can wrap across lines in a narrow pane.
         assert "simulator" in capsys.readouterr().out, "silence would look like a QPU run"
 
     def test_stdin_that_cannot_answer_at_all_is_not_a_terminal(self, monkeypatch) -> None:
@@ -249,14 +217,7 @@ class TestHardwareConfirmation:
     def test_a_queue_that_cannot_be_read_fails_closed(
         self, sandbox: Path, monkeypatch, capsys
     ) -> None:
-        """A failed peek is not a decision, and it is not permission either.
-
-        `queue_peek` answers None for every failure, and it asks for the queue
-        depth as well, which the child never does. So a status endpoint having a
-        bad minute looks exactly like no QPU existing, while the child's own call
-        may still succeed and submit. Read as consent, that put "this sends no
-        job" on screen and then sent one.
-        """
+        """queue_peek answers None on any failure, which must not read as consent."""
         asked = []
         self._peek(monkeypatch, None)
         monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: asked.append(True))
@@ -303,11 +264,6 @@ class TestHardwareWiring:
     def test_an_explicit_timeout_does_not_waive_the_question(
         self, sandbox: Path, monkeypatch
     ) -> None:
-        """--timeout is a time limit, not consent.
-
-        Passing one used to skip the question entirely, so `qx run 14 --timeout 60`
-        sent a job to a real QPU without asking.
-        """
         from quantum_exercises.backends import Queue
 
         asked = []
@@ -329,12 +285,6 @@ class TestHardwareWiring:
     def test_the_wait_that_is_announced_is_the_wait_that_happens(
         self, sandbox: Path, monkeypatch, capsys
     ) -> None:
-        """It used to promise three hours whatever `--timeout` said.
-
-        The job goes out either way, so the promise was the expensive half: quota
-        spent, then abandoned half a minute later, with the screen still saying it
-        would wait until the queue came back.
-        """
         from quantum_exercises.backends import Queue
 
         self._record(monkeypatch)
@@ -342,8 +292,7 @@ class TestHardwareWiring:
         monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: True)
 
         result = _invoke("run", "14", "--timeout", "30")
-        # Whitespace collapsed, so a line break falling between the number and its
-        # unit cannot decide whether this test passes.
+        # Whitespace collapsed, so a line break cannot split the number from its unit.
         said = " ".join(result.stdout.split())
 
         assert "30 seconds" in said
@@ -352,11 +301,6 @@ class TestHardwareWiring:
     def test_a_confirmed_run_with_no_limit_of_its_own_announces_the_queue_window(
         self, sandbox: Path, monkeypatch
     ) -> None:
-        """The other half of the branch above, whose wording nothing asserted.
-
-        The number is derived from the constant rather than typed out, so changing
-        the window changes the sentence and this test with it.
-        """
         from quantum_exercises.backends import Queue
 
         self._record(monkeypatch)
@@ -369,11 +313,7 @@ class TestHardwareWiring:
         assert "Ctrl-C stops waiting, not the job" in said
 
     def test_ctrl_c_at_the_question_sends_nothing(self, sandbox: Path, monkeypatch) -> None:
-        """Interrupting the prompt is an answer, and the answer is no.
-
-        typer raises Abort, which reaches the runner as an exit rather than a
-        traceback. Nothing may have been submitted on the way out.
-        """
+        """typer raises Abort, which must exit cleanly with nothing submitted."""
         from quantum_exercises.backends import Queue
 
         recorded = self._record(monkeypatch)
@@ -413,7 +353,7 @@ def _hardware_exercise(sandbox: Path):
 
 
 class TestDamagedProgressFile:
-    """Starting fresh is right. Doing it in silence is what left readers guessing."""
+    """A damaged progress file starts fresh, and says so."""
 
     def test_every_command_says_the_file_could_not_be_read(self, sandbox: Path) -> None:
         (sandbox / ".qx-state.json").write_text("{ not json at all", encoding="utf-8")
@@ -433,7 +373,7 @@ class TestDamagedProgressFile:
 
 
 class TestOptionHelp:
-    """A flag whose surprise is not in its help is a surprise the reader meets late."""
+    """A flag's surprising effects belong in its help."""
 
     @staticmethod
     def _help(*args: str) -> str:
@@ -447,11 +387,6 @@ class TestOptionHelp:
         assert "records no progress" in self._help("run")
 
     def test_the_top_level_help_says_how_to_reach_hardware(self) -> None:
-        """Account setup lived only under `doctor --help`, which you had to guess at.
-
-        Someone who does not know the flag exists has no way to find it, and the
-        command list alone never mentioned an account or a key.
-        """
         top = self._help()
         assert "cloud.ibm.com/iam/apikeys" in top, "nothing says where a key comes from"
         assert "--save-account" in top
@@ -544,12 +479,7 @@ class TestDoctorBranches:
 
 
 class TestDoctorOnlineFlag:
-    """`--online` is the one flag that decides whether IBM is contacted at all.
-
-    Everything under it was tested by calling doctor directly, so hardcoding
-    `online=False` at the call site in cli.py would have passed the whole suite
-    while quietly turning the flag off.
-    """
+    """`--online` decides whether IBM is contacted, so cli.py must pass it through."""
 
     @staticmethod
     def _fake_service(monkeypatch) -> None:
@@ -653,11 +583,7 @@ class TestSaveAccount:
     def test_permissions_that_cannot_be_tightened_are_reported(
         self, tmp_path: Path, monkeypatch
     ) -> None:
-        """The key is on disk either way, so this warns rather than failing the save.
-
-        Saying nothing would leave a clear-text key world readable on a shared
-        machine with nothing on screen to say so.
-        """
+        """The key is saved either way, so loose permissions warn rather than fail."""
         self._fake_runtime(monkeypatch, lambda **kw: None)
         monkeypatch.setattr("getpass.getpass", lambda prompt="": "tok")
         monkeypatch.setattr("builtins.input", lambda prompt="": "")
@@ -672,11 +598,6 @@ class TestSaveAccount:
     def test_the_instance_prompt_says_what_skipping_it_means(
         self, tmp_path: Path, monkeypatch
     ) -> None:
-        """ "Press Enter to skip" said it was allowed, never what it did.
-
-        The client resolves the instance itself when the field is empty, which is
-        the answer nearly every reader needs, and it was only in qiskit's docstring.
-        """
         prompts: list[str] = []
         self._fake_runtime(monkeypatch, lambda **kw: None)
         monkeypatch.setattr("getpass.getpass", lambda prompt="": "tok")
@@ -685,7 +606,6 @@ class TestSaveAccount:
 
         result = _invoke("doctor", "--save-account")
         assert "optional" in prompts[0].lower()
-        # And the panel above it says who would want to fill it in.
         assert "optional" in result.stdout.lower()
         assert "several" in result.stdout
 
@@ -759,11 +679,7 @@ class TestEntryPoint:
         assert called == [True]
 
     def test_the_module_runs_as_a_script(self) -> None:
-        """`python -m quantum_exercises.cli` is the route that skips the console script.
-
-        It is what someone reaches for when `qx` is not on PATH, and the only thing
-        holding it up is the `__main__` guard at the bottom of cli.py.
-        """
+        """The fallback when `qx` is not on PATH, relying on the `__main__` guard in cli.py."""
         import subprocess
 
         finished = subprocess.run(  # noqa: S603 - fixed argv, no shell
@@ -792,11 +708,7 @@ def test_prepare_credentials_file_creates_it_owner_only(tmp_path: Path, monkeypa
 def test_tightening_permissions_on_a_file_that_is_not_there_is_not_a_failure(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """Called again after saving, and qiskit may have written nothing to tighten.
-
-    Nothing to do is not the same as failing to do it: reporting a failure here
-    would tell the reader their key is loose when there is no key.
-    """
+    """Nothing to tighten is not a failure, so no warning about a loose key."""
     monkeypatch.setattr(doctor_module, "CREDENTIALS_PATH", tmp_path / "gone" / "qiskit-ibm.json")
     assert cli._restrict_credentials_permissions() is True
 
@@ -849,11 +761,7 @@ def test_restrict_reports_failure(tmp_path: Path, monkeypatch) -> None:
 
 
 class TestTyperChrome:
-    """Typer draws --help and every usage error itself, outside ui.py and theme.py.
-
-    Left alone it uses named colours and rounded corners, so a mistyped option was
-    answered in a red rounded box beside tables this project squares on purpose.
-    """
+    """Typer draws --help and usage errors itself, so it must match our styling."""
 
     def test_every_panel_typer_draws_has_square_corners(self) -> None:
         from rich import box
@@ -905,12 +813,6 @@ class TestTyperChrome:
         assert "{help_option}" in rich_utils.RICH_HELP
 
     def test_a_mistyped_option_is_answered_with_the_option_itself(self) -> None:
-        """`--online` belongs to doctor, and typer answers for the app it was given.
-
-        Nothing here can name the command that owns it: click reports the option it
-        could not match and stops. What it has to do is quote the option back and
-        point at help, or the reader is left with a refusal and nowhere to go.
-        """
         result = _invoke("--online")
         assert result.exit_code == 2
         assert "No such option: --online" in result.output
@@ -918,12 +820,9 @@ class TestTyperChrome:
         assert "--help" in result.output
 
     def test_typer_renders_in_the_same_colour_system_as_the_rest(self) -> None:
-        """Not cosmetic: rich hands both consoles the same Style object.
+        """Not cosmetic: rich shares one cached Style object across consoles.
 
-        Style.parse is cached, and a Style remembers the ANSI it emitted the first
-        time anything rendered it. Let typer negotiate a narrower system than ours
-        and the first `--help` freezes the palette at those codes for every later
-        print in the process, ours included.
+        Whichever console renders first fixes the ANSI codes for every later print.
         """
         from typer import rich_utils
 
@@ -932,14 +831,7 @@ class TestTyperChrome:
         assert ui.console.color_system == rich_utils.COLOR_SYSTEM
 
     def test_the_trap_that_makes_the_guard_above_necessary(self) -> None:
-        """Reproduces the rich behaviour, so the guard is not folklore.
-
-        One Style object is handed to every console, and it keeps the ANSI it
-        emitted the first time. A narrower console rendering first therefore
-        decides the codes for a wider one that comes after. Nothing here can
-        switch that off, which is why the two colour systems are made to agree.
-        Should rich ever stop caching, this fails and the guard can be relaxed.
-        """
+        """Reproduces rich's Style caching. If this fails, the guard can be relaxed."""
         from rich.color import ColorSystem
         from rich.style import Style
 

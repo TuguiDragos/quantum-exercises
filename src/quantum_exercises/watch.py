@@ -13,8 +13,7 @@ from quantum_exercises.runner import ran_on as run_result_ran_on
 from quantum_exercises.runner import run_exercise
 from quantum_exercises.state import load, locked
 
-# Editors save by writing a temp file and renaming it, which fires several events.
-# 200 ms of quiet is enough to collapse those into one run.
+# Editors save via temp file and rename, firing several events; collapse them.
 DEBOUNCE_MS = 200
 STEP_MS = 50
 
@@ -31,9 +30,6 @@ def _announce(exercise: Exercise, root: Path) -> None:
         + Text("   save to re-run, Ctrl-C to stop", style=theme.DETAIL)
     )
     if exercise.hardware:
-        # Watch mode re-runs on every save and asks nothing, so it never reaches a
-        # QPU. Said here because the panel below only reports which backend was
-        # used, not why this mode could not have picked the other one.
         ui.info(
             "Watch mode re-runs on every save, so it stays on a local simulator. "
             f"Use `{invocation()} run {exercise.number}` to send this one to a QPU."
@@ -47,12 +43,10 @@ def _run_and_record(exercise: Exercise, root: Path) -> bool:
     if not result.passed:
         return False
 
-    # Locked for the same reason as qx run: a watcher and a run in another
-    # terminal are exactly the two processes that used to erase each other.
+    # Locked: a `qx run` in another terminal may be saving at the same time.
     with locked(root):
         state = load(root)
         state.mark_done(exercise.slug, ran_on=run_result_ran_on(result.artifacts))
-        # The same helper qx run uses: a read-only clone must warn, not traceback.
         ui.save_progress(root, state)
     return True
 
@@ -79,7 +73,6 @@ def watch_exercise(exercise: Exercise, *, root: Path, exercises: list[Exercise])
             current = following
 
         # watch() is bound to one directory, so advancing needs a fresh watcher.
-        # The outer loop is that re-registration, not recursion.
         while True:
             _announce(current, root)
             advanced_to: Exercise | None = None
@@ -101,7 +94,7 @@ def watch_exercise(exercise: Exercise, *, root: Path, exercises: list[Exercise])
                 _announce(current, root)
 
             if advanced_to is None:
-                # The watcher stopped on its own, for example the directory vanished.
+                # The watcher stopped on its own, e.g. the directory vanished.
                 return
 
             current = advanced_to

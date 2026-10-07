@@ -15,9 +15,7 @@ from quantum_exercises.checks import (
 # against an actual statevector rather than against arithmetic alone.
 MEASURED = (1, 5, 10, 20)
 
-# The ladder shown to the learner. Two qubits apart, so each rung is four times
-# the one below and the growth is visible rather than asserted. It stops at 22,
-# which is 64 MiB: going much past that is not a matter of patience.
+# Two qubits apart, so each rung is four times the last. 22 qubits is 64 MiB.
 LADDER = (14, 16, 18, 20, 22)
 
 # Sizes checked by arithmetic alone, because allocating them is the thing the
@@ -26,16 +24,11 @@ ARITHMETIC = (30, 40, 50, 100)
 
 BUDGET_BYTES = 8 * 1024**3
 
-# Rounding up is the whole difficulty of classical_bytes_for, so the cases that
-# separate a correct answer from a floor division are all here.
-#
-# 9 leads deliberately. At n=1 a floor division and a stray 2**n both give 0, so
-# the first failure would be reported with the wrong cause; at n=9 they give 1
-# and 64, which tell the two mistakes apart.
+# Cases that separate rounding up from floor division. 9 comes first: at n=1 a
+# floor division and a stray 2**n both give 0, at n=9 they give 1 and 64.
 CLASSICAL_CASES = ((9, 2), (1, 1), (7, 1), (8, 1), (16, 2), (17, 3), (50, 7), (100, 13))
 
-# Roughly the number of atoms in the observable universe, to one order of
-# magnitude. Used for a single line of perspective, never for a pass or a fail.
+# Roughly the atoms in the observable universe. Perspective only, never a check.
 ATOMS_IN_THE_UNIVERSE = 1e80
 
 
@@ -170,8 +163,7 @@ def _spread(n: int) -> QuantumCircuit:
 
 def _contrast(amplitudes_for, quantum_bytes_for, classical_bytes_for) -> str:
     rows = [f"{'qubits':>7}{'amplitudes':>22}{'to simulate':>14}{'classical':>12}{'ratio':>12}"]
-    # Stops at 50. Past that the amplitude count runs to thirty digits and every
-    # column loses its alignment, so the hundred-qubit case is prose below.
+    # Past 50 qubits the amplitude count breaks the column alignment.
     for n in (10, 20, 30, 40, 50):
         quantum = quantum_bytes_for(n)
         classical = classical_bytes_for(n)
@@ -240,10 +232,7 @@ def _perspective(amplitudes_for, quantum_bytes_for) -> str:
 
 
 def _human(size) -> str:
-    """Binary units throughout, because the budget is 8 GiB rather than 8 GB.
-
-    Mixing the two is how a table ends up saying 16 and 17 for the same number.
-    """
+    """Binary units throughout, because the budget is 8 GiB rather than 8 GB."""
     for unit in ("B", "KiB", "MiB", "GiB", "TiB", "PiB"):
         if size < 1024 or unit == "PiB":
             return f"{size} B" if unit == "B" else f"{size:.0f} {unit}"

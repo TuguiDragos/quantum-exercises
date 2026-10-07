@@ -33,7 +33,6 @@ document.querySelectorAll("[data-copy]").forEach((button) => {
   });
 });
 
-// Each group of tab buttons shows one panel and hides the others it controls.
 document.querySelectorAll("[data-tabs]").forEach((group) => {
   const buttons = group.querySelectorAll("[data-tab]");
   const show = (id) => buttons.forEach((button) => {
@@ -44,7 +43,7 @@ document.querySelectorAll("[data-tabs]").forEach((group) => {
   buttons.forEach((button) => button.addEventListener("click", () => show(button.dataset.tab)));
 });
 
-// A code block that scrolls sideways takes keyboard focus, so it can be scrolled without a mouse; one that fits does not.
+// Only code blocks that overflow get keyboard focus, so they can be scrolled without a mouse.
 if ("ResizeObserver" in window) {
   const scrollers = new ResizeObserver((entries) => {
     for (const { target } of entries) {

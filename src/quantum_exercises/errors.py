@@ -1,8 +1,7 @@
 """Translate Python and Qiskit exceptions into the language of the domain.
 
-Every pattern here was produced by actually triggering the error against the
-pinned stack, not guessed from memory. When you add a rule, trigger the error
-first and paste the real message.
+Every pattern was taken from a real error on the pinned stack. When you add a
+rule, trigger the error first and paste the real message.
 """
 
 from __future__ import annotations
@@ -14,9 +13,6 @@ from quantum_exercises import invocation
 
 ISSUES_URL = "https://github.com/TuguiDragos/quantum-exercises/issues"
 
-# Shown whenever no rule matched. The rules below only cover mistakes that could
-# be anticipated, and the long tail is exactly the part that cannot be. Asking
-# for the ones we missed is the only way this file improves.
 UNTRANSLATED_HINT = (
     "This error does not have a plain-language explanation yet. If it left you stuck, "
     f"paste it into an issue at {ISSUES_URL} and it will get one."
@@ -31,7 +27,6 @@ class Translation:
     hint: str | None = None
 
 
-# Symbols removed from the qiskit namespace, with what replaced them.
 _REMOVED_FROM_QISKIT = {
     "execute": (
         "`execute()` was removed in Qiskit 1.0.",
@@ -54,7 +49,6 @@ _REMOVED_FROM_QISKIT = {
     ),
 }
 
-# Modules deleted or relocated between Qiskit 0.x and 2.x.
 _REMOVED_MODULES = {
     "qiskit.opflow": (
         "`qiskit.opflow` was removed in Qiskit 1.0.",
@@ -70,9 +64,7 @@ _REMOVED_MODULES = {
     ),
 }
 
-# Names people reach for that QuantumCircuit does not have, and what they meant.
-# Module level like the tables above, so a test can walk it: a mapping built
-# inside the rule reads as covered the moment the rule runs once.
+# Module level so tests can check every entry.
 _CIRCUIT_TYPOS = {
     "measure_al": "measure_all",
     "measureall": "measure_all",
@@ -82,7 +74,6 @@ _CIRCUIT_TYPOS = {
     "toffoli": "ccx",
 }
 
-# Third-party imports whose absence has a specific, actionable fix.
 _MISSING_PACKAGES = {
     "matplotlib": (
         "matplotlib is not installed, so drawing is unavailable.",
@@ -165,12 +156,9 @@ def _import_from_qiskit(exc: BaseException) -> Translation | None:
 
 
 def _qiskit_attribute(exc: BaseException) -> Translation | None:
-    """The other half of the 0.x import: `import qiskit` then `qiskit.execute(...)`.
+    """`import qiskit` then `qiskit.execute(...)`, which raises AttributeError.
 
-    Real message: module 'qiskit' has no attribute 'execute'. The `from qiskit
-    import execute` spelling raises ImportError and is handled above; this one
-    raises AttributeError and used to fall through untranslated, even though it is
-    the more common form in old tutorials.
+    Real message: module 'qiskit' has no attribute 'execute'
     """
     if not isinstance(exc, AttributeError):
         return None
@@ -196,11 +184,8 @@ def _missing_module(exc: BaseException) -> Translation | None:
         message, hint = _REMOVED_MODULES[name]
         return Translation(message, hint)
     root = name.split(".")[0]
-    # Only claim the package is absent when the package itself is what failed.
-    # Python names the first component it could not find, so `name == root` means
-    # the install is missing, while a longer name means the package imported fine
-    # and a submodule under it did not. Saying "matplotlib is not installed" to
-    # someone who typed `matplotlib.pyploy` sends them to reinstall what they have.
+    # exc.name is the first component not found: a dotted name means the package
+    # is installed and only a submodule (often a typo) is missing.
     if root in _MISSING_PACKAGES and name == root:
         message, hint = _MISSING_PACKAGES[root]
         return Translation(message, hint)
@@ -224,8 +209,7 @@ def _circuit_index(exc: BaseException) -> Translation | None:
         return None
     index, size = int(match.group(1)), int(match.group(2))
     if size == 0:
-        # Qiskit words this identically for a qubit and for a classical bit, so the
-        # rule cannot tell them apart. Lead with the common case, name the other.
+        # Qiskit words this the same for qubits and clbits; lead with the common case.
         return Translation(
             f"You addressed index {index}, but the circuit has no wires of that kind at all.",
             "Usually this is a missing classical register: measurement needs somewhere to "
@@ -243,8 +227,7 @@ def _circuit_index(exc: BaseException) -> Translation | None:
 def _duplicate_bits(exc: BaseException) -> Translation | None:
     if "duplicate bit arguments" not in str(exc):
         return None
-    # Qiskit does not name the gate, and the same message covers ccx, so neither
-    # does this: "two-qubit gate, use cx" is wrong advice half the time.
+    # Qiskit does not name the gate, and ccx raises the same message.
     return Translation(
         "A gate was given the same qubit more than once.",
         "`qc.cx(0, 0)` and `qc.ccx(0, 0, 1)` are not valid operations. Every qubit a gate "
@@ -253,13 +236,7 @@ def _duplicate_bits(exc: BaseException) -> Translation | None:
 
 
 def _classical_bits_in_conversion(exc: BaseException) -> Translation | None:
-    """Name the object the learner actually asked for.
-
-    Verified against Qiskit 2.5.2: `Operator()` raises "Cannot apply operation with
-    classical bits" (operator.py), while `Statevector()`, `DensityMatrix()` and the
-    Pauli and Clifford paths raise "instruction". Exercise 08 is about `Operator`,
-    so reporting a statevector problem there points at the wrong line entirely.
-    """
+    """`Operator()` says "operation", while `Statevector()` and others say "instruction"."""
     match = re.search(
         r"Cannot apply (instruction|operation) with classical bits", str(exc), re.IGNORECASE
     )
@@ -353,11 +330,7 @@ def _circuit_attribute(exc: BaseException) -> Translation | None:
 
 
 def _account_problem(exc: BaseException) -> Translation | None:
-    """Two ways an account fails, and they need different advice.
-
-    Matched by class name rather than by import, so this module never depends on
-    qiskit-ibm-runtime being installed.
-    """
+    """Matched by class name, so this module does not need qiskit-ibm-runtime."""
     name = type(exc).__name__
     if name == "AccountNotFoundError":
         return Translation(

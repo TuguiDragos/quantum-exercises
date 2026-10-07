@@ -36,7 +36,7 @@ def ignored(root: Path) -> set[str]:
 
 
 def test_version_agrees_across_every_file(pyproject: dict, root: Path) -> None:
-    """Four files carry the version. They drift the moment one is forgotten."""
+    """Four files carry the version, and they drift the moment one is forgotten."""
     declared = pyproject["project"]["version"]
 
     assert quantum_exercises.__version__ == declared, (
@@ -50,12 +50,7 @@ def test_version_agrees_across_every_file(pyproject: dict, root: Path) -> None:
 
 
 def test_the_lockfile_carries_the_current_version(pyproject: dict, root: Path) -> None:
-    """The fourth place, and the one that fails in CI rather than in review.
-
-    uv.lock records this project as a package like any other. Bump the version
-    without running `uv lock` and every job that runs `uv sync --locked` refuses to
-    start, which is a red build for a reason nothing in the diff points at.
-    """
+    """A version bump without `uv lock` makes every `uv sync --locked` job refuse to start."""
     declared = pyproject["project"]["version"]
     with (root / "uv.lock").open("rb") as handle:
         locked = tomllib.load(handle)
@@ -70,12 +65,7 @@ def test_the_lockfile_carries_the_current_version(pyproject: dict, root: Path) -
 
 
 class TestTheWheelCarriesTheCourse:
-    """`pip install` has to hand over something to run, or `qx init` has nothing.
-
-    Checked against the build configuration rather than by building, which keeps
-    it to milliseconds. The CI `wheel` job builds one for real and takes a learner
-    through it.
-    """
+    """`pip install` must ship the course, or `qx init` has nothing to copy."""
 
     @staticmethod
     def _force_include(pyproject: dict) -> dict:
@@ -87,13 +77,7 @@ class TestTheWheelCarriesTheCourse:
         assert "notebooks" in included
 
     def test_they_land_where_the_root_search_cannot_reach(self, pyproject: dict) -> None:
-        """Under the package, not beside it.
-
-        find_project_root walks up looking for `<ancestor>/exercises`, so a course
-        nested this deep is invisible to it. Move it up one level and an installed
-        copy becomes a candidate working directory, which means `qx run` checking
-        answers inside site-packages and `qx reset` trying to write there.
-        """
+        """Nested under the package, so find_project_root never mistakes it for a working copy."""
         from quantum_exercises.registry import BUNDLED_COURSE
 
         expected = f"quantum_exercises/{BUNDLED_COURSE.name}"
@@ -114,13 +98,7 @@ class TestTheWheelCarriesTheCourse:
 
 
 class TestNothingPrivateIsTracked:
-    """A learner's own files sit in the repository and none of them belong in git.
-
-    state.py opens with "never committed" and cli.py writes `.bak` copies beside
-    lesson files. Both are true only for as long as .gitignore says so, and a
-    missing line there would be noticed by nobody until a progress file, or a
-    backup carrying someone's answer, arrived in a pull request.
-    """
+    """Progress files and `.bak` copies hold a learner's answers; none belong in git."""
 
     def test_the_progress_file_and_its_neighbours_are_ignored(self, ignored: set[str]) -> None:
         from quantum_exercises.state import LOCK_FILENAME, STATE_FILENAME, UNREADABLE_SUFFIX
@@ -201,14 +179,11 @@ class TestTheSdistCarriesTheRepository:
         return pyproject["tool"]["hatch"]["build"]["targets"]["sdist"]["exclude"]
 
     def test_the_screenshots_stay_out(self, pyproject: dict) -> None:
-        """Seven megabytes of the archive. No build step reads them, and the README
-        PyPI renders loads them over https rather than out of the file."""
+        """No build step reads them, and PyPI loads them over https."""
         assert "readme-assets" in self._excluded(pyproject)
 
     def test_the_website_stays_out(self, pyproject: dict) -> None:
-        """website/ builds the project's site from this repository. Nothing that
-        builds the package reads it, and its screenshots would grow the archive
-        from half a megabyte to several."""
+        """Nothing that builds the package reads it, and its screenshots would bloat the archive."""
         assert "website" in self._excluded(pyproject)
 
     def test_nothing_a_build_needs_is_excluded(self, pyproject: dict) -> None:
@@ -277,19 +252,9 @@ def _is_badge(url: str) -> bool:
 def badges(root: Path) -> dict[str, str]:
     """Every badge in the README: label -> URL.
 
-    Both spellings are read. The badge row is centred, and GitHub does not render
-    markdown inside an HTML block, so centring it meant writing the badges as
-    `<img>`. The markdown form is still matched, because nothing forces the whole
-    row to convert at once and a half-converted row is exactly what would slip
-    through. The row moving to HTML once already emptied this dict of all nine
-    badges at a stroke.
-
-    An HTML badge is labelled by the first word of its alt text, so the alt can
-    stay useful to a screen reader, "qiskit 2.5.1", while the assertions below
-    still look it up as "qiskit". Only the two badge hosts count. Being on https
-    used to be enough to tell a badge from a screenshot, because the screenshots
-    were relative paths. They became absolute so PyPI could render them, and the
-    hero image immediately arrived here labelled "quantum-exercises:".
+    Both markdown and `<img>` forms are read, so a half-converted row cannot slip
+    through. An HTML badge is labelled by the first word of its alt text, and only
+    the two badge hosts count, so screenshots are not mistaken for badges.
     """
     readme = (root / "README.md").read_text(encoding="utf-8")
 
@@ -316,7 +281,7 @@ def _ci_matrix(root: Path) -> set[str]:
 
 
 class TestDependencyInventory:
-    """CONTRIBUTING lists every dependency. Lists drift; this stops that silently."""
+    """CONTRIBUTING lists every dependency; this keeps the list from drifting."""
 
     def test_every_declared_dependency_is_documented(self, pyproject: dict, inventory: str) -> None:
         documented = _inventory_rows(inventory)
@@ -336,11 +301,7 @@ class TestDependencyInventory:
             )
 
     def test_documented_versions_are_the_installed_ones(self, inventory: str) -> None:
-        """Resolution is per-interpreter, so this only holds on the documented one.
-
-        numpy and scipy resolve lower on 3.10, because their newer releases have
-        dropped it. Asserting a single universal version was wrong and broke CI.
-        """
+        """Resolution is per interpreter: numpy and scipy resolve lower on 3.10."""
         from importlib.metadata import PackageNotFoundError
         from importlib.metadata import version as installed_version
 
@@ -358,11 +319,7 @@ class TestDependencyInventory:
             assert actual == claimed, f"{name}: documented {claimed}, installed {actual}"
 
     def test_locked_package_counts_are_accurate(self, root: Path, inventory: str) -> None:
-        """Three different numbers, and the prose used to give one of them a wrong name.
-
-        uv.lock holds one entry per resolution, so entries outnumber packages, and
-        both outnumber what any single environment installs.
-        """
+        """uv.lock has one entry per resolution, so entries outnumber packages."""
         from importlib.metadata import distributions
 
         with (root / "uv.lock").open("rb") as handle:
@@ -378,21 +335,12 @@ class TestDependencyInventory:
         running = f"{sys.version_info.major}.{sys.version_info.minor}"
         if running != DOCUMENTED_INTERPRETER:
             pytest.skip(f"the count is for {DOCUMENTED_INTERPRETER}; this is {running}")
-        # Only the first two counts are properties of the lockfile. The third is a
-        # property of a machine: ipykernel pulls appnope on macOS and nowhere else,
-        # so a mac installs exactly one distribution more than Linux does. The
-        # documented figure is the Linux one, because that is what CI can hold to,
-        # and asserting it on a mac was checking a number the prose never claimed.
-        # It passed for months only because it was written on the machine it
-        # described.
+        # The installed count is per platform: ipykernel pulls appnope on macOS only.
+        # The documented figure is the Linux one, which CI can hold to.
         if sys.platform != "linux":
             pytest.skip(f"the count is for Linux; this is {sys.platform}")
 
-        # Counted against the lock rather than against everything importable. The
-        # coverage job runs the suite under `uv run --with coverage`, which puts a
-        # package in the environment that `uv sync` never installs, and a bare
-        # count read that as the documented figure being wrong. Anything not in
-        # uv.lock was injected for the run, so it is not part of what is claimed.
+        # Counted against the lock: `uv run --with coverage` injects packages it lacks.
         def canonical(name: str) -> str:
             return re.sub(r"[-_.]+", "-", name).lower()
 
@@ -418,7 +366,7 @@ class TestDependencyInventory:
 
 
 class TestReadmeBadges:
-    """Static badges state versions. A badge that lies is worse than no badge."""
+    """Static badges state versions, so they must match what is installed."""
 
     def test_the_expected_badges_are_present(self, badges: dict[str, str]) -> None:
         expected = {
@@ -487,22 +435,15 @@ def _caught(rule: dict, blob: str) -> bool:
 class TestSecretScanning:
     """The custom gitleaks rule, exercised rather than assumed.
 
-    gitleaks itself runs in CI and in pre-commit; this checks the pattern the
-    config actually carries, so a well-meant edit cannot quietly stop it matching.
-    Python's `re` and Go's RE2 agree on every construct used here, and each case
-    below was confirmed against the pinned gitleaks 8.30.1 binary.
+    Each case was confirmed against the pinned gitleaks 8.30.1 binary; Python's `re`
+    and Go's RE2 agree on every construct used here.
     """
 
     def test_a_key_in_a_python_file_is_caught(self, secret_rule: dict) -> None:
         assert _caught(secret_rule, f'QiskitRuntimeService(token="{SAMPLE_KEY}")')
 
     def test_a_key_in_a_notebook_cell_is_caught(self, secret_rule: dict) -> None:
-        """A .ipynb stores cell source as JSON, so the quotes arrive backslashed.
-
-        README sends readers to notebooks/playground.ipynb to experiment, which
-        makes it the likeliest place in this repository for a key to be pasted.
-        The rule was anchored to a bare quote and missed this case entirely.
-        """
+        """A .ipynb stores cell source as JSON, so the quotes arrive backslashed."""
         source = f'QiskitRuntimeService(token="{SAMPLE_KEY}")\n'
         notebook = json.dumps({"cells": [{"cell_type": "code", "source": [source]}]})
         assert '\\"' in notebook, "fixture is wrong: the quotes should be escaped"
@@ -515,18 +456,9 @@ class TestSecretScanning:
         assert not _caught(secret_rule, f'token="{placeholder}"')
 
 
-# README.md carries a block of blog links that .github/workflows/rotate-notes.yml
-# rewrites from an RSS feed twice a month. Those titles are not written here, they
-# arrive from outside, and the two scanners below look for a bare string anywhere
-# in a file. A post titled around `uv run qx` would fail both of them.
-#
-# That failure would also be invisible until it hurt someone else: the rotation
-# commit is pushed with GITHUB_TOKEN, and a GITHUB_TOKEN push creates no workflow
-# run, so CI never sees it. The README would sit poisoned until the next real pull
-# request, which would then go red for a reason having nothing to do with it.
-#
-# Blanked rather than cut, so the line numbers in the failure messages still point
-# at the right lines further down the file.
+# The README's notes block is rewritten from an RSS feed by a GITHUB_TOKEN push,
+# which runs no CI, so outside titles must not fail the scanners below. Blanked
+# rather than cut, so failure line numbers stay right.
 NOTES_BLOCK = re.compile(r"<!-- NOTES:START -->.*?<!-- NOTES:END -->", re.S)
 
 
@@ -538,11 +470,9 @@ def _authored(text: str) -> str:
 class TestNoDerivativeFraming:
     """This project is described on its own terms, not as a version of another.
 
-    The name searched for is assembled at run time rather than written out, so
-    this file is scanned along with everything else instead of matching itself.
+    The name is assembled at run time so this file does not match itself.
     """
 
-    # Projects this was once described as a variant of.
     FORBIDDEN = ("rust" + "lings",)
 
     def test_nothing_describes_the_project_by_comparison(self, root: Path) -> None:
@@ -590,12 +520,7 @@ class TestOneSpellingForTheCommand:
     def _invocation_with(
         monkeypatch: pytest.MonkeyPatch, prefix: Path, path_entries: list[Path]
     ) -> str:
-        """Answer invocation() against a real PATH holding real executables.
-
-        Built on disk rather than by patching shutil.which, because the lookup
-        walks PATH one directory at a time and a stubbed which() cannot model
-        which entry a hit came from, which is the whole question being asked.
-        """
+        """Answer invocation() against a real PATH; a stubbed which() hides which entry hit."""
         from quantum_exercises import invocation
 
         # shutil.which only matches a bare name on Windows if it ends in a PATHEXT
@@ -618,11 +543,7 @@ class TestOneSpellingForTheCommand:
     def test_only_a_qx_inside_this_environment_is_not_advertised(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        """`uv run` puts the project's own bin on PATH for the length of one command.
-
-        Answering "qx" on the strength of that tells the reader to type a command
-        their next shell does not have, which is the case this helper exists for.
-        """
+        """`uv run` puts the project's bin on PATH for one command only."""
         env = tmp_path / "project" / ".venv"
         assert self._invocation_with(monkeypatch, env, [env / "bin"]) == "uv run qx"
 
@@ -636,12 +557,7 @@ class TestOneSpellingForTheCommand:
     def test_a_global_qx_wins_over_the_one_in_an_active_venv(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        """An activated project venv shadows the global qx, but does not replace it.
-
-        The venv's copy comes first on PATH, so stopping at the first hit answered
-        "uv run qx" to someone who has qx installed and can simply type it. The
-        search has to look past its own environment before giving up.
-        """
+        """An active venv comes first on PATH, so the search must look past it for a global qx."""
         env = tmp_path / "project" / ".venv"
         entries = [env / "bin", tmp_path / "local" / "bin"]
         assert self._invocation_with(monkeypatch, env, entries) == "qx"

@@ -1,10 +1,7 @@
-"""The palette holds everywhere, and nothing outside theme.py names a colour.
+"""The palette holds everywhere, and nothing outside theme.py names a color.
 
-Two layers. The static one reads the source and refuses any colour literal
-outside the palette module. The rendering one drives the real UI functions
-through a truecolour console and inspects the escape sequences that come out,
-which is the only way to catch a colour rich supplies on our behalf: its default
-markdown styles and its automatic highlighter both did exactly that.
+A static layer refuses color literals outside the palette module. A rendering layer
+inspects real escape sequences, which also catches colors rich supplies itself.
 """
 
 from __future__ import annotations
@@ -38,19 +35,14 @@ PALETTE_RGB = {
     for hex_colour, name in PALETTE.items()
 }
 
-# Basic and bright SGR colour codes. Anything here means a named colour reached
-# the terminal, which is what the palette is meant to have replaced.
+# Basic and bright SGR color codes: any of these means a named color leaked.
 LEGACY_SGR = set(range(30, 38)) | set(range(40, 48)) | set(range(90, 98)) | set(range(100, 108))
 
 HEX_COLOUR = re.compile(r"#[0-9a-fA-F]{6}\b")
 
 
 def _parse_sgr(data: bytes) -> tuple[set[tuple[int, int, int]], set[int], set[int]]:
-    """Walk SGR parameters properly: 38 and 48 consume their own arguments.
-
-    Splitting naively reads the blue channel of #3d3f60 as the code for bright
-    cyan, which is how an earlier version of this check reported false leaks.
-    """
+    """Walk SGR parameters properly: 38 and 48 consume their own arguments."""
     truecolour: set[tuple[int, int, int]] = set()
     legacy: set[int] = set()
     indexed: set[int] = set()
@@ -77,20 +69,10 @@ def _parse_sgr(data: bytes) -> tuple[set[tuple[int, int, int]], set[int], set[in
 
 
 def _truecolour_console() -> Console:
-    """A console that emits truecolour into a buffer, styled like the real one.
+    """A console that emits truecolor into a buffer, styled like the real one.
 
-    The style cache is emptied first. rich hands out one Style object per colour
-    and that object remembers the ANSI it emitted the first time, so a console
-    built earlier in the session with a narrower colour system leaves codes behind
-    that this one would then repeat. Forcing truecolour here is only true of the
-    console, not of the cache it reads.
-
-    `no_color=False` is the other half, and it is about the machine running the
-    tests rather than about rich. A reader who keeps NO_COLOR set, which is an
-    ordinary preference and one this tool is right to honour, got a console that
-    emitted no codes at all here, and every assertion on an exact colour failed.
-    Forty-three of them. The flag is passed explicitly because rich reads that
-    variable when the console is built, and it outranks both arguments above.
+    The style cache is cleared first, because rich's shared Style objects remember
+    the ANSI they first emitted. `no_color=False` overrides a NO_COLOR environment.
     """
     Style.parse.cache_clear()
     stream = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
@@ -131,13 +113,7 @@ def _assert_palette_only(console: Console, what: str) -> None:
 def test_the_console_under_test_emits_colour_even_where_the_reader_wants_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """NO_COLOR is an ordinary thing to have set, and this tool honours it.
-
-    Every assertion in this file reads exact codes back, so a console that
-    honoured it here would report the palette as broken on the machines of the
-    people most likely to care about terminal output. It did, on all forty-three
-    of them, and the failure said nothing about the cause.
-    """
+    """Every assertion here reads exact codes, so NO_COLOR must not switch them off."""
     monkeypatch.setenv("NO_COLOR", "1")
     console = _truecolour_console()
 
@@ -283,14 +259,10 @@ class TestBarColouring:
     def test_the_colour_changes_exactly_where_the_fill_ends(
         self, captured: Console, width: int, track: str, numerator: int
     ) -> None:
-        """Off by one here paints a cell of track in the fill colour, or the reverse.
+        """Off by one here paints a cell of track in the fill color, or the reverse.
 
-        The fill is judged against the rule it exists to follow rather than against
-        the line that implements it. Recomputing `int(fraction * width)` here would
-        only prove the drawing agrees with itself, and a bar that filled one cell
-        too many would satisfy that happily. The rule has two halves: a filled cell
-        may never stand for work that is not done, and the bar may never sit more
-        than one cell behind the work.
+        Judged against the rule rather than recomputing `int(fraction * width)`: a filled
+        cell never stands for unfinished work, and the bar is never a cell behind.
         """
         fraction = numerator / 20
         drawn = ui._bar(fraction, width=width, track=track)
@@ -307,8 +279,6 @@ class TestBarColouring:
             red, green, blue = (int(colour[i : i + 2], 16) for i in (1, 3, 5))
             return f"\x1b[38;2;{red};{green};{blue}m"
 
-        # Whatever rich does with spans, the visible run of fill has to be this long
-        # and the track has to be recoloured the moment it stops.
         if filled:
             assert sgr(theme.ACCENT) in emitted
             assert ui._FULL * filled in emitted
@@ -318,7 +288,7 @@ class TestBarColouring:
 
 
 class TestStatusColours:
-    """Three states, three appearances. Two of them used to look identical."""
+    """Three states, three appearances."""
 
     def test_every_status_is_told_apart_from_the_others(self) -> None:
         styles = {label: style for label, (_, style) in ui.STATUS_STYLE.items()}
@@ -327,11 +297,7 @@ class TestStatusColours:
         )
 
     def test_solved_reads_between_todo_and_done(self) -> None:
-        """It counts toward the progress bar, so it must not look unstarted.
-
-        It was reached by revealing the answer, so it does not get the weight
-        that `done` carries either.
-        """
+        """It counts toward the progress bar, but was revealed, so it is not quite `done`."""
         assert theme.ACCENT in theme.STATUS_SOLVED, "solved counts as finished"
         assert theme.ACCENT not in theme.STATUS_TODO, "todo does not"
         assert "bold" in theme.STATUS_DONE and "bold" not in theme.STATUS_SOLVED

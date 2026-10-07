@@ -23,14 +23,10 @@ EXERCISES_DIR = "exercises"
 NOTEBOOKS_DIR = "notebooks"
 SLUG_PATTERN = re.compile(r"^(\d{2})_[a-z0-9_]+$")
 
-# A pristine course, shipped inside the wheel so that installing the tool is
-# enough to have something to run. Deliberately nested one level below the
-# package directory: find_project_root walks up from there looking for
-# `<ancestor>/exercises`, so a course at this depth is invisible to it, and an
-# installed copy can never be mistaken for the writable one a learner edits.
+# The course shipped in the wheel. Nested below the package so find_project_root,
+# which walks up, never mistakes this read-only copy for the learner's.
 BUNDLED_COURSE = Path(__file__).resolve().parent / "_course"
 
-# Files that make up one exercise.
 EXERCISE_FILE = "exercise.py"
 SOLUTION_FILE = "solution.py"
 CHECK_FILE = "check.py"
@@ -44,8 +40,7 @@ class RegistryError(RuntimeError):
     """The exercises directory is missing or an exercise is malformed."""
 
 
-# Generous enough for a slow first Qiskit import, short enough that an infinite
-# loop in exercise.py does not hang the terminal. Overridable per exercise.
+# Room for a slow first Qiskit import without letting an infinite loop hang.
 DEFAULT_TIMEOUT = 120
 
 
@@ -87,15 +82,7 @@ class Exercise:
 
 
 def holds_exercises(directory: Path) -> bool:
-    """Whether this directory is a project root, rather than merely near one.
-
-    An `exercises/` directory alone is not enough. Anyone can have `~/exercises`
-    for something else, and it used to shadow the real repository from every
-    directory beneath it: the walk stopped there, reported "No exercises found",
-    and told the reader to run from inside the repository, which is what they
-    thought they were doing. It also made the installed-package fallback below
-    unreachable for anyone with such a directory in their home.
-    """
+    """Whether `exercises/` here holds a numbered exercise, unlike an unrelated `~/exercises`."""
     base = directory / EXERCISES_DIR
     try:
         return base.is_dir() and any(
@@ -106,14 +93,7 @@ def holds_exercises(directory: Path) -> bool:
 
 
 def find_project_root(start: Path | None = None) -> Path:
-    """Locate the repo root: the nearest ancestor whose exercises/ directory holds one.
-
-    Holding the directory is not enough. A plain `~/exercises` used to swallow the
-    search from everything beneath it, so a candidate only counts when at least one
-    numbered exercise sits inside. See holds_exercises.
-
-    QX_ROOT overrides the search, which is what the test suite uses.
-    """
+    """The nearest ancestor that holds_exercises. QX_ROOT overrides the search."""
     override = os.environ.get("QX_ROOT")
     if override:
         root = Path(override).expanduser().resolve()
@@ -133,9 +113,6 @@ def find_project_root(start: Path | None = None) -> Path:
             if holds_exercises(directory):
                 return directory
 
-    # Both audiences in one message. Someone who installed the tool has no
-    # repository to be inside, and telling them to find one is advice they cannot
-    # take; someone who cloned it has a course already and only took a wrong turn.
     raise RegistryError(
         f"Could not find an {EXERCISES_DIR}/ directory here or above. Run "
         f"`{invocation()} init` to put a course somewhere you can edit, or change "
@@ -144,13 +121,7 @@ def find_project_root(start: Path | None = None) -> Path:
 
 
 def course_template() -> Path:
-    """Where an unedited copy of the course lives, for `qx init` to copy out of.
-
-    A wheel carries one inside the package. A clone does not, and there the
-    repository is the template, which is also what a contributor wants: running
-    `qx init` from a checkout should hand over the exercises in that checkout,
-    edits to them included.
-    """
+    """The course `qx init` copies: the bundled one, or the checkout itself."""
     if (BUNDLED_COURSE / EXERCISES_DIR).is_dir():
         return BUNDLED_COURSE
     return find_project_root()
@@ -176,11 +147,7 @@ def load_exercise(path: Path) -> Exercise:
         )
     meta = _read_meta(path)
 
-    # exercise.py is deliberately absent from this list. It is the one file the
-    # learner edits, so losing it is an ordinary accident, and `qx reset` restores
-    # it from template.py. Requiring it here failed every command at once,
-    # including the reset that repairs it, and left no way out of the tool. The
-    # runner reports the missing file for the one exercise it affects instead.
+    # exercise.py is not required: a missing one must not block `qx reset`.
     for required in (SOLUTION_FILE, CHECK_FILE):
         if not (path / required).is_file():
             raise RegistryError(f"{path.name} is missing {required}.")
@@ -189,11 +156,7 @@ def load_exercise(path: Path) -> Exercise:
     if missing_keys:
         raise RegistryError(f"{path.name}/{META_FILE} is missing keys: {sorted(missing_keys)}")
 
-    # The one conversion that used to be unguarded. int() on a string raises
-    # ValueError rather than RegistryError, and load_exercises() reads every
-    # exercise, so one typo took down every command at once. A zero or negative
-    # value parsed fine and produced "did not finish within -5 seconds".
-    # bool is a subclass of int, so `timeout = true` needs excluding by hand.
+    # bool is a subclass of int, so `timeout = true` must be excluded explicitly.
     timeout = meta.get("timeout", DEFAULT_TIMEOUT)
     if isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0:
         raise RegistryError(
@@ -214,16 +177,7 @@ def load_exercise(path: Path) -> Exercise:
 
 
 def _is_exercise_dir(entry: Path) -> bool:
-    """Whether this directory is meant to be an exercise at all.
-
-    Numbered, or holding a meta.toml. That second test is what separates a
-    misnamed exercise from a directory that was never one: a scratch `notes/` a
-    learner leaves in exercises/ is skipped, while `3_first_circuit` still raises
-    below rather than silently dropping out of the course.
-
-    Every directory used to be treated as an exercise, so one stray folder made
-    every command exit 2.
-    """
+    """Numbered or holding a meta.toml: a misnamed exercise still raises, `notes/` is skipped."""
     if not entry.is_dir() or entry.name.startswith("."):
         return False
     return bool(SLUG_PATTERN.match(entry.name)) or (entry / META_FILE).is_file()
@@ -259,14 +213,12 @@ def load_hints(exercise: Exercise) -> list[str]:
         return []
     text = exercise.hints_file.read_text(encoding="utf-8")
     parts = HINT_HEADING.split(text)
-    # The first chunk is whatever precedes the first heading, usually nothing.
     return [chunk.strip() for chunk in parts[1:] if chunk.strip()]
 
 
 def resolve(name: str, exercises: list[Exercise]) -> Exercise:
     """Look up an exercise by number, slug, or unique substring."""
-    # isdecimal, not isdigit: isdigit accepts characters like the superscript two
-    # that int() then refuses, which would surface as a raw traceback.
+    # isdigit accepts characters like "²" that int() rejects.
     if name.isdecimal():
         wanted = int(name)
         for exercise in exercises:

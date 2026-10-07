@@ -1,27 +1,10 @@
 name: Rotate notes
 
-# Rewrites the block between the NOTES markers in README.md with five posts from
-# the author's feed, chosen by a seeded shuffle so the set changes without ever
-# repeating inside a cycle.
+# Rewrites the NOTES block in README.md with five posts from the author's feed.
 #
-# It is also the only thing in this repository that commits on a schedule, and
-# that is deliberate. GitHub disables a scheduled workflow in a public repository
-# after 60 days with no activity, and this project is meant to reach a state
-# where nobody touches it for months, which is exactly the state that would stop
-# verify.yml without a word. A commit twice a month keeps the clock from ever
-# getting close.
-#
-# Twice a month rather than daily, and the reason is margin rather than cost: a
-# run is about a minute. Sixty days is the limit, and the widest gap between the
-# 1st and the 15th is seventeen days, so two consecutive runs can fail outright
-# before the clock gets anywhere near it. Runs do fail; a GitHub incident took
-# out every job in this repository on the day this was written.
-#
-# Monthly would look tidier and halve that margin twice over: one skipped run
-# puts the gap at sixty-two days, past the limit, from a single bad morning.
-#
-# Cron has no notion of a week of the year, so "every two weeks" is not
-# expressible. Fixed days of the month are, and land close enough.
+# The commit also keeps the repository active: GitHub disables scheduled
+# workflows (verify.yml) after 60 days without activity. Twice a month leaves
+# room for two failed runs in a row; monthly would not survive one.
 
 on:
   schedule:
@@ -34,14 +17,10 @@ jobs:
   rotate:
     runs-on: ubuntu-latest
     permissions:
-      # The one workflow here that writes. Everything else in this repository
-      # runs read-only, so this is the job to look at first if the question is
-      # ever "what can CI change".
+      # The only workflow with write access.
       contents: write
     steps:
-      # Pinned by commit, like every other action in this repository. It matters
-      # most here: this is the workflow holding write access, so a moved tag
-      # would be a moved tag on the one job that can push.
+      # SHA-pinned; this job can push.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -125,10 +104,7 @@ jobs:
           const seen = new Set();
           const picked = today.filter((i) => !seen.has(i.link) && seen.add(i.link));
 
-          // A square bracket in a post title would end the markdown link early and
-          // leave the rest of the title loose in the README. The titles come from a
-          // feed rather than from this repository, so they are escaped rather than
-          // trusted.
+          // Titles come from an external feed; escape brackets so they cannot break the link.
           const esc = (s) => s.replace(/[[\]]/g, "\\$&");
 
           const list = picked.map((i) => `- [${esc(i.title)}](${i.link})`).join("\n");

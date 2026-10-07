@@ -23,8 +23,7 @@ def _exercise_dir(tmp_path: Path, check_body: str) -> Path:
     return directory
 
 
-# Never awaiting the coroutine is the point: the worker has to refuse it, not run
-# it, and Python warns about the abandoned object on the way out.
+# Never awaited on purpose: the worker must refuse it, and Python warns on exit.
 @pytest.mark.filterwarnings("ignore:coroutine .* was never awaited:RuntimeWarning")
 @pytest.mark.parametrize(
     ("body", "fragment"),
@@ -90,11 +89,7 @@ def test_main_always_writes_a_verdict(tmp_path: Path) -> None:
 
 
 def test_main_reports_its_own_failure_rather_than_dying(tmp_path: Path, monkeypatch) -> None:
-    """The parent reads a file. No file at all is reported to the learner as a crash.
-
-    So the last resort has to be a written verdict, even when the runner itself is
-    what broke.
-    """
+    """No verdict file reads as a crash, so even a broken runner must write one."""
     directory = _exercise_dir(tmp_path, "def check(mod):\n    return None\n")
     out = tmp_path / "result.json"
 
@@ -119,11 +114,7 @@ def test_a_file_python_cannot_import_is_an_import_error(tmp_path: Path) -> None:
 
 
 def test_a_syntax_error_reports_its_own_line(tmp_path: Path) -> None:
-    """A SyntaxError never reaches a frame inside the learner's file.
-
-    The file failed to compile, so no frame of it was ever executed and walking
-    the traceback finds nothing. The exception carries the line instead.
-    """
+    """A file that failed to compile has no frame to walk; the exception carries the line."""
     source = tmp_path / "broken.py"
     source.write_text("answer = 1\nresult = (42\n", encoding="utf-8")
     try:
@@ -146,12 +137,7 @@ def test_a_nested_payload_survives_json(tmp_path: Path) -> None:
 
 
 class TestVerdictBounds:
-    """The verdict file is the other way out of this process, so it has a size too.
-
-    Clipping used to reach the top-level strings and nothing else, so an artifact
-    payload travelled whole: a check returning a megabyte of text put all of it in
-    the parent's memory and then on the terminal.
-    """
+    """The verdict file is the other way out of this process, so it is bounded too."""
 
     def test_a_giant_artifact_payload_is_clipped(self, tmp_path: Path) -> None:
         huge = "A" * (worker_module.MAX_FIELD_CHARS * 3)
@@ -204,13 +190,7 @@ class TestVerdictBounds:
     def test_a_payload_json_cannot_walk_is_reported_not_fatal(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A deeply nested payload makes json.dumps raise RecursionError.
-
-        Raised here rather than nested for real, because the depth json gives up
-        at is a property of the stack, not of anything this project sets. Left
-        uncaught it killed the worker before it wrote anything, and the parent
-        reported that as the learner stopping the process.
-        """
+        """json.dumps raising RecursionError must not kill the worker."""
 
         def boom(payload: dict) -> dict:
             raise RecursionError("maximum recursion depth exceeded")

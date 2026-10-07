@@ -105,9 +105,7 @@ def _check_flip(qc) -> None:
             ),
         )
 
-    # Position matters, not just the tally: h, h, x also has two Hadamards and
-    # also equals X, but it is an identity followed by a NOT and teaches nothing
-    # about a phase interfering with anything.
+    # Position matters: h, h, x also equals X but involves no interference.
     middle = names[1:-1]
     if names[0] != "h" or names[-1] != "h" or not any(name != "h" for name in middle):
         raise CheckFailed(

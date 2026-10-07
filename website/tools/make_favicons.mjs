@@ -1,8 +1,7 @@
-// Writes the favicon set into website/static from favicon-source.svg: the SVG itself, an ICO of 16, 32 and 48, a 96 px
-// PNG for search engines (Google does not take an SVG, and wants more than 48 px), and full-bleed PNGs for home
-// screens, which round their own corners. Run it again only when the icon changes:
+// Writes the favicon set into website/static from favicon-source.svg. The 96 px PNG is for Google, which takes no SVG;
+// home-screen icons are full bleed because the OS rounds the corners. Run from the repository root:
 // npm install --no-save --prefix website playwright@1, npx --prefix website playwright install chromium, then
-// node website/tools/make_favicons.mjs from the repository root.
+// node website/tools/make_favicons.mjs
 import { chromium } from "playwright";
 import fs from "node:fs";
 const TILE = "#0b0d18";
@@ -22,7 +21,7 @@ fs.writeFileSync(out("favicon-96x96.png"), await draw(96, false));
 for (const [name, size] of [["apple-touch-icon.png", 180], ["icon-192.png", 192], ["icon-512.png", 512]]) {
   fs.writeFileSync(out(name), await draw(size, true));
 }
-// An ICO is a directory of images, and each entry here is a whole PNG, which every current browser reads.
+// ICO entries are embedded PNGs, which every current browser reads.
 const sizes = [16, 32, 48];
 const pngs = [];
 for (const size of sizes) pngs.push(await draw(size, false));

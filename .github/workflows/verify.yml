@@ -1,32 +1,10 @@
 name: verify
 
-# Named for what it does rather than for how often it does it. It was called
-# weekly-verify until the schedule moved to the 1st and the 15th, at which point
-# the name was the only thing still claiming otherwise.
-
-# The point of this workflow is not to test the code, ci.yml does that. It is to
-# answer one question: does this curriculum still work against the Qiskit that
-# exists today?
+# Does the curriculum still work against today's Qiskit? "latest" ignores
+# uv.lock on purpose. The costly locked OS matrix runs only on the 1st.
 #
-# That is why the "latest" job deliberately ignores uv.lock. If a new Qiskit
-# release breaks a reference solution, this is what notices.
-#
-# The jobs run on different cadences because they are worth different amounts.
-# "latest" resolves fresh versions, so it is the only one that can catch an
-# external change, and it costs one runner. "locked" installs the exact versions
-# recorded in uv.lock, which by definition do not change, so it can only fail
-# when a runner image or an interpreter patch moves under it. It is also by far
-# the most expensive thing in this repository: three operating systems, one of
-# them macOS, which is billed at ten times the Linux rate while this repository
-# is private. Running it every week to learn that pinned versions are still
-# pinned was the wrong way round.
-#
-# Everything scheduled here fires on the 1st and the 15th, so the calendar holds
-# two dates rather than a scatter of weekdays.
-#
-# Two cron entries rather than one "1,15": a single entry reports the same string
-# to github.event.schedule on both days, and the gate below would have nothing to
-# tell them apart by.
+# Two cron entries rather than "1,15": github.event.schedule reports the cron
+# string, so the jobs need distinct strings to tell the days apart.
 
 on:
   schedule:
@@ -39,35 +17,16 @@ permissions: {}
 env:
   QX_OFFLINE: "1"
 
-  # Three tests assert that the installed environment is the one the docs
-  # describe: the README version badges, the CONTRIBUTING version table, and the
-  # uv.lock package counts. All three hold for a locked install and are false by
-  # construction in any job that installs something newer on purpose. Left in,
-  # the first Qiskit patch release would turn this badge red over a stale badge
-  # rather than a broken exercise, which is the sort of false alarm that teaches
-  # a maintainer to stop reading the signal.
-  #
-  # Deselected by node id, so renaming one of these tests quietly stops
-  # deselecting it. A `pinned` marker would survive a rename, but that is a
-  # change to the test files rather than to CI.
-  #
-  # Handed to the jobs below through PYTEST_ADDOPTS rather than interpolated into
-  # the command line. pytest splits that variable itself, so the arguments never
-  # depend on the shell doing word splitting on an unquoted expansion, which bash
-  # does and several other shells do not.
+  # Tests that only hold for the locked versions (badges, version table, lock
+  # counts). By node id, so renaming one of them silently stops deselecting it.
+  # Passed via PYTEST_ADDOPTS so pytest splits it, not the shell.
   UNPINNED_DESELECT: >-
     --deselect tests/test_packaging.py::TestReadmeBadges::test_version_badges_match_the_installed_version
     --deselect tests/test_packaging.py::TestDependencyInventory::test_documented_versions_are_the_installed_ones
     --deselect tests/test_packaging.py::TestDependencyInventory::test_locked_package_counts_are_accurate
 
 jobs:
-  # Reproducible run: the exact versions recorded in uv.lock, on every supported
-  # operating system. The 1st only, because nothing it tests changes inside a
-  # month and it costs more than everything else here put together.
-  #
-  # Guarded with != rather than ==, so a manual run does the full thing: on
-  # workflow_dispatch the field is empty, and an empty string is not the 15th.
-  # Pressing the button by hand should check everything.
+  # != rather than ==, so workflow_dispatch (empty schedule) runs it too.
   locked:
     if: github.event.schedule != '23 6 15 * *'
     runs-on: ${{ matrix.os }}
@@ -86,12 +45,7 @@ jobs:
       - run: uv sync --locked --all-extras --dev
       - run: uv run pytest -q
 
-  # The other thing the operating systems disagree about, and the one the suite
-  # cannot see: installing the built wheel and taking a learner through it. ci.yml
-  # runs this on Linux for every push, so a wheel that unpacked wrongly on Windows,
-  # or a console script uv put somewhere else, would reach a release unnoticed.
-  # The 1st only, for the same reason as the job above, and by hand before a
-  # release worth being sure about.
+  # ci.yml runs the wheel smoke test on Linux only; this covers macOS and Windows.
   wheel:
     if: github.event.schedule != '23 6 15 * *'
     runs-on: ${{ matrix.os }}
@@ -101,8 +55,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-    # bash on all three, including Windows, where it is Git Bash. The script is
-    # shared with ci.yml and written for one shell rather than two.
+    # Git Bash on Windows; the shared script is bash-only.
     defaults:
       run:
         shell: bash
@@ -137,23 +90,14 @@ jobs:
       - run: uv run pytest -q
         env:
           PYTEST_ADDOPTS: ${{ env.UNPINNED_DESELECT }}
-      # if: always(), so the version is recorded even when the suite failed, which
-      # is the run where knowing the version matters most. That is also why the
-      # command is allowed to fail: when it is the resolve step that broke, qiskit
-      # is not importable, and a hard failure here would add a second red step
-      # saying nothing on top of the real one.
-      #
-      # --no-sync reports the environment pytest actually ran against. A plain
-      # `uv run` would resolve again, and an index that moved between the two
-      # steps would be reported as the version under test when it was not.
+      # Runs even after a failure, and tolerates qiskit not importing.
+      # --no-sync reports the environment pytest ran against, without re-resolving.
       - name: Record what was tested
         if: always()
         run: |
           set -uo pipefail
           version="$(uv run --no-sync python -c 'import qiskit; print(qiskit.__version__)' 2>/dev/null)" \
             || version=""
-          # Goes on the run summary page rather than into a badge, so nothing has
-          # to be written back to the repository and no workflow needs write access.
           if [ -n "$version" ]; then
             echo "Verified against qiskit **$version** on $(date -u +%Y-%m-%d)." \
               >> "$GITHUB_STEP_SUMMARY"
@@ -162,15 +106,8 @@ jobs:
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
-  # Early warning for the next major, which is the one release the job above
-  # cannot see. pyproject.toml declares qiskit>=2.5,<3, and `uv sync --upgrade`
-  # honours that ceiling, so a Qiskit 3 would never be resolved and the badge
-  # would stay green straight through the release this workflow exists to catch.
-  # This job installs over the ceiling on purpose.
-  #
-  # continue-on-error, so a major that breaks the curriculum reports itself
-  # without reddening the badge. The badge answers "does the shipped course
-  # work", and while the ranges still stop at <3, it does.
+  # Installs the next major over the <3 ceiling, which `latest` never resolves.
+  # continue-on-error: the badge reports on the shipped ranges only.
   preview:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -183,15 +120,8 @@ jobs:
           enable-cache: true
           python-version: "3.13"
       - run: uv sync --locked --all-extras --dev
-      # Three outcomes, kept apart on purpose. Treating every failure as "no such
-      # release" would let an unreachable index report as quiet, and quiet is what
-      # this job says when everything is fine, so a broken probe would be
-      # indistinguishable from a clean result for as long as it stayed broken.
-      #
-      # "unsatisfiable" is uv's own word for a version that does not exist, and
-      # was verified against uv 0.11.26 rather than guessed. If a later uv rewords
-      # it, a genuinely absent 3.x falls into the last branch and the job goes
-      # loud. That is the safe direction for this to break in.
+      # An unreachable index must fail, not pass as "no release yet". "unsatisfiable"
+      # is uv's wording (checked on uv 0.11.26); if it changes, this fails loudly.
       - name: Install the next major over the ceiling, if one exists yet
         id: major
         run: |
@@ -208,8 +138,7 @@ jobs:
             cat "$log"
             exit 1
           fi
-      # --no-sync, or `uv run` restores the locked qiskit and undoes the install
-      # above, leaving a job that reports on 2.x while claiming to test 3.x.
+      # --no-sync, or `uv run` restores the locked qiskit 2.x.
       - name: Run the suite against it
         if: steps.major.outputs.found == '1'
         run: uv run --no-sync pytest -q

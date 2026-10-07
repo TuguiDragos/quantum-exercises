@@ -1,8 +1,4 @@
-"""Error translation, driven by exceptions that are genuinely raised.
-
-Each test triggers the real error rather than constructing one by hand, so a
-change in Qiskit's wording shows up here instead of silently disabling a rule.
-"""
+"""Error translation, driven by real exceptions so a change in Qiskit's wording shows."""
 
 from __future__ import annotations
 
@@ -28,9 +24,7 @@ def _raised(source: str) -> BaseException:
         ("from qiskit import BasicAer", "`BasicAer` was renamed"),
         ("import qiskit.opflow", "`qiskit.opflow` was removed"),
         ("from qiskit.tools.monitor import job_monitor", "`qiskit.tools` was removed"),
-        # The third entry in _REMOVED_MODULES, and the one only a hand-built
-        # exception used to reach. `qiskit-aer` being installed is what makes the
-        # old spelling worth translating rather than simply absent.
+        # Translated because `qiskit-aer` being installed makes the old spelling likely.
         ("from qiskit.providers.aer import AerSimulator", "replaced by a standalone package"),
     ],
 )
@@ -42,11 +36,7 @@ def test_removed_qiskit_api(source: str, expected_in_message: str) -> None:
 
 
 def test_mid_circuit_measurement_is_triggered_for_real() -> None:
-    """The rule matches on Qiskit's own wording, so only Qiskit can confirm it.
-
-    Tested by hand-built exception until now, which proves the rule reads the
-    string it was given and nothing about the string still being that one.
-    """
+    """The rule matches on Qiskit's own wording, so only Qiskit can confirm it."""
     translation = translate(
         _raised(
             "from qiskit import QuantumCircuit\n"
@@ -108,7 +98,7 @@ def test_empty_circuit_is_not_blamed_on_classical_bits() -> None:
     """Qiskit words the qubit case identically, so the rule must not guess.
 
     `QuantumCircuit().h(0)` raises the same 'out of range for size 0' as a missing
-    classical register, and the reader here touched a qubit.
+    classical register.
     """
     translation = translate(_raised("from qiskit import QuantumCircuit\nQuantumCircuit().h(0)"))
     assert translation is not None
@@ -259,11 +249,7 @@ def test_submodule_typo_does_not_claim_the_package_is_missing() -> None:
     ],
 )
 def test_removed_qiskit_api_reached_by_attribute(symbol: str, expected_in_message: str) -> None:
-    """`import qiskit` then `qiskit.execute(...)` is the commoner 0.x spelling.
-
-    It raises AttributeError rather than ImportError, and used to fall through
-    with no translation at all.
-    """
+    """`import qiskit` then `qiskit.execute(...)` raises AttributeError, not ImportError."""
     translation = translate(_raised(f"import qiskit\nqiskit.{symbol}"))
     assert translation is not None
     assert expected_in_message in translation.message

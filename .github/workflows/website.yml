@@ -1,7 +1,6 @@
 name: website
 
-# Builds quantum-exercises.tuguidragos.com from this repository and publishes it from main.
-# A pull request is only built, so a change that would break the page fails before it merges.
+# Pull requests only build, so a change that breaks the site fails before merging.
 on:
   push:
     branches: [main]

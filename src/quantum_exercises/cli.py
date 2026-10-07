@@ -48,20 +48,10 @@ class _SquarePanel(Panel):
 
 
 def _theme_typer() -> None:
-    """Put typer's own chrome on the palette the rest of the tool uses.
+    """Put typer's help and error output on this tool's palette and square boxes.
 
-    Typer draws `--help` and every usage error itself, in named colours and with
-    rounded corners, so a mistyped option answered in a red rounded box next to
-    tables this project squares on purpose. Its panels take no box argument, so
-    the class it calls is swapped for one that squares them; the styles are plain
-    module constants, read when a panel is drawn, so assigning them is enough.
-
-    Its console is pinned to the same colour system as ours for a reason that is
-    not cosmetic. rich caches Style.parse, so both consoles get the *same* Style
-    object for a given colour, and a Style caches the ANSI it emitted the first
-    time anything rendered it. Let typer negotiate a narrower system on its own
-    and every later print of that colour, ours included, is stuck with the codes
-    it settled on. Sharing a palette means sharing the cache entries.
+    The color system must match ours: rich caches Style objects and the ANSI they
+    first emit, so a narrower system negotiated by typer would stick for both.
     """
     rich_utils.Panel = _SquarePanel
     rich_utils.COLOR_SYSTEM = ui.console.color_system
@@ -80,33 +70,23 @@ def _theme_typer() -> None:
     rich_utils.STYLE_OPTION_ENVVAR = theme.DETAIL
     rich_utils.STYLE_REQUIRED_SHORT = theme.FIGURE
     rich_utils.STYLE_REQUIRED_LONG = theme.DETAIL
-    # Nothing is deprecated yet. Set anyway, so the first thing that is does not
-    # arrive wearing the one colour this palette does not have.
     rich_utils.STYLE_DEPRECATED = theme.DETAIL
     rich_utils.STYLE_DEPRECATED_COMMAND = theme.DETAIL
     rich_utils.STYLE_OPTIONS_PANEL_BORDER = theme.BORDER
     rich_utils.STYLE_COMMANDS_PANEL_BORDER = theme.BORDER
     rich_utils.STYLE_COMMANDS_TABLE_FIRST_COLUMN = theme.COMMAND
-    # The one border the palette raises: an error is the result of the command.
     rich_utils.STYLE_ERRORS_PANEL_BORDER = theme.BORDER_ACTIVE
     rich_utils.STYLE_ERRORS_SUGGESTION = theme.DETAIL
     rich_utils.STYLE_ABORTED = theme.DETAIL
-    # The one colour typer writes into a string instead of a constant. Replaced
-    # rather than rewritten, so a translated sentence keeps its wording.
+    # Typer hardcodes this color in a string; replace it so translations survive.
     rich_utils.RICH_HELP = rich_utils.RICH_HELP.replace("[blue]", f"[{theme.ACCENT}]")
 
 
 _theme_typer()
 
 
-# The epilog answers the two questions the command list cannot: where to begin,
-# and how to reach real hardware. Account setup lived only under `doctor --help`,
-# so a reader who did not already know the flag had nowhere to find it.
-# Written as unbroken paragraphs: the help renderer wraps to the terminal, and a
-# newline of ours in the middle of a sentence shows up as one there too.
-# Typer renders this as rich markup, which accents anything that looks like an
-# option on its own. The command in front of the option is not one, so it is
-# marked by hand, or half of each pair would be lit and half would not.
+# Typer auto-accents options but not the command before them, so mark whole
+# commands by hand. The epilog has no manual line breaks: help text is rewrapped.
 def _typed(command: str) -> str:
     return f"[{theme.ACCENT}]{command}[/]"
 
@@ -175,39 +155,22 @@ def _pick(name: str | None, exercises: list[Exercise], state: State) -> Exercise
 
 DEFAULT_COURSE_DIR = "quantum-exercises"
 
-# What `qx init` hands over. The exercises are the course; the notebooks are the
-# labs the README points at. Everything else in the repository belongs to whoever
-# is working on the project rather than to whoever is taking it.
+# What `qx init` copies. The rest of the repository is for maintainers.
 COURSE_PARTS = (EXERCISES_DIR, NOTEBOOKS_DIR)
 
-# The one file in an exercise a learner writes in. The refresh walk skips it
-# outright, so no update can replace an answer, and a missing one is not restored
-# either: `qx reset` does that, out of a template.py that --refresh does keep
-# current. The skip is per file and cannot reach an exercise that is not there at
-# all, which arrives whole through the plain copy above, starting exercise.py
-# included. Nothing is lost that way, since a directory that is absent holds no
-# answer, but "never creates it" would be the wrong thing to promise.
+# Never touched by --refresh, not even recreated; `qx reset` restores it.
 LEARNER_FILE = "exercise.py"
 
-# Where the version a learner had goes before an update replaces it.
 BACKUP_SUFFIX = ".bak"
 
 COURSE_README = "README.md"
 
 
 def _course_around(start: Path) -> Path | None:
-    """The course this directory sits inside, if there is one.
+    """The course this directory sits inside, if any.
 
-    Every other command finds its course by walking up, which is why `qx run` works
-    from inside an exercise directory. This one looked at the working directory and
-    nowhere else, so the same standing point, the one holding the `exercise.py` a
-    reader is editing, meant "no course here" and built a second one underneath the
-    first.
-
-    Deliberately narrower than find_project_root: no QX_ROOT and no falling back to
-    where the package is installed. Both are right for finding the course a command
-    should act on, and neither is right for choosing a directory to write a new
-    course into.
+    Narrower than find_project_root on purpose: no QX_ROOT and no installed-package
+    fallback, since this picks where to write a new course.
     """
     for directory in [start, *start.parents]:
         if holds_exercises(directory):
@@ -216,19 +179,11 @@ def _course_around(start: Path) -> Path | None:
 
 
 def _default_target() -> Path:
-    """Where `qx init` goes when nobody said.
-
-    A new directory, unless the reader is standing in a course already, in which
-    case they mean that one, from wherever inside it they happen to be.
-    """
+    """A new directory, or the course the reader is already standing in."""
     here = Path.cwd()
     found = _course_around(here.resolve())
     if found is None:
         return Path(DEFAULT_COURSE_DIR)
-    # Written as `.` when that is where they are, so the report names the course as
-    # briefly as the reader would have typed it. From further down it is named in
-    # full, which is the part worth being explicit about: the course being brought
-    # up to date is not the directory they are standing in.
     return Path(".") if found == here.resolve() else found
 
 
@@ -261,9 +216,7 @@ def init(
     _refuse_an_unsuitable_target(target)
     topping_up = holds_exercises(target)
 
-    # Held here rather than inside the copy, so that a failure half way through
-    # can still say what had already landed. A course left part new and reported
-    # as a flat failure is the one state a reader cannot make sense of.
+    # Owned here so a failure part way through can still report what landed.
     added: list[str] = []
     refreshed: list[str] = []
     refused: list[str] = []
@@ -280,17 +233,9 @@ def init(
 
 
 def _refuse_a_target_inside_the_source(source: Path, target: Path) -> None:
-    """A directory cannot be copied into itself, and trying does not fail quickly.
+    """Refuse a target strictly inside the source: copytree would recurse until ENAMETOOLONG.
 
-    copytree descends into the directory it is creating, so the copy feeds itself.
-    Nothing stops it except the filesystem refusing a path that long: measured at
-    twenty levels and a hundred and twenty-seven files before ENAMETOOLONG, with
-    the error naming a path several kilobytes wide.
-
-    Only reachable from a checkout, where the course being copied is the repository
-    itself. A wheel copies out of the package, which nothing sensible sits inside.
-    The two being equal is the ordinary `qx init .` at the top of a clone, so it is
-    a strict descendant that is refused rather than any overlap.
+    Equal paths are fine; that is `qx init .` at the top of a clone.
     """
     inside = target.expanduser().resolve()
     origin = source.resolve()
@@ -339,28 +284,13 @@ def _copy_course(
     *,
     refresh: bool = False,
 ) -> None:
-    """Copy across whatever the target does not have yet, and say what that was.
-
-    Nothing already there is touched, which is what makes running this twice safe.
-    That is also the upgrade path: a release that adds an exercise adds it here,
-    and every answer already written stays exactly as it was.
-
-    With ``refresh``, files the course owns are brought back in step with it as
-    well, which is how a correction to a lesson or a checker reaches a course
-    that was copied out before it. Anything that differs is copied aside first.
-
-    The two lists belong to the caller so that they survive an OSError raised part
-    way through, which is the only way it can report what had already landed.
-    """
+    """Copy whatever the target lacks; with ``refresh``, also update changed lesson files."""
     for part in COURSE_PARTS:
         origin = source / part
         if not origin.is_dir():
             continue
         destination = target / part
-        # Refused here and not only on the refresh path below, because a plain
-        # `qx init` over an existing course writes through a link just as readily.
-        # A link standing in for the whole part sends every file in it elsewhere,
-        # and mkdir(exist_ok=True) follows one without a word.
+        # Never write through a symlink: it would land outside the course.
         if destination.is_symlink():
             refused.append(part)
             continue
@@ -370,9 +300,7 @@ def _copy_course(
                 continue
             landing = destination / entry.name
             label = f"{part}/{entry.name}"
-            # A link that points nowhere reads as absent, so the copy below would
-            # follow it and create the file at the far end. One that does point
-            # somewhere is refused for the same reason `--refresh` refuses it.
+            # A dangling link reads as absent, and copying would create its target.
             if landing.is_symlink():
                 refused.append(label)
                 continue
@@ -390,12 +318,7 @@ def _copy_course(
 
 
 def _backup_path(landing: Path) -> Path:
-    """Where the version a learner had goes, never onto an earlier one.
-
-    A second refresh used to write over the first backup, so an edit that had
-    already been set aside once was gone for good. Numbered from the second
-    onwards, which leaves the common case reading as it did.
-    """
+    """A backup path that never overwrites an earlier backup."""
     candidate = landing.with_name(landing.name + BACKUP_SUFFIX)
     index = 1
     while candidate.exists() or candidate.is_symlink():
@@ -405,28 +328,14 @@ def _backup_path(landing: Path) -> Path:
 
 
 def _copy_aside(landing: Path) -> None:
-    """Set the current version aside before replacing it, permissions included.
-
-    copyfile carries the bytes and nothing else, so a file its owner had made
-    private came back out of a refresh world-readable: the live file kept its 0600
-    and the copy beside it was 0644, with the same contents in it. The replacement
-    already takes its mode from the file it lands on; this is the same care for the
-    copy that is kept.
-    """
+    """Back up the current file, keeping its mode so a private file stays private."""
     backup = _backup_path(landing)
     shutil.copyfile(landing, backup)
     shutil.copymode(landing, backup)
 
 
 def _replace_atomically(data: bytes, landing: Path) -> None:
-    """Write beside the target, then move it into place.
-
-    A plain copy opens the destination for writing, which truncates it, and only
-    then starts copying. A disk that fills up half way through therefore left a
-    truncated lesson file behind. Writing to a neighbour and renaming means the
-    target holds either the old bytes or the new ones and never half of each.
-    state.py writes progress the same way, for the same reason.
-    """
+    """Write beside the target, then rename, so a full disk never leaves half a file."""
     handle = tempfile.NamedTemporaryFile(  # noqa: SIM115 - must outlive the block for os.replace
         mode="wb", dir=landing.parent, prefix=".qx-refresh-", suffix=".tmp", delete=False
     )
@@ -435,10 +344,7 @@ def _replace_atomically(data: bytes, landing: Path) -> None:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
-        # A temporary file is created readable by its owner alone, and the rename
-        # would carry that onto a lesson file the rest of the course keeps at 644.
-        # Taken from the file being replaced, so a refresh leaves the permissions
-        # it found rather than quietly tightening them.
+        # Temp files are owner-only; keep the mode of the file being replaced.
         shutil.copymode(landing, handle.name)
         os.replace(handle.name, landing)
     except BaseException:
@@ -455,18 +361,13 @@ def _refresh_entry(
     refused: list[str],
 ) -> None:
     """Bring one already-copied file, or one directory of them, back in step."""
-    # A symlink is not something this command put there, and following one writes
-    # outside the course entirely: a link in place of a lesson file was enough to
-    # overwrite a file elsewhere on the machine. The target of `qx init` may still
-    # be a link, since that is how a course lives on another disk; what is refused
-    # is a link standing in for something inside it.
+    # Following a link here could overwrite files outside the course. The course
+    # root itself may still be a link.
     if landing.is_symlink():
         refused.append(label)
         return
 
     if origin.is_dir():
-        # Created before descending, so an exercise that gains a subdirectory in a
-        # later release does not fail on the first file inside it.
         landing.mkdir(parents=True, exist_ok=True)
         for entry in sorted(origin.iterdir()):
             if _skippable(entry.name):
@@ -487,10 +388,7 @@ def _refresh_entry(
     if landing.read_bytes() == origin.read_bytes():
         return
 
-    # Backup first, replacement second, and the backup is never taken away again.
-    # It used to be removed when the replacement failed, which was right only
-    # while a failure could not have damaged the original, and a truncating copy
-    # meant it could.
+    # The backup is kept even if the replacement fails.
     _copy_aside(landing)
     _replace_atomically(origin.read_bytes(), landing)
     refreshed.append(label)
@@ -502,17 +400,10 @@ COURSE_README_TITLE = "# Your quantum-exercises course"
 def _place_course_readme(
     target: Path, added: list[str], refreshed: list[str], refused: list[str], *, refresh: bool
 ) -> None:
-    """Leave a short note at the top of the course saying what the folder is.
+    """Write the course README.
 
-    Refreshed only when what is there opens with the title this command writes.
-    `qx init .` in a clone of this repository would otherwise replace the
-    project's own README, and a course whose note was never brought up to date
-    keeps whatever instructions the release that made it carried.
-
-    The title is the whole of the test, which is a guess and not a proof: a
-    README of someone's own that happens to start the same way is replaced too.
-    Left as it is on purpose. Tightening it would mean a marker in the file, and
-    the copy set aside first is already the answer to being wrong about this.
+    Refreshed only if it starts with our title, so `qx init .` in a clone keeps the
+    project's own README. A lookalike is replaced too, but backed up first.
     """
     landing = target / COURSE_README
     body = _course_readme_text()
@@ -572,11 +463,7 @@ https://github.com/TuguiDragos/quantum-exercises
 
 
 def _listed(items: list[str]) -> None:
-    """One name per line, whole.
-
-    soft_wrap because these are paths. A terminal narrow enough to break one says
-    nothing about having broken it, and the two halves read as two files.
-    """
+    """One path per line, never wrapped into what looks like two paths."""
     for item in items:
         ui.console.print(Text(f"    {item}", style=theme.DETAIL), soft_wrap=True)
 
@@ -721,8 +608,7 @@ def _save_account() -> None:
         )
     )
 
-    # getpass falls back to a plain input() when it cannot turn echo off, and only
-    # says so through a warning. Refuse rather than print someone's key on screen.
+    # getpass falls back to echoing input with only a warning; refuse instead.
     with warnings.catch_warnings(record=True) as echoed:
         warnings.simplefilter("always", getpass_module.GetPassWarning)
         token = getpass("API key (input hidden): ").strip()
@@ -767,14 +653,10 @@ def _save_account() -> None:
 
 
 def _prepare_credentials_file() -> bool:
-    """Create the credentials file owner-only before the token is written into it.
+    """Create the credentials file at 0600 before qiskit writes the token into it.
 
-    qiskit-ibm-runtime creates `~/.qiskit` and the JSON with whatever umask is in
-    force, normally 0755 and 0644, writes the token, and never chmods. Tightening
-    afterwards left a window in which the key sat on disk world-readable, which is
-    exactly the shared machine SECURITY.md tells the reader to worry about.
-    Opening a file that already exists does not change its mode, so creating it
-    first at 0600 closes the window instead of narrowing it.
+    qiskit-ibm-runtime uses the umask (usually 0644) and never chmods, but keeps the
+    mode of a file that already exists, so this leaves no world-readable window.
     """
     from quantum_exercises.doctor import CREDENTIALS_PATH
 
@@ -782,8 +664,7 @@ def _prepare_credentials_file() -> bool:
         CREDENTIALS_PATH.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         os.chmod(CREDENTIALS_PATH.parent, 0o700)
         if not CREDENTIALS_PATH.exists():
-            # Exclusive create, so an account saved by something else meanwhile is
-            # never truncated. qiskit reads this as "no accounts yet".
+            # O_EXCL never truncates a concurrent save; qiskit reads {} as no accounts.
             handle = os.open(CREDENTIALS_PATH, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
             try:
                 os.write(handle, b"{}")
@@ -796,11 +677,7 @@ def _prepare_credentials_file() -> bool:
 
 
 def _restrict_credentials_permissions() -> bool:
-    """Make the saved key owner-only.
-
-    qiskit-ibm-runtime writes it with the process umask, normally 0644, so on a
-    shared machine any other local user could read the key straight off disk.
-    """
+    """Make the saved key owner-only; qiskit-ibm-runtime writes it with the umask."""
     from quantum_exercises.doctor import CREDENTIALS_PATH
 
     try:
@@ -820,8 +697,7 @@ def list_exercises() -> None:
     ui.render_list(exercises, state)
 
 
-# Named next_exercise, exposed as `next`: a module-level function called `next`
-# would shadow the builtin that run() relies on below.
+# Not named `next`: that would shadow the builtin.
 @app.command("next")
 def next_exercise() -> None:
     """Show the next exercise you have not finished."""
@@ -851,8 +727,7 @@ def run(
     root, exercises, state = _context()
     exercise = _pick(name, exercises, state)
 
-    # Asked even when --timeout was given. A time limit is not consent, and
-    # passing one used to skip the question and send the job anyway.
+    # Asked even with --timeout: a time limit is not consent.
     decision = _confirm_hardware(exercise)
     if timeout is None:
         timeout = decision.window
@@ -866,9 +741,7 @@ def run(
     ui.render_run(exercise, result, root=root)
 
     if result.passed and not solution:
-        # Re-read inside the lock, not before it: a run can take minutes, and
-        # another qx process that recorded progress meanwhile would be erased by
-        # this stale copy. Re-reading alone only narrowed that window.
+        # Re-read inside the lock so progress saved by another qx meanwhile survives.
         with locked(root):
             state = load(root)
             was_complete = state.is_complete(exercise.slug)
@@ -887,32 +760,21 @@ def run(
     raise typer.Exit(code=0 if result.passed else 1)
 
 
-# A queue is measured in hours, and the per-exercise limit is measured for a
-# simulator. Waiting this long is only ever entered on purpose, by answering yes.
+# Hardware queues take hours; this limit applies only after the reader says yes.
 HARDWARE_WINDOW_SECONDS = 3 * 60 * 60
 COMPUTERS_URL = "https://quantum.cloud.ibm.com/computers"
 
 
 @dataclass(frozen=True)
 class _HardwareDecision:
-    """What one `qx run` settled on: may it reach a QPU, and for how long.
-
-    ``window`` is the longer time limit a real queue needs, and only a yes
-    produces one. It is separate from ``allowed`` because a run can be free to
-    use hardware without needing that window, which is what happens when there
-    was no QPU to offer in the first place.
-    """
+    """Whether a run may reach a QPU, and the longer time limit a yes grants."""
 
     allowed: bool
     window: int | None = None
 
 
 def _interactive() -> bool:
-    """Whether there is a terminal here to put a question to.
-
-    stdin is None under a windowed interpreter and closed under some task
-    runners, and asking either of those whether it is a tty raises.
-    """
+    """Whether stdin is a terminal; it can be None or closed, and isatty() then raises."""
     try:
         return sys.stdin is not None and sys.stdin.isatty()
     except (AttributeError, ValueError, OSError):
@@ -920,21 +782,13 @@ def _interactive() -> bool:
 
 
 def _confirm_hardware(exercise: Exercise) -> _HardwareDecision:
-    """Show the queue and ask before joining it.
-
-    Nothing is asked when there is nothing to decide: a simulator exercise, or
-    hardware that is already out of reach. Without a terminal there is nobody to
-    ask, so the run stays on a simulator and says so rather than sending a job
-    that no one agreed to.
-    """
+    """Show the queue and ask before joining it. Without a terminal, stay on a simulator."""
     if not exercise.hardware:
         return _HardwareDecision(allowed=True)
 
     from quantum_exercises.backends import offline, queue_peek
 
     if offline():
-        # QX_OFFLINE has already answered this. Repeating it on every CI run
-        # would be noise about a decision nobody has to make.
         return _HardwareDecision(allowed=False)
 
     if not _interactive():
@@ -947,11 +801,7 @@ def _confirm_hardware(exercise: Exercise) -> _HardwareDecision:
     ui.info("Asking IBM which QPU is free. This sends no job.")
     queue = queue_peek()
     if queue is None:
-        # Fail closed. A peek comes back None for any failure at all, including
-        # ones that say nothing about whether a QPU is reachable: it also asks for
-        # the queue depth, which the child never does, so a status endpoint having
-        # a bad minute is enough. Reading that as consent meant the last line on
-        # screen was "this sends no job" and then a job went out.
+        # Fail closed: no answer is not consent to send a job.
         ui.info(
             "No QPU answered, so this runs on a local simulator. "
             f"`{invocation()} doctor --online` reports whether IBM can be reached at all."
@@ -973,9 +823,7 @@ def _confirm_hardware(exercise: Exercise) -> _HardwareDecision:
         ui.info(f"Nothing sent. Come back with `{invocation()} run {exercise.number}` any time.")
         raise typer.Exit(code=0)
 
-    # The wait is announced by the caller, once the limit that will actually be
-    # used is known. Saying "up to 3 hours" here was a promise `--timeout 30`
-    # broke: the job went out and was abandoned half a minute later.
+    # The caller announces the wait, since --timeout may override the window.
     return _HardwareDecision(allowed=True, window=HARDWARE_WINDOW_SECONDS)
 
 
@@ -1072,9 +920,7 @@ def solution(
         )
     )
 
-    # Re-read after the prompt, not before it: the confirmation blocks for as long
-    # as the reader takes to answer, and progress another qx process recorded in
-    # that window would be erased by this stale copy.
+    # Re-read after the prompt so progress saved by another qx meanwhile survives.
     with locked(root):
         state = load(root)
         state.mark_solved(exercise.slug)
@@ -1120,8 +966,6 @@ def reset(
     if saved:
         ui.success(f"{exercise.slug} restored to its starting state.")
     else:
-        # The copy landed, the bookkeeping did not. Saying both happened would be
-        # the kind of half-truth this tool exists to avoid.
         ui.warn(
             f"{exercise.exercise_file.name} was restored, but {exercise.slug} is still "
             "recorded as complete."

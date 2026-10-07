@@ -1,12 +1,4 @@
-"""Every notebook under notebooks/.
-
-A notebook that is never executed rots quietly. These tests run every code cell of
-every notebook, so a Qiskit change that breaks one fails CI like anything else.
-
-Parametrised over the directory rather than naming a single file. The labs were
-added after the playground, and a test that only knew about the playground would
-have let them rot while still reporting green.
-"""
+"""Run every code cell of every notebook under notebooks/, so a Qiskit change fails CI."""
 
 from __future__ import annotations
 
@@ -17,8 +9,7 @@ import pytest
 
 NOTEBOOKS_DIR = "notebooks"
 
-# Named so that deleting or renaming one is a failure rather than a silent drop
-# from the suite, which is the way this kind of test usually stops working.
+# Named, so deleting or renaming one fails rather than silently dropping out.
 EXPECTED = frozenset(
     {"playground", "lab-1-qiskit-patterns", "lab-2-noise", "lab-3-dynamic-circuits"}
 )

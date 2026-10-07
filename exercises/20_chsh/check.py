@@ -25,8 +25,7 @@ ORDER_CASES = [(0.3, 1.1), (0.0, math.pi / 2), (-0.7, 0.2)]
 # Pairs for the correlation check. E(a, b) = cos(a - b) for this state.
 CORRELATION_CASES = [(0.0, 0.0), (A0, B0), (A1, B1), (0.4, -1.3), (2.0, 2.0)]
 
-# A second set of angles for chsh, deliberately nowhere near the optimum. S comes
-# out at nothing memorable there, which is the point: see _check_chsh_off_optimum.
+# Far from the optimum, so S is nothing memorable. See _check_chsh_off_optimum.
 OFF_OPTIMUM = (0.3, 1.4, 0.9, -0.2)
 
 
@@ -106,14 +105,12 @@ def _check_correlation(correlation):
             )
 
 
-# The angles the substitutions below are put at. Nothing turns on the pair beyond
-# every replacement below giving something clearly apart from cos(a - b) there.
+# Any pair where each substitution below lands clearly apart from cos(a - b).
 SUBSTITUTION_AT = (0.3, 1.1)
 SUBSTITUTION_LABEL = f"correlation({SUBSTITUTION_AT[0]:.4f}, {SUBSTITUTION_AT[1]:.4f})"
 
-# The three pieces this exercise hands the reader, and something else of the same
-# kind to put in their place. |00> is a product state, and ZZ is exactly 1 on the
-# Bell state, so any of them being used moves the answer well away from cos(a - b).
+# The pieces this exercise hands the reader, each with a stand-in that moves the
+# answer well away from cos(a - b): |00> is a product state, ZZ is 1 on the Bell state.
 SUBSTITUTIONS = [
     ("bell", lambda: QuantumCircuit(2)),
     ("joint_observable", lambda *_: SparsePauliOp("ZZ")),
@@ -144,13 +141,7 @@ def _follows(mod, correlation, name, replacement, baseline):
 
 
 def _kept_states(mod):
-    """Module-level circuits and statevectors, which is `bell()` saved off to one side.
-
-    Naming `bell` is not enough on its own: `_BELL = bell()` at the top of the file
-    binds the circuit under some other name, and rebinding the function afterwards
-    cannot reach it. These are found by type rather than by name, so whatever the
-    reader called it is covered.
-    """
+    """Module-level circuits and statevectors, found by type to catch `_BELL = bell()`."""
     swaps = []
     for name, value in vars(mod).items():
         if isinstance(value, QuantumCircuit) and value.num_qubits == 2:
@@ -163,24 +154,8 @@ def _kept_states(mod):
 def _check_it_is_computed(mod, correlation):
     """Move a piece underneath correlation() and see whether the answer follows.
 
-    cos(a - b) is the right answer for the Bell state, so writing it out directly
-    passes every comparison above without computing anything, and no property of
-    the returned number can show that. The input has to move instead.
-
-    Several pieces are moved rather than one, and following any of them is enough.
-    Swapping only the state punished a correct answer: `bell()` returns a constant,
-    so caching it once at the top of the file is an ordinary thing to write, and
-    such a correlation cannot see the swap however honestly it computes. Hence the
-    observable as well, reached whether it is built through joint_observable or
-    inline from observable_at, and hence a saved circuit being swapped by type
-    rather than only by the name `bell`.
-
-    What this establishes is narrower than it looks, and worth saying plainly: that
-    the answer is a function of something this exercise handed over, not that an
-    Estimator was ever called. Together with the five angle pairs checked above it
-    means a number that both equals cos(a - b) and moves with the state or the
-    observable it was built from. Nothing here can, or tries to, dictate which
-    route was taken to it.
+    A hardcoded cos(a - b) passes every comparison above, so the input has to move.
+    Following any one piece is enough, since caching `bell()` once is legitimate.
     """
     baseline = _number(correlation, SUBSTITUTION_AT, SUBSTITUTION_LABEL)
 
@@ -208,10 +183,7 @@ def _check_chsh(chsh, correlation):
         _check_chsh_off_optimum(chsh)
         return
 
-    # At these angles every correlation is +-cos(pi/4), so across all sixteen ways of
-    # signing the four terms |S| can only come out as 0, sqrt(2) or 2*sqrt(2). Those
-    # are the two wrong values worth naming; 2.0 is not reachable, so there is no
-    # branch for it.
+    # Every correlation here is +-cos(pi/4), so a mis-signed S is only 0 or sqrt(2).
     if math.isclose(abs(value), 0.0, abs_tol=1e-4):
         raise CheckFailed(
             f"chsh() at the optimal angles gave {value:+.6f}, expected {TSIRELSON:.6f}.",
@@ -243,12 +215,7 @@ def _check_chsh(chsh, correlation):
 
 
 def _check_chsh_off_optimum(chsh):
-    """One angle set cannot tell the arithmetic apart from the answer.
-
-    2*sqrt(2) is the number the exercise puts in front of the reader, so a chsh
-    that ignores its arguments and returns it passed at the optimal angles alone.
-    Here S is nothing in particular, which only the real combination produces.
-    """
+    """Catch a chsh that ignores its arguments and returns 2*sqrt(2)."""
     a0, a1, b0, b1 = OFF_OPTIMUM
     want = math.cos(a0 - b0) + math.cos(a0 - b1) + math.cos(a1 - b0) - math.cos(a1 - b1)
     value = _number(chsh, OFF_OPTIMUM, f"chsh({a0}, {a1}, {b0}, {b1})")

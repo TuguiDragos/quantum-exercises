@@ -1,4 +1,4 @@
-"""Writes the 404 page: qx asked for exercise 404, with what it really prints, and the exit code it really returns."""
+"""Writes the 404 page from what `qx run 404` really prints and returns."""
 
 import html
 import json

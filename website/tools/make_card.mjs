@@ -1,8 +1,6 @@
-// Renders the share image at the two sizes needed: 1200x630 for the site, 1280x640 for GitHub's social preview. It sets
-// the course's promise beside the verdict qx really gives on exercise 11, and leaves the number of exercises to the
-// page, which counts them on every build. Run it again only when the wording changes:
+// Renders the share image: 1200x630 for the site, 1280x640 for GitHub's social preview. Run from the repository root:
 // npm install --no-save --prefix website playwright@1, npx --prefix website playwright install chromium, then
-// node website/tools/make_card.mjs from the repository root.
+// node website/tools/make_card.mjs
 import { chromium } from "playwright";
 const card = (w, h) => `<!DOCTYPE html><html><head><style>
   body { margin: 0; width: ${w}px; height: ${h}px; display: grid; grid-template-columns: 1fr 1.05fr; align-items: center; gap: 44px; box-sizing: border-box; padding: 0 70px 0 80px;

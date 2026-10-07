@@ -23,8 +23,7 @@ from quantum_exercises.backends import quiet_runtime
 
 CREDENTIALS_PATH = Path.home() / ".qiskit" / "qiskit-ibm.json"
 
-# Channels qiskit-ibm-runtime still accepts. `ibm_quantum` was retired with the
-# Classic platform and a saved account on it is unusable.
+# `ibm_quantum` was retired with IBM Quantum Platform Classic.
 VALID_CHANNELS = {"ibm_quantum_platform", "ibm_cloud"}
 RETIRED_CHANNELS = {"ibm_quantum"}
 
@@ -85,12 +84,7 @@ def check_qiskit() -> Check:
 
 
 def check_smoke() -> Check:
-    """Build and run a real circuit.
-
-    Importing a package proves the files are on disk. It does not prove the
-    compiled extensions underneath actually work, which is the failure mode of a
-    half-finished install or a mismatched architecture.
-    """
+    """Run a real circuit: an import alone does not prove the compiled extensions work."""
     try:
         from qiskit import QuantumCircuit
         from qiskit.primitives import StatevectorSampler
@@ -140,9 +134,7 @@ def check_visualization() -> Check:
 def check_credentials(*, tested_online: bool = False) -> Check:
     """Inspect the saved IBM account locally. Never reads or prints the token.
 
-    `tested_online` only decides whether to point at the command that does test it.
-    A row saying to run --online, printed directly above the row --online just
-    produced, sends the reader off to do what they have already done.
+    `tested_online` only drops the advice to run --online.
     """
     if not CREDENTIALS_PATH.is_file():
         return Check(
@@ -193,8 +185,6 @@ def check_credentials(*, tested_online: bool = False) -> Check:
         )
 
     if unknown:
-        # Neither current nor known-retired. A typo lands here, and used to be
-        # reported as a healthy account because only the retired list was checked.
         return Check(
             "IBM Quantum account",
             "warn",
@@ -217,9 +207,7 @@ def check_credentials(*, tested_online: bool = False) -> Check:
             "kept whatever umask was in force when qiskit wrote them.",
         )
 
-    # Says what was established, not more. Everything above reads the file, so a
-    # revoked key passes all of it and a bare "ok" reads as "this works".
-    # Named as a whole command: `--online` alone sent a reader to `qx --online`.
+    # A revoked key passes every local check, so do not claim more than "saved".
     if tested_online:
         return Check("IBM Quantum account", "ok", f"{'; '.join(accounts)}; saved")
     return Check(
@@ -231,11 +219,7 @@ def check_credentials(*, tested_online: bool = False) -> Check:
 
 
 def _loose_permissions() -> str | None:
-    """Report the mode when the saved key is readable beyond its owner.
-
-    A long-lived API key in clear text is only as private as the file holding it,
-    and qiskit writes it with whatever umask happens to be in force.
-    """
+    """The file mode, when the saved key is readable or writable beyond its owner."""
     if os.name == "nt":  # pragma: no cover - POSIX modes do not apply
         return None
     try:
@@ -248,12 +232,7 @@ def _loose_permissions() -> str | None:
 
 
 def _instance_from(logged: list[str]) -> str | None:
-    """The instance the client settled on, if it said so.
-
-    Read out of the log because the service exposes no public attribute for it,
-    and it is the one number that decides whose quota a run spends. A wording
-    change upstream loses the clause and nothing else.
-    """
+    """The instance the client picked, parsed from its log: there is no public attribute."""
     for message in logged:
         found = re.search(r"Loading instance:\s*([^,]+),\s*plan:\s*(\S+)", message)
         if found:

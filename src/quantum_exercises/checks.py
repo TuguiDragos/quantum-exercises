@@ -21,16 +21,12 @@ from qiskit import QuantumCircuit
 from qiskit.quantum_info import Operator, Statevector
 from scipy.stats import chi2
 
-# Exercise tolerance. Looser than the Qiskit defaults (atol=1e-8, rtol=1e-5,
-# both verified against Statevector.atol / .rtol) so that an honest answer
-# assembled in a slightly different gate order still passes.
+# Looser than Qiskit's default (1e-8) so a different but correct gate order passes.
 ATOL = 1e-6
 
-# Two-sided z threshold for proportion checks. z=4 gives a ~6.3e-5 false-negative
-# rate per assertion, low enough that CI does not flake.
+# Two-sided z=4: a ~6.3e-5 false-failure rate per assertion, so CI does not flake.
 Z_THRESHOLD = 4.0
 
-# Significance level for the chi-square goodness-of-fit test.
 CHI2_ALPHA = 0.001
 
 
@@ -140,8 +136,8 @@ def require_circuit(mod: ModuleType, name: str = "qc") -> QuantumCircuit:
 def as_statevector(source: QuantumCircuit | Statevector) -> Statevector:
     """Build a Statevector, tolerating a circuit that already has measurements.
 
-    Statevector(qc) raises QiskitError on any classical-bit instruction, so final
-    measurements are stripped first. Verified against Qiskit 2.5.2.
+    Statevector(qc) raises on any classical-bit instruction, so final measurements
+    are stripped first.
     """
     if isinstance(source, Statevector):
         return source
@@ -149,7 +145,6 @@ def as_statevector(source: QuantumCircuit | Statevector) -> Statevector:
         raise CheckFailed(f"Expected a QuantumCircuit or Statevector, got {type(source).__name__}.")
 
     stripped = source.remove_final_measurements(inplace=False)
-    # remove_final_measurements returns None when inplace=True; guard the other path.
     circuit = source if stripped is None else stripped
     try:
         return Statevector(circuit)
@@ -350,7 +345,6 @@ def assert_counts_close(
                 f"({k}/{shots}), off by {sigma:.1f} sigma"
             )
 
-    # An outcome the learner never predicted still has to be accounted for.
     for outcome, k in counts.items():
         if k > 0 and outcome not in expected_probs:
             failures.append(f"'{outcome}': measured {k} times but you predicted nothing for it")
@@ -383,8 +377,7 @@ def chi_square_counts(
         observed = counts.get(outcome, 0)
         if expected <= 0:
             if observed > 0:
-                # An outcome with zero predicted probability that still occurred is
-                # infinitely surprising under this model; report it as a hard failure.
+                # A predicted-impossible outcome occurred: always a failure.
                 return float("inf"), 0.0, max(len(outcomes) - 1, 1)
             continue
         statistic += (observed - expected) ** 2 / expected

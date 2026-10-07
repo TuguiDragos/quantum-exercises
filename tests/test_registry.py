@@ -59,13 +59,7 @@ class TestDiscovery:
     def test_an_unrelated_exercises_directory_does_not_hijack_the_search(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, root: Path, contents: list[str]
     ) -> None:
-        """A plain `~/exercises` used to swallow the search from anywhere beneath it.
-
-        The walk stopped at the first directory merely named `exercises`, reported
-        "No exercises found" and advised running from inside the repository, which
-        is where the reader already was. It also made the installed-package
-        fallback below unreachable for anyone owning such a directory.
-        """
+        """A plain `~/exercises` must not stop the search for a real course."""
         monkeypatch.delenv("QX_ROOT", raising=False)
         decoy = tmp_path / "exercises"
         decoy.mkdir()
@@ -126,9 +120,7 @@ class TestMalformedExercises:
         path = _write_exercise(tmp_path / "exercises", "01_demo", meta=meta)
         assert load_exercise(path).timeout == 45
 
-    # load_exercises() reads every exercise, so one bad value used to take down
-    # every command at once with a raw ValueError. A zero or negative one parsed
-    # fine and produced "did not finish within -5 seconds".
+    # A zero, negative or mistyped timeout must fail clearly, not with a raw ValueError.
     @pytest.mark.parametrize(
         ("value", "shown"),
         [
@@ -186,7 +178,7 @@ class TestHints:
 
 class TestNumericLookup:
     def test_superscript_digits_do_not_crash(self, exercises: list[Exercise]) -> None:
-        """'²'.isdigit() is True but int('²') raises, which used to escape as a traceback."""
+        """'²'.isdigit() is True but int('²') raises."""
         with pytest.raises(RegistryError, match="No exercise matches"):
             resolve("²", exercises)
 
@@ -203,12 +195,7 @@ def test_holds_exercises_survives_an_unreadable_directory(tmp_path: Path, monkey
 
 
 def test_find_project_root_gives_up_with_guidance(tmp_path: Path, monkeypatch) -> None:
-    """The advice has to fit whoever is reading it.
-
-    Someone who installed the tool from PyPI has no repository to be inside, so
-    telling them to find one is guidance they cannot act on. `qx init` is what
-    they need, and it also works for someone who cloned and took a wrong turn.
-    """
+    """An installed reader has no repository, so the advice names `qx init`."""
     monkeypatch.delenv("QX_ROOT", raising=False)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(registry, "holds_exercises", lambda directory: False)
@@ -258,7 +245,7 @@ def test_duplicate_numbers_are_rejected(tmp_path: Path, root: Path) -> None:
 
 
 class TestStrayDirectories:
-    """A folder a learner leaves in exercises/ used to break every command."""
+    """A stray folder in exercises/ must not break every command."""
 
     @pytest.mark.parametrize("name", ["my_notes", "__pycache__", "scratch", ".hidden"])
     def test_a_directory_that_is_not_an_exercise_is_skipped(

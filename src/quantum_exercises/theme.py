@@ -1,10 +1,7 @@
-"""The colour palette. Every style in the tool resolves from here.
+"""The color palette. Every style in the tool resolves from here.
 
-One rule governs the whole scheme: the accent appears as a line, an outline or a
-run of glyphs, never as a filled background. The histogram bars are the single
-exception, and they are the one place where filled area carries meaning.
-
-Nothing outside this module names a colour.
+The accent appears as a line, outline or glyphs, never as a filled background,
+except in histogram bars. Nothing outside this module names a color.
 """
 
 from __future__ import annotations
@@ -33,20 +30,14 @@ TEXT = "#e9e9ed"  # body text on a dark ground
 MUTED = "#343856"  # dimmed dots and borders
 OUTLINE = "#3d3f60"  # inactive outlines
 
-# Secondary prose. Derived, not invented: TEXT blended 30% toward BACKGROUND,
-# which lands at 7.6:1 contrast. The palette as specified has nothing between
-# TEXT at 14.5:1 and OUTLINE at 1.7:1, and MUTED and OUTLINE are for dots and
-# borders rather than words. Using the terminal's dim attribute instead made
-# whole lines unreadable on a real display.
+# Secondary prose: TEXT blended 30% toward BACKGROUND (7.6:1 contrast). The
+# terminal's dim attribute is never used; it is unreadable on real displays.
 TEXT_DIM = "#aaaab1"
 
 # --------------------------------------------------------------------------
 # Semantic styles
 # --------------------------------------------------------------------------
 
-# Text. Reduced emphasis comes from TEXT_DIM, never from the terminal's dim
-# attribute, which halves the intensity of whatever it is applied to and takes
-# the result below the point where it can be read.
 TITLE = f"bold {ACCENT}"
 HEADING = f"bold {ACCENT}"
 BODY = TEXT
@@ -56,39 +47,28 @@ FIGURE = ACCENT  # numbers, keys, identifiers
 PATH = ACCENT  # a file the reader has to go and open
 COMMAND = f"bold {TEXT}"  # something to type
 
-# Surfaces.
 PANEL = f"on {BACKGROUND}"
 RAISED = f"on {SURFACE}"
 
-# Borders. Weight and colour together carry severity, since the palette holds no
-# separate error hue: an outline that is merely inactive reads as "not yet", and
-# an accented one reads as "this is the result".
+# There is no error hue: an accented border marks the result.
 BORDER = OUTLINE
 BORDER_ACTIVE = ACCENT
 BORDER_QUIET = MUTED
 
-# Progress and histograms, the one place the accent fills area.
 BAR = ACCENT
 BAR_TRACK = MUTED
 
-# Exercise status.
 STATUS_TODO = DETAIL
 STATUS_DONE = f"bold {ACCENT}"
-# Reached, but by revealing the answer: the accent without the weight that `done`
-# carries. It used to share a colour with `todo`, which read as not started even
-# though a solved exercise counts toward the total in the bar below the list.
+# Counts as finished, so accented like `done`, but without the bold.
 STATUS_SOLVED = ACCENT
 
-# Environment checks.
 CHECK_OK = ACCENT
 CHECK_WARN = DETAIL
 CHECK_FAIL = f"bold {ACCENT}"
 
 
-# Rich ships its own styles for markdown, which reach the screen through `qx hint`
-# and are written in named colours: markdown.code alone is "bold cyan on black".
-# Every one is overridden here, or the palette would hold everywhere except the
-# hints. Passed to the Console, so nothing has to remember to apply it.
+# Rich's default markdown and table styles use named colors; override them all.
 RICH_OVERRIDES = {
     "markdown.block_quote": DETAIL,
     "markdown.code": f"{ACCENT} on {SURFACE}",
@@ -117,7 +97,6 @@ RICH_OVERRIDES = {
     "markdown.table.border": OUTLINE,
     "markdown.table.header": f"bold {ACCENT}",
     "markdown.text": TEXT,
-    # Table and rule chrome, so a default never shows through.
     "rule.line": ACCENT,
     "rule.text": f"bold {ACCENT}",
     "table.header": f"bold {ACCENT}",
@@ -127,9 +106,7 @@ RICH_OVERRIDES = {
 }
 
 
-# Syntax highlighting for revealed solutions. A stock highlighting theme emits
-# dozens of hues from outside this palette, so the highlighter is built from it
-# instead: structure carries the accent, everything else is body text.
+# Stock Pygments themes use colors outside the palette.
 class SyntaxStyle(PygmentsStyle):
     background_color = BACKGROUND
     line_number_color = OUTLINE

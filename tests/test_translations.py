@@ -8,12 +8,7 @@ from quantum_exercises import errors
 
 
 class TestEveryTableEntryIsReachable:
-    """The tables are data, and a dict literal counts as covered the moment it loads.
-
-    So a key that no longer matches anything, a typo in one, or an entry nothing
-    ever reaches, all read as fully covered while helping nobody. These drive
-    every entry through translate() instead.
-    """
+    """A dict literal counts as covered on load, so drive every entry through translate()."""
 
     @pytest.mark.parametrize("symbol", sorted(errors._REMOVED_FROM_QISKIT))
     def test_each_removed_symbol_is_translated_by_all_three_routes(self, symbol: str) -> None:
@@ -123,12 +118,7 @@ class TestTranslations:
         assert "No IBM Quantum account is saved" in errors.translate(exc).message
 
     def test_the_two_account_rules_match_the_classes_that_really_raise(self) -> None:
-        """Both rules match on the class name, so a rename upstream disables them.
-
-        Every case here builds its own stand-in, which proves the rule reads a name
-        and nothing about that name still belonging to anything. These are the real
-        classes, imported from the package that raises them.
-        """
+        """Both rules match on the class name, so check against the real classes."""
         from qiskit_ibm_runtime.accounts import AccountNotFoundError, InvalidAccountError
 
         assert "No IBM Quantum account is saved" in errors.translate(AccountNotFoundError()).message
@@ -138,11 +128,7 @@ class TestTranslations:
         )
 
     def test_a_saved_account_that_is_no_longer_accepted(self) -> None:
-        """A revoked key is not a missing account, and the fix is a different one.
-
-        This is the likelier of the two: a key expires on its own, while a missing
-        file is something the reader can see.
-        """
+        """A revoked key is not a missing account, and the fix is a different one."""
         exc = type("InvalidAccountError", (Exception,), {})("Unable to retrieve instances.")
         translation = errors.translate(exc)
         assert "no longer accepted" in translation.message
@@ -194,10 +180,6 @@ class TestTranslations:
         assert errors.translate(ZeroDivisionError("division by zero")) is None
 
     def test_an_attribute_error_about_something_else_is_left_alone(self) -> None:
-        """Four rules inspect an AttributeError. None of them may claim this one.
-
-        Every AttributeError reaches the QuantumCircuit rule last, so a rule that
-        matched too loosely would answer here with advice about gate methods.
-        """
+        """The QuantumCircuit rule sees every AttributeError last, so it must not over-match."""
         exc = AttributeError("'list' object has no attribute 'push'")
         assert errors.translate(exc) is None

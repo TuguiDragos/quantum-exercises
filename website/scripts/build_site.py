@@ -1,7 +1,4 @@
-"""Builds the website of quantum-exercises from the repository it sits in: the exercises' own metadata, what qx
-prints for exercise 11 and for an exercise that does not exist, the test suite, and the workflows. Every figure is read
-here, on every build, so the page grows with the course; a sentence the page quotes from the docs is checked against
-them, and a build whose claim no longer holds stops rather than publishing it."""
+"""Builds the page from the repository, failing if any figure or quoted claim no longer holds."""
 
 import datetime
 import html
@@ -78,7 +75,6 @@ assert [
 PYTHON_RANGE = f"Python {PYTHONS[0]} to {PYTHONS[-1]}"
 PYTHON_LIST = ", ".join(PYTHONS[:-1]) + f" and {PYTHONS[-1]}"
 
-# The course, from each exercise's own meta.toml, and what the README says each one leaves you with.
 exercises = []
 for folder in sorted((repo / "exercises").iterdir()):
     meta = tomllib.loads((folder / "meta.toml").read_text())
@@ -163,15 +159,13 @@ for act, items in acts:
         f'<article class="act reveal"><p class="act-name">{esc(numeral)}</p><h3>{esc(name)}</h3><ol class="lessons">{rows}</ol></article>'
     )
 
-# The test suite on this checkout, as pytest collects it (the hardware test is deselected by default, so it is not
-# counted), and what CI and the scheduled verification run.
+# Collected tests exclude the hardware test, which is deselected by default.
 tests = sum(int(n) for n in re.findall(r": (\d+)$", (WORK / "collect.txt").read_text(), re.M))
 verify = (repo / ".github/workflows/verify.yml").read_text()
 assert "uv run pytest -q" in ci
 assert '- cron: "23 6 1 * *"' in verify and '- cron: "23 6 15 * *"' in verify
 assert "os: [ubuntu-latest, macos-latest, windows-latest]" in verify
-# Which job runs on which date: the operating systems on the 1st only, the fresh resolution and the next-major probe on
-# both dates, as the page says.
+# The OS matrix runs on the 1st only; latest and preview on both dates, as the page says.
 jobs = dict(
     re.findall(r"^  (\w+):\n(.*?)(?=^  \w+:\n|\Z)", verify.split("\njobs:\n", 1)[1], re.M | re.S)
 )
@@ -208,7 +202,7 @@ STACK_SENTENCE = (
     f"{STACK['qiskit-aer']}"
 )
 
-# What qx printed for exercise 11 in a fresh course, before and after the fix, written by build.sh.
+# Written by build.sh.
 fail_out = (WORK / "bell-fail.txt").read_text()
 pass_out = (WORK / "bell-pass.txt").read_text()
 for needle in [
@@ -256,7 +250,6 @@ subprocess.run(
 )
 COLORED = json.loads((WORK / "colored.json").read_text())
 
-# Every command, as the README's table lists it, so a new one reaches the page with it.
 COMMANDS = re.findall(r"^\| `(qx [^`]+)` \| (.+?) \|$", readme, re.M)
 assert ("qx run [n]", "check an exercise") in COMMANDS, "the README's command table"
 commands_html = "".join(
@@ -282,7 +275,7 @@ NOTEBOOKS = [
 assert sorted(n for n, _ in NOTEBOOKS) == sorted(
     p.name for p in (repo / "notebooks").glob("*.ipynb")
 )
-# Each line says what its notebook says it does, so a rewritten notebook stops the build until its line follows.
+# A rewritten notebook stops the build until its line here is updated.
 for name, needles in {
     "lab-1-qiskit-patterns": [
         "Every Qiskit program that touches real hardware has the same four steps",
@@ -946,8 +939,7 @@ facts = {
     "stack": STACK_SENTENCE,
 }
 (WORK / "facts.json").write_text(json.dumps(facts))
-# The page is dated by what it says, not by when it was built. When the published page says exactly the same, its date
-# stands, so a push that changes nothing here does not tell search engines that the page changed.
+# Keep the published date when the content is unchanged, so search engines see no false update.
 DATED = re.compile(r'"dateModified": "\d{4}-\d\d-\d\d"')
 modified = datetime.date.today().isoformat()
 try:

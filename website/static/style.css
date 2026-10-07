@@ -1,4 +1,3 @@
-/* Colors from the course's own banner: a deep indigo ground and its lavender. */
 :root {
   --night: #10121c;
   --tile: #171a2a;
@@ -82,7 +81,7 @@ pre code {
 }
 
 
-/* Code colors from Tapetum Quantum; plain text keeps the block's own #c8d3f5. */
+/* Code colors from Tapetum Quantum. */
 pre .k {
   color: #cd8ff9;
 }
@@ -253,7 +252,6 @@ td code {
   height: 14px;
 }
 
-/* Sponsoring sits beside the main action, never above it: an outline in place of a fill. */
 .pill-ghost {
   background: transparent;
   box-shadow: inset 0 0 0 1px rgba(206, 212, 232, 0.28);
@@ -331,7 +329,6 @@ td code {
   font-weight: 600;
 }
 
-/* A centered paragraph reads best with its lines of about the same length, so none ends on a word or two. */
 .center .lede,
 .hero .lede,
 .tile p,
@@ -450,7 +447,6 @@ td code {
   letter-spacing: -0.016em;
 }
 
-/* The line breaks between its facts, never inside one. */
 .requirements span {
   white-space: nowrap;
 }
@@ -568,7 +564,6 @@ td code {
   text-wrap: balance;
 }
 
-/* Three tiles to a row are narrower, so their titles are a size down and still fit on one line. */
 .tile:not(.span-3) h3 {
   font-size: 22px;
 }
@@ -616,7 +611,7 @@ td code {
 }
 
 
-/* Code keeps its lines: a wrapped Python line would read as two statements, so a block wider than its box scrolls. */
+/* No wrapping: a wrapped Python line reads as two statements. */
 .code pre {
   overflow-x: auto;
   white-space: pre;
@@ -893,7 +888,7 @@ footer .maker + nav ul {
 }
 
 
-/* Only moved, never faded, so every line keeps its full contrast before it scrolls in. */
+/* Only moved, never faded, so text keeps full contrast. */
 @media (prefers-reduced-motion: no-preference) {
   .js .reveal {
     transform: translateY(28px);
@@ -911,7 +906,6 @@ footer .maker + nav ul {
   }
 }
 
-/* The hero's run: the workflow as n8n drew it, then what the QPU measured. */
 .badge {
   display: inline-block;
   margin: 0 0 22px;
@@ -929,7 +923,7 @@ footer .maker + nav ul {
   content: none;
 }
 
-/* Tabs: the two steps of the story, and the screenshots. */
+/* Tabs */
 .tabs {
   justify-content: center;
 }
@@ -957,7 +951,7 @@ footer .maker + nav ul {
   border-radius: 14px;
 }
 
-/* A window, cut to its own outline: its edge and rounded corners are in the picture, so the shadow follows them. */
+/* drop-shadow follows the window's own rounded corners. */
 .shot img {
   width: 100%;
   height: auto;
@@ -980,7 +974,6 @@ footer .maker + nav ul {
   white-space: nowrap;
 }
 
-/* The story in the hero: the exercise file beside what qx said about it. */
 .badge {
   display: inline-block;
   margin: 0 0 22px;
@@ -1015,7 +1008,7 @@ footer .maker + nav ul {
   font-size: 12px;
 }
 
-/* Side by side only where the exercise file's longest line, 81 characters, fits beside the verdict. */
+/* Side by side only where the file's longest line (81 characters) fits beside the verdict. */
 @media (min-width: 1100px) {
   .story-pair {
     grid-template-columns: minmax(0, 630px) minmax(0, 1fr);
@@ -1048,7 +1041,6 @@ footer .maker + nav ul {
   margin: 0;
 }
 
-/* The terminal is labeled like the file beside it. */
 .term > .file {
   margin: -16px -18px 14px;
   padding-inline: 18px;
@@ -1182,7 +1174,6 @@ footer .maker + nav ul {
   line-height: 1.5;
 }
 
-/* A verdict panel, as a figure. */
 .mini-box {
   padding: 12px 22px;
   border: 2px solid rgba(255, 123, 123, 0.6);
@@ -1198,7 +1189,7 @@ footer .maker + nav ul {
   font-size: 56px;
 }
 
-/* The course, act by act. */
+/* Course */
 .acts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1366,7 +1357,7 @@ footer .maker + nav ul {
   line-height: 1.5;
 }
 
-/* Install, step by step. */
+/* Install */
 .steps {
   display: grid;
   gap: 14px;
@@ -1432,7 +1423,7 @@ footer .maker + nav ul {
   margin-top: 16px;
 }
 
-/* A command too long for one line breaks at a space, into two of about the same length, in a box rounded to suit. */
+/* Long commands break at a space into balanced lines. */
 .steps .command.long {
   border-radius: 18px;
 }
@@ -1477,8 +1468,7 @@ footer .maker + nav ul {
   }
 }
 
-/* Below 480px the name of the course and both buttons only fit with the heart alone, and below 360px without it:
-   Sponsor is still at the end of the page and in the footer. */
+/* Nav Sponsor: heart only below 480px, hidden below 360px (still in the footer). */
 @media (max-width: 480px) {
   .brand {
     font-size: 13px;
@@ -1569,7 +1559,6 @@ footer .maker + nav ul {
     padding: 64px 18px 20px;
   }
 
-  /* In a step the command keeps its Copy button beside it, and wraps at its spaces when it must. */
   .steps .command {
     flex-direction: row;
     width: 100%;
@@ -1588,7 +1577,7 @@ footer .maker + nav ul {
     font-size: 14px;
   }
 
-  /* A wrapped row would end on a divider, so on a phone the links are spaced instead. */
+  /* Spaced instead of divided, so a wrapped row never ends on a divider. */
   footer ul {
     gap: 10px 22px;
   }

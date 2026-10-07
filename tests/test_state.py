@@ -1,4 +1,4 @@
-"""Progress file behaviour, including the ways it can be damaged."""
+"""Progress file behavior, including the ways it can be damaged."""
 
 from __future__ import annotations
 
@@ -35,11 +35,6 @@ def test_round_trip(tmp_path: Path) -> None:
 def test_every_state_a_run_can_produce_survives_the_round_trip(
     tmp_path: Path, status: str, hints: int, ran_on: str | None
 ) -> None:
-    """Saving and loading must return what went in, for every combination qx writes.
-
-    The file is the only memory the tool has, so a field that does not survive is
-    progress quietly lost.
-    """
     state = state_module.State()
     entry = state.get("07_probe")
     entry.status = status
@@ -69,12 +64,7 @@ def test_hint_counter_stops_at_the_total(tmp_path: Path) -> None:
 
 
 def test_a_counter_larger_than_the_hints_is_capped(tmp_path: Path) -> None:
-    """The caller indexes a list with this number, so it must never exceed its length.
-
-    Reached without anyone editing anything: reveal all three hints of an exercise,
-    then let the exercise lose one. `qx hint` printed two panels and then raised
-    IndexError on the third.
-    """
+    """The caller indexes a list with this number, so it must never exceed its length."""
     state = state_module.State()
     state.get("01_environment").hints_revealed = 99
     assert state.reveal_hint("01_environment", total=3) == 3
@@ -82,7 +72,7 @@ def test_a_counter_larger_than_the_hints_is_capped(tmp_path: Path) -> None:
 
 
 def test_a_boolean_hint_counter_reads_as_none_revealed(tmp_path: Path) -> None:
-    """bool is a subclass of int, so `true` used to mean one hint had been seen."""
+    """bool is a subclass of int, so `true` must not count as one hint seen."""
     state_module.state_path(tmp_path).write_text(
         json.dumps(
             {
@@ -146,11 +136,7 @@ def test_save_leaves_no_temporary_files(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("value", [{"a": 1}, ["hardware"], 3, True])
 def test_a_ran_on_that_is_not_a_string_is_dropped(tmp_path: Path, value) -> None:
-    """`qx list` looks this value up in a dict, so an unhashable one raised there.
-
-    load() promises corruption becomes a fresh start rather than a crash, and both
-    of these fields used to be taken exactly as written.
-    """
+    """`qx list` looks this value up in a dict, so an unhashable one must be dropped."""
     state_module.state_path(tmp_path).write_text(
         json.dumps(
             {
@@ -229,11 +215,6 @@ def test_a_file_with_nothing_recorded_is_readable(tmp_path: Path, payload: str) 
 def test_unreadable_reports_what_load_silently_discards(
     tmp_path: Path, payload: str, expected: bool
 ) -> None:
-    """load() starts fresh on a damaged file, and used to do it without a word.
-
-    Saving already says so. Reading did not, so every exercise came back as
-    unfinished and nothing on screen explained it.
-    """
     state_module.state_path(tmp_path).write_text(payload, encoding="utf-8")
     assert state_module.unreadable(tmp_path) is expected
 
@@ -269,8 +250,6 @@ def test_save_cleans_up_when_the_write_fails(tmp_path: Path, monkeypatch) -> Non
 
 
 class TestLocking:
-    """The lock exists because the read-modify-write around the write was not atomic."""
-
     def test_lock_file_is_created_and_kept(self, tmp_path: Path) -> None:
         with state_module.locked(tmp_path):
             pass
@@ -309,13 +288,7 @@ class TestLocking:
         assert not missing.exists()
 
     def test_the_same_exercise_twice_over_leaves_one_entry(self, tmp_path: Path) -> None:
-        """The concurrency test below uses eight different slugs, which cannot collide.
-
-        Two processes finishing the same exercise is the ordinary case: `qx watch`
-        in one window and `qx run` in another. The last writer wins the timestamp,
-        and what matters is that the entry survives as one record rather than the
-        file ending up with a half-written pair of them.
-        """
+        """`qx watch` and `qx run` may finish the same exercise; it must stay one record."""
         for _ in range(2):
             with state_module.locked(tmp_path):
                 state = state_module.load(tmp_path)
@@ -328,19 +301,15 @@ class TestLocking:
 
 
 class TestTheWindowsLock:
-    """The nt branch, exercised wherever the suite runs rather than nowhere at all.
+    """The nt branch, run everywhere against a stand-in for msvcrt.
 
-    It is not simply unmeasured. No job runs the coverage gate on Windows, and
-    these two functions do not share flock's semantics: `msvcrt.locking` claims
-    one byte, retries once a second ten times and then raises, where flock waits.
-    Run here against a stand-in for msvcrt, so the calls it makes, and the rewind
-    that has to precede the unlock, are pinned on any platform.
+    No job measures coverage on Windows, and `msvcrt.locking` differs from flock: it
+    claims one byte, retries ten times a second apart, then raises.
     """
 
     @staticmethod
     def _load_windows_state(monkeypatch: pytest.MonkeyPatch) -> tuple[dict, list]:
-        # Read before os.name moves. pathlib chooses its flavour from it, and a
-        # POSIX path built afterwards comes back with backslashes in it.
+        # Read before os.name moves: pathlib picks its flavor from it.
         source = Path(state_module.__file__)
         text, name = source.read_text(encoding="utf-8"), str(source)
 
@@ -351,8 +320,7 @@ class TestTheWindowsLock:
         monkeypatch.setitem(sys.modules, "msvcrt", msvcrt)
         monkeypatch.setattr(os, "name", "nt")
 
-        # A real module, registered: state.py defers its annotations, so building
-        # its dataclasses means looking the module up in sys.modules by name.
+        # Registered in sys.modules: state.py defers annotations, so dataclasses look it up.
         module = ModuleType("qx_state_as_windows_sees_it")
         module.__file__ = name
         monkeypatch.setitem(sys.modules, module.__name__, module)
@@ -387,10 +355,7 @@ class TestTheWindowsLock:
             os.close(handle)
 
     def test_concurrent_updates_do_not_erase_each_other(self, tmp_path: Path) -> None:
-        """The regression test for the defect: eight writers, eight entries.
-
-        Without the lock this lost roughly one entry every other run.
-        """
+        """Eight writers, eight entries. Without the lock this lost entries."""
         import subprocess
         import sys
         import textwrap

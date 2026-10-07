@@ -1,20 +1,8 @@
 """Every diagnosis an exercise promises a learner who gets it wrong.
 
-The rest of the suite proves two points per exercise: the solution passes and the
-untouched template does not. That leaves the most valuable code in the repository
-unguarded. A `check.py` earns its keep in the branches between those two states,
-where it names the misconception rather than reporting a mismatch, and nothing
-noticed when one of those branches stopped firing.
-
-Each case starts from the exercise's own `solution.py` and appends one override.
-Python takes the last definition, so the result is a correct answer with exactly
-one thing wrong, and the case cannot rot when a solution is rewritten. The few
-cases that have to remove something rather than replace it are marked standalone
-and carry their whole source.
-
-`check()` is called in this process rather than through the runner. The subprocess
-path already has its own tests, and this way a case costs milliseconds instead of
-a fresh Qiskit import.
+Each case appends one override to the exercise's own `solution.py`, so the answer is
+correct but for one thing; standalone cases carry their whole source instead.
+`check()` runs in-process to skip a fresh Qiskit import per case.
 """
 
 from __future__ import annotations
@@ -28,8 +16,7 @@ import pytest
 from quantum_exercises.checks import CheckFailed
 from quantum_exercises.registry import Exercise
 
-# Exercise 04 is built around this warning, so the case that reproduces it emits
-# it for real. Matched on its own text, so nothing else can hide behind the filter.
+# Exercise 04's case emits this warning for real; matched on its exact text.
 pytestmark = pytest.mark.filterwarnings(
     "ignore:One of your circuits has no output classical registers:UserWarning"
 )
@@ -367,10 +354,8 @@ case(
 case(
     "10_deutsch",
     "oracle-read-instead-of-composed",
-    # The one answer that cannot be caught by looking at what comes back. For two
-    # of the four oracles this builds the same circuit as composing, gate for
-    # gate, so it is the choice of input that gives it away rather than any
-    # inspection of the output.
+    # Builds the same circuit as composing for two of the four oracles, so only
+    # the choice of input catches it.
     "def deutsch(oracle):\n"
     "    from qiskit.quantum_info import Operator as _Operator\n"
     "    import numpy as _np\n"
@@ -415,9 +400,7 @@ case(
 case(
     "10_deutsch",
     "oracle-applied-nine-times",
-    # Every one of the four oracles is its own inverse, so an odd number of them
-    # is the same operator as one, and the probe has to be a rotation no whole
-    # number of turns comes back to. A T gate was not: nine of those passed.
+    # Each oracle is its own inverse, so an odd number of them equals one.
     "def deutsch(oracle):\n"
     "    qc = QuantumCircuit(1)\n"
     "    qc.h(0)\n"
@@ -1259,9 +1242,7 @@ case(
 case(
     "19_bloch_sphere",
     "length-never-divided-by",
-    # Every state the exercise builds sits on the surface, where the division
-    # changes nothing, so this passed everything until a point inside the sphere
-    # was put to it.
+    # Only a point inside the sphere tells arccos(z) from arccos(z / length).
     "def angles(vector):\n"
     "    x, y, z = vector\n"
     "    return math.acos(max(-1.0, min(1.0, z))), math.atan2(y, x)\n",
@@ -1454,17 +1435,14 @@ case(
 case(
     "20_chsh",
     "correlation-written-out-rather-than-computed",
-    # cos(a - b) is the right answer for the Bell state, so this matches every
-    # comparison without an Estimator ever running. Only swapping something out
-    # from under it tells the two apart.
+    # Matches every comparison without an Estimator; only a substitution catches it.
     "def correlation(alice_angle, bob_angle):\n    return math.cos(alice_angle - bob_angle)\n",
     "the same answer whatever it is handed",
 )
 case(
     "20_chsh",
     "correlation-written-out-as-a-product",
-    # The same cheat with the identity expanded, so the text of the line shares
-    # nothing with cos(a - b). It has to fail for the same reason, not by its shape.
+    # The same cheat with the identity expanded: it must fail by behavior, not text.
     "def correlation(alice_angle, bob_angle):\n"
     "    return math.cos(alice_angle) * math.cos(bob_angle) + math.sin(alice_angle)"
     " * math.sin(bob_angle)\n",
@@ -1476,15 +1454,7 @@ case(
 # Right answers that do not look like the reference one
 # --------------------------------------------------------------------------
 #
-# The cases above all ask "is this rejected". These ask the opposite, and they
-# exist because the opposite is where the damage is. A checker that lets a cheat
-# through teaches nobody anything; a checker that rejects a correct answer stops
-# someone who did the work, and they have no way to tell which of the two it is.
-#
-# Both checkers below verify their exercise by substitution, which is the only
-# handle there is when the right answer can also be written out from memory. That
-# technique is what makes this list necessary: it fails on the shape of a solution
-# rather than on its result, and shapes vary.
+# Substitution checks fail on a solution's shape, so these correct answers must pass.
 
 ALTERNATIVES: list[tuple] = []
 
@@ -1497,7 +1467,6 @@ accepted(
     "20_chsh",
     "bell-cached-at-module-level",
     # bell() returns a constant, so building it once is an ordinary thing to write.
-    # Swapping the state alone rejected this, which is the regression this guards.
     "_BELL = bell()\n\n\n"
     "def correlation(alice_angle, bob_angle):\n"
     "    observable = joint_observable(alice_angle, bob_angle)\n"
@@ -1525,8 +1494,7 @@ accepted(
 accepted(
     "10_deutsch",
     "oracle-rebuilt-from-its-matrix",
-    # One application of the oracle, which is the whole claim, with nothing left in
-    # the circuit to recognise it by. Any check that counted calls would reject it.
+    # One application of the oracle with nothing left to count; it must pass.
     "from qiskit.quantum_info import Operator as _Op\n\n\n"
     "def deutsch(oracle):\n"
     "    qc = QuantumCircuit(1)\n"
@@ -1556,8 +1524,7 @@ def _load_check(exercise: Exercise) -> ModuleType:
 def _learner_module(source: str, path: Path) -> ModuleType:
     """Build the module a learner's file would have produced.
 
-    Written to disk first: exercise 01 reads the file back, which is the one
-    exception the suite allows to that rule.
+    Written to disk first, because exercise 01 reads the file back.
     """
     path.write_text(source, encoding="utf-8")
     module = ModuleType("qx_wrong_answer")

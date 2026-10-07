@@ -1,8 +1,4 @@
-"""End-to-end CLI behaviour, against a throwaway copy of the repository.
-
-Every test here runs with QX_ROOT pointed at a temporary copy, so the suite never
-edits the real exercise files or the real progress file.
-"""
+"""End-to-end CLI behavior against a throwaway copy of the repository."""
 
 from __future__ import annotations
 
@@ -23,9 +19,7 @@ runner = CliRunner()
 def sandbox(tmp_path: Path, root: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     shutil.copytree(root / "exercises", tmp_path / "exercises")
     monkeypatch.setenv("QX_ROOT", str(tmp_path))
-    # `qx doctor` reads the saved account, and the real one belongs to whoever is
-    # running the suite. A machine carrying an account on the retired channel made
-    # doctor exit 1 and failed a test about something else entirely.
+    # Isolated from the real saved account, which `qx doctor` reads.
     monkeypatch.setattr(doctor, "CREDENTIALS_PATH", tmp_path / "no-account.json")
     return tmp_path
 
@@ -41,11 +35,8 @@ _BOX = re.compile(r"[─-╿]")
 def _said(result) -> str:
     """The output as one line, with the frame taken out.
 
-    A message inside a panel wraps to the panel's width, and the border glyphs sit
-    between the two halves, so a phrase broken across lines is not a substring of
-    the output even once whitespace is collapsed. Where the break falls depends on
-    how long the temporary directory happens to be, which is how this stayed
-    hidden until a macOS runner drew a path in the one band that splits it.
+    Border glyphs sit between the halves of a wrapped phrase, so collapsing
+    whitespace alone is not enough.
     """
     return " ".join(_BOX.sub(" ", result.stdout).split())
 
@@ -64,11 +55,6 @@ class TestListing:
         assert "Your environment works" in result.stdout
 
     def test_next_sends_the_reader_to_the_lesson_before_the_file(self, sandbox: Path) -> None:
-        """The teaching is in README.md, and this used to name exercise.py alone.
-
-        Someone following `qx next` landed among the TODOs having read none of the
-        material that explains them, which is most of what the exercise is.
-        """
         output = _invoke("next").stdout
 
         assert "README.md" in output, "the lesson was not offered"
@@ -169,7 +155,7 @@ class TestOutsideARepository:
 
 
 class TestRecoveryFromADeletedFile:
-    """Deleting exercise.py used to break every command, including the repair."""
+    """A deleted exercise.py must not break every command, including the repair."""
 
     @staticmethod
     def _delete(sandbox: Path, slug: str) -> Path:
@@ -200,8 +186,7 @@ class TestRecoveryFromADeletedFile:
         )
 
     def test_one_broken_exercise_does_not_block_the_others(self, sandbox: Path) -> None:
-        """Break the last exercise, then work on the first. Found by name, not by
-        number, so inserting an exercise cannot quietly turn this into a no-op."""
+        """Break the last exercise, found by name rather than number, then work on the first."""
         last = sorted(p.name for p in (sandbox / "exercises").iterdir() if p.is_dir())[-1]
         self._delete(sandbox, last)
         shutil.copyfile(

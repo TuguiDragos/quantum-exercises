@@ -20,8 +20,7 @@ from quantum_exercises.registry import Exercise
 
 Outcome = Literal["pass", "fail", "error", "internal_error", "timeout", "crash"]
 
-# Enough to show a learner what their program printed, small enough that a runaway
-# print loop cannot grow the parent's memory.
+# Caps memory use when an exercise prints in a runaway loop.
 MAX_CAPTURED_BYTES = 64 * 1024
 
 
@@ -45,12 +44,7 @@ class RunResult:
 
 
 class _BoundedReader(threading.Thread):
-    """Drain a pipe, keeping at most ``limit`` bytes of it.
-
-    Draining rather than simply stopping matters: a reader that walked away would
-    leave the child blocked on a full pipe buffer, so a runaway printer would look
-    like a hang instead of what it is.
-    """
+    """Drain a pipe to the end, keeping at most ``limit`` bytes, so the child never blocks."""
 
     def __init__(self, stream, limit: int = MAX_CAPTURED_BYTES) -> None:
         super().__init__(daemon=True)
@@ -63,10 +57,8 @@ class _BoundedReader(threading.Thread):
     def run(self) -> None:
         try:
             while True:
-                # read1, not read: a buffered read(n) waits for n bytes or EOF, so a
-                # single short line sat in this buffer until the pipe closed. When
-                # something the exercise spawned kept the write end open, that meant
-                # the learner's output was reported as empty.
+                # read1, not read: read(n) waits for n bytes or EOF, which never comes
+                # if a grandchild holds the pipe open.
                 chunk = self._stream.read1(8192)
                 if not chunk:
                     break
@@ -92,28 +84,19 @@ class _BoundedReader(threading.Thread):
 def _child_env(exercise: Exercise, *, allow_hardware: bool) -> dict[str, str]:
     env = {
         **os.environ,
-        # PYTHONSAFEPATH keeps the working directory off sys.path on 3.11 and up.
-        # worker.py drops it explicitly as well, which covers 3.10.
+        # Keeps the cwd off sys.path on 3.11+; worker.py handles 3.10.
         "PYTHONSAFEPATH": "1",
-        # Pin the child's own streams to UTF-8 so a circuit drawing survives a
-        # console whose locale encoding cannot represent box characters.
-        # No .pyc litter: the worker imports exercise.py, check.py and their
-        # neighbours, which would otherwise fill every exercise directory with a
-        # __pycache__ the learner sees in their editor and never asked for.
+        # No __pycache__ in the learner's exercise directories.
         "PYTHONDONTWRITEBYTECODE": "1",
+        # Circuit drawings need UTF-8 even on a console with another locale.
         "PYTHONIOENCODING": "utf-8",
-        # Python 3.13 and later colour their own tracebacks on a terminal, and
-        # anything the exercise itself prints could carry colour too. Both would
-        # land inside our panels wearing hues from outside the palette.
+        # Keep colored tracebacks and output out of our palette.
         "PYTHON_COLORS": "0",
         "NO_COLOR": "1",
         "PYTHONUTF8": "1",
     }
     if exercise.hardware and not allow_hardware:
-        # Nobody agreed to this run reaching a QPU, so the child is kept off one.
-        # The decision belongs to the caller: `qx run` sets it from the question
-        # it asked, and everything else, watch mode included, gets the safe
-        # answer by default. An existing QX_OFFLINE is never cleared here.
+        # No consent to use a QPU. An existing QX_OFFLINE is never cleared.
         env[OFFLINE_ENV] = "1"
     return env
 
@@ -126,11 +109,7 @@ def _spawn_kwargs() -> dict:
 
 
 def _process_group(process: subprocess.Popen) -> int | None:
-    """The child's process group, read while the child is certainly still alive.
-
-    Read once, up front. Asking later races with the child exiting, and a pid that
-    has been reused would hand back a group belonging to something else entirely.
-    """
+    """The child's process group. Read once, up front, before its pid can be reused."""
     if os.name == "nt":  # pragma: no cover - exercised only on Windows
         return None
     try:
@@ -157,9 +136,7 @@ def _kill_tree(process: subprocess.Popen, pgid: int | None = None) -> None:
 
     with contextlib.suppress(OSError):
         process.kill()
-    # Reap it, so a signal that has not landed yet cannot leave a zombie behind.
-    # The timeout is suppressed because a child that ignores SIGKILL is the
-    # kernel's problem rather than something this runner can do anything about.
+    # Reap it to avoid a zombie.
     with contextlib.suppress(subprocess.TimeoutExpired):
         process.wait(timeout=5)
 
@@ -174,9 +151,7 @@ def run_exercise(
 ) -> RunResult:
     """Run one exercise in a child process and return a structured verdict.
 
-    ``allow_hardware`` defaults to False so that a caller which has not thought
-    about it cannot spend someone's QPU quota. Only `qx run`, holding an answer
-    to the question it asked, passes True.
+    ``allow_hardware`` defaults to False so no caller spends QPU quota by accident.
     """
     target = target or exercise.exercise_file
     if not target.is_file():
@@ -214,20 +189,10 @@ def run_exercise(
             **_spawn_kwargs(),
         )
 
-        # Read the group now, while the child is certainly alive, so the cleanup
-        # below cannot race the pid being reused.
         pgid = _process_group(process)
 
-        # Everything below runs under a finally that kills the whole group. The child
-        # sits in its own group precisely so the terminal cannot signal it, which also
-        # means Ctrl-C reaches only this process. Without the finally the parent
-        # unwinds and the worker is orphaned, and since the time limit is enforced
-        # here rather than in the child, nothing would ever stop it again.
-        #
-        # The kill is unconditional rather than guarded on the worker still running:
-        # a worker can exit cleanly having left something of its own behind, and that
-        # something holds the write end of these pipes open. Killing the group is what
-        # closes them, which is what lets the joins below return.
+        # Always kill the group on the way out: Ctrl-C reaches only this process, and
+        # leftover grandchildren would keep the pipes open.
         try:
             out_reader = _BoundedReader(process.stdout)
             err_reader = _BoundedReader(process.stderr)
@@ -242,10 +207,7 @@ def run_exercise(
                 _kill_tree(process, pgid)
                 returncode = process.returncode if process.returncode is not None else -1
             else:
-                # The worker is done, so nothing it left running has anything more to
-                # say. Close the pipes by killing the group before waiting on the
-                # readers, or a stray grandchild holds them open and the joins below
-                # burn their full timeout and return nothing.
+                # Kill leftovers before joining, or they hold the pipes open.
                 _kill_tree(process, pgid)
 
             out_reader.join(timeout=5)
@@ -253,8 +215,7 @@ def run_exercise(
             stdout, stderr = out_reader.text(), err_reader.text()
             duration = time.monotonic() - started
 
-            # Check for a verdict even after a timeout: the worker may have finished
-            # and only a process it spawned kept the clock running.
+            # Even after a timeout: the worker may have finished while a grandchild ran on.
             payload = _read_payload(result_path)
 
             if payload is None:
@@ -269,8 +230,7 @@ def run_exercise(
                         stderr=stderr,
                         duration=duration,
                     )
-                # The worker always writes a file unless the process died outright,
-                # for example os._exit or a segfault inside a native extension.
+                # No result file means the process died outright (os._exit, segfault).
                 return RunResult(
                     outcome="crash",
                     message="Your code stopped the whole process before it could be checked.",
@@ -301,11 +261,7 @@ def run_exercise(
 
 
 def _timeout_detail(exercise: Exercise, *, explicit: bool) -> str:
-    """Point at the knob the reader actually turned, not the other one.
-
-    The number of seconds is already in the message this detail sits under, so it
-    is deliberately not repeated here.
-    """
+    """Point at the limit the reader actually set: --timeout or meta.toml."""
     where = (
         "pass a larger `--timeout`" if explicit else f"raise `timeout` in {exercise.slug}/meta.toml"
     )
@@ -316,11 +272,7 @@ def _timeout_detail(exercise: Exercise, *, explicit: bool) -> str:
 
 
 def ran_on(artifacts: list[dict]) -> str | None:
-    """Which backend an exercise reported running on, if any artifact said so.
-
-    Tolerates meta being absent or explicitly None, which a hand-written artifact
-    dict can be.
-    """
+    """Which backend an exercise reported running on, if any artifact said so."""
     for artifact in artifacts:
         if not isinstance(artifact, dict):
             continue

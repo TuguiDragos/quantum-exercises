@@ -56,16 +56,9 @@ def offline() -> bool:
 
 @contextlib.contextmanager
 def quiet_runtime() -> Iterator[list[str]]:
-    """Collect the runtime client's own log lines rather than letting them print.
+    """Collect the runtime client's log lines instead of letting them print.
 
-    It logs at WARNING while doing ordinary things, such as naming the instance it
-    picked, and those lines land raw wherever the client is built: a timestamp, a
-    module path and a paragraph of advice, in the middle of a table or on top of a
-    question. Collecting them means the one fact worth keeping can be said in the
-    tool's own words, and the rest is dropped.
-
-    Lives here rather than in doctor because it belongs to the client, and every
-    caller that builds one in this process needs it.
+    It logs ordinary events at WARNING, which would land raw in tables and prompts.
     """
     logger = logging.getLogger("qiskit_ibm_runtime")
     collected: list[str] = []
@@ -75,10 +68,8 @@ def quiet_runtime() -> Iterator[list[str]]:
             collected.append(record.getMessage())
 
     handler = _Collect()
-    # The client attaches its own StreamHandler to this logger at import and sets
-    # propagate to False itself, so adding a handler beside it silences nothing and
-    # cutting propagation silences nothing either. Its handlers come off for the
-    # length of the call and go back exactly as they were, list included.
+    # The client installs its own StreamHandler with propagate=False, so its
+    # handlers must be swapped out, then restored exactly.
     existing = logger.handlers[:]
     propagated = logger.propagate
     logger.handlers = [handler]
@@ -100,10 +91,7 @@ def _noisy_simulator(reason: str) -> Selection:
         backend = AerSimulator.from_backend(fake)
         return Selection(backend, "noisy_simulator", f"aer({FAKE_BACKEND})", reason)
     except Exception as exc:  # noqa: BLE001 - fall through to the noiseless simulator
-        # Say that the noise went missing. This branch hands back a noiseless
-        # simulator while keeping the reason it was given, which explains only why
-        # the run is not on hardware. The reader was left with an exercise about
-        # noise that had none, and nothing on screen connecting the two.
+        # Say the noise model is missing, or a noise exercise silently has none.
         return Selection(
             AerSimulator(),
             "simulator",
@@ -131,10 +119,7 @@ def get_backend(*, min_num_qubits: int = 2, prefer_hardware: bool = True) -> Sel
     try:
         service = QiskitRuntimeService()
     except Exception as exc:  # noqa: BLE001 - AccountNotFoundError and friends
-        # The message, not just the class. A revoked key raises InvalidAccountError,
-        # whose text says which token to go and look at; naming the class alone left
-        # the reader with a word and no next step, while the branch below this one
-        # had been reporting both all along.
+        # Include the message: e.g. InvalidAccountError says which token to check.
         return _noisy_simulator(f"no usable IBM account ({type(exc).__name__}: {exc})")
 
     try:
@@ -159,20 +144,16 @@ class Queue:
 
 
 def queue_peek(*, min_num_qubits: int = 2) -> Queue | None:
-    """The least busy QPU and how many jobs are waiting on it.
+    """The least busy QPU and its queue length, or None if hardware is out of reach.
 
-    Asks only for status, so it costs no QPU time and commits to nothing. Returns
-    None whenever hardware is out of reach, which is every case where there is
-    nothing to decide: offline, no account, no network, no operational QPU.
+    Asks only for status, so it costs no QPU time.
     """
     if offline():
         return None
     try:
         from qiskit_ibm_runtime import QiskitRuntimeService
 
-        # Quiet, because this one runs in the terminal the reader is looking at.
-        # `get_backend` builds the same client inside the worker, whose output the
-        # runner pipes, so only this call ever put the client's log on screen.
+        # Runs in the reader's terminal, unlike get_backend whose output is piped.
         with quiet_runtime():
             backend = QiskitRuntimeService().least_busy(
                 min_num_qubits=min_num_qubits, operational=True, simulator=False
@@ -185,11 +166,7 @@ def queue_peek(*, min_num_qubits: int = 2) -> Queue | None:
 
 
 def to_isa(circuit, backend, *, optimization_level: int = 1):
-    """Transpile to the backend's instruction set.
-
-    Hardware rejects any circuit that is not already expressed in its native
-    gates and connectivity, so this step is mandatory rather than an optimization.
-    """
+    """Transpile to the backend's instruction set, which hardware requires."""
     from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 
     pass_manager = generate_preset_pass_manager(
@@ -206,9 +183,7 @@ def sample(circuit, selection: Selection, *, shots: int = 1024) -> dict[str, int
         result = SamplerV2(mode=selection.backend).run([circuit], shots=shots).result()
         return single_register_counts(result[0])
 
-    # Run on the backend we actually chose. A fresh qiskit_aer SamplerV2() would
-    # ignore it and sample noiselessly, so the noise model copied from hardware
-    # would silently do nothing and the whole point of the fallback would be lost.
+    # A fresh qiskit_aer SamplerV2() would ignore the backend and its noise model.
     counts = selection.backend.run(circuit, shots=shots).result().get_counts()
     return _normalize_counts(counts)
 
@@ -228,11 +203,7 @@ def _normalize_counts(counts) -> dict[str, int]:
 
 
 def single_register_counts(pub_result) -> dict[str, int]:
-    """Read counts without hardcoding a register name.
-
-    `measure_all()` names its register `meas`; an explicit ClassicalRegister keeps
-    its own name. Discovering the field avoids guessing wrong.
-    """
+    """Read counts without hardcoding a register name (`meas` or a custom one)."""
     fields = list(pub_result.data.keys())
     if not fields:
         raise ValueError(

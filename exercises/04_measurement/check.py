@@ -10,9 +10,7 @@ from quantum_exercises.checks import (
     require_circuit,
 )
 
-# Deliberately not the sampler's own default of 1024. At that figure, leaving
-# `shots=SHOTS` off the run entirely gave the right answer by coincidence and the
-# shot count below could never catch it.
+# Not the sampler's default of 1024, so leaving `shots=SHOTS` off the run is caught.
 EXPECTED_SHOTS = 2048
 
 
@@ -30,7 +28,6 @@ def check(mod):
 
     result = require(mod, "result")
 
-    # The most common mistake: assigning the job instead of its result.
     if hasattr(result, "result") and callable(result.result):
         raise CheckFailed(
             "`result` holds the job, not the answer.",
@@ -87,20 +84,13 @@ def check(mod):
 
 
 def _assert_result_came_from(counts: dict[str, int], qc) -> None:
-    """Tie the numbers to the circuit that was supposed to produce them.
-
-    Nothing else here reads `qc` and `result` together, so a wrong circuit paired
-    with counts from a different one passed. Compared against what `qc` itself
-    predicts, at the same tolerance as the check below, because these counts are
-    a sample rather than an exact distribution.
-    """
+    """Check that the counts are a sample of `qc` and not of some other circuit."""
     predicted = as_statevector(qc).probabilities_dict()
     shots = sum(counts.values())
     try:
         assert_counts_close(counts, predicted)
     except CheckFailed as exc:
-        # Worded here rather than passed through: assert_counts_close speaks to a
-        # learner who wrote the probabilities down, and these came from a circuit.
+        # Reworded: assert_counts_close assumes the learner wrote probabilities down.
         want = ", ".join(f"'{key}': {float(value):.4f}" for key, value in sorted(predicted.items()))
         got = ", ".join(f"'{key}': {value / shots:.4f}" for key, value in sorted(counts.items()))
         raise CheckFailed(

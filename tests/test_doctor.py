@@ -59,18 +59,14 @@ class TestCredentials:
         check = doctor.check_credentials()
         assert check.status == "ok"
         assert "ibm_quantum_platform" in check.detail
-        # The whole point: diagnosis must never echo the key.
+        # Diagnosis must never echo the key.
         assert secret not in check.detail
         assert secret not in (check.fix or "")
 
     def test_the_ok_does_not_claim_the_key_still_works(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Every test above this one reads the file. None of them asks IBM.
-
-        A key that has since been revoked passes all of them, so an unqualified ok
-        beside the account name reads as a promise this check never made.
-        """
+        """Nothing here asks IBM, so a revoked key still passes; the ok must not promise more."""
         path = tmp_path / "qiskit-ibm.json"
         path.write_text(
             json.dumps({"acct": {"channel": "ibm_quantum_platform", "token": "b" * 44}}),
@@ -104,12 +100,6 @@ class TestCredentials:
     def test_unrecognised_channel_is_a_warning(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, channel: str | None
     ) -> None:
-        """A typo used to be reported as a healthy account.
-
-        Only the retired list was consulted, so anything that was neither current
-        nor known-retired fell through to "ok". VALID_CHANNELS existed for this and
-        was never read.
-        """
         path = tmp_path / "qiskit-ibm.json"
         path.write_text(
             json.dumps({"default": {"channel": channel, "token": "x" * 44}}), encoding="utf-8"
@@ -223,12 +213,7 @@ def test_check_online_reports_available_qpus(monkeypatch) -> None:
 
 
 class TestOnlineNoise:
-    """The runtime client logs at WARNING while doing ordinary things.
-
-    Two paragraphs of it, with a timestamp and a module path, used to land in the
-    middle of the doctor table. That is library noise in a tool whose whole claim
-    is that you never have to read any.
-    """
+    """The runtime client logs at WARNING during ordinary work; none of it may print."""
 
     @staticmethod
     def _service(monkeypatch, messages: list[str]) -> None:
@@ -245,11 +230,7 @@ class TestOnlineNoise:
         monkeypatch.setitem(sys.modules, "qiskit_ibm_runtime", module)
 
     def test_the_clients_warnings_never_reach_the_screen(self, monkeypatch) -> None:
-        """Proved against a real handler on the root logger, which is what prints.
-
-        Asserting on captured stdout proves nothing here: under pytest the root
-        logger has no stream handler, so the line would go nowhere either way.
-        """
+        """Proved on a real root handler: under pytest the root logger has no stream handler."""
         import io
 
         stream = io.StringIO()
@@ -268,12 +249,9 @@ class TestOnlineNoise:
         assert stream.getvalue() == "", f"the client printed: {stream.getvalue()!r}"
 
     def test_it_silences_the_handler_the_client_attaches_to_itself(self, monkeypatch) -> None:
-        """The setup the library really has, which the root-logger test above misses.
+        """The library's real setup: its own StreamHandler, with propagate already False.
 
-        qiskit_ibm_runtime calls setup_logger on import: a StreamHandler on its own
-        logger, and propagate already False. Nothing higher up is involved, so
-        cutting propagation and adding a second handler leaves the first one
-        printing, which is exactly what `qx doctor --online` did.
+        Cutting propagation and adding a second handler leaves the first one printing.
         """
         import io
 
@@ -370,12 +348,6 @@ def test_run_checks_includes_online_only_when_asked(tmp_path: Path, monkeypatch)
     assert len(doctor.run_checks(None, online=True)) == len(doctor.run_checks(None)) + 1
 
 
-# TestCredentialChecks stood here and re-tested, one assertion at a time, exactly
-# what TestCredentials and TestCredentialPermissions above already cover with
-# their fix text and their parametrised channels. Every case it held was a strict
-# subset of one of theirs, so it went rather than being kept in step twice.
-
-
 def test_doctor_reports_a_broken_smoke_test(monkeypatch) -> None:
     module = ModuleType("qiskit.primitives")
 
@@ -440,7 +412,7 @@ class TestAccountRowWording:
     """The row has to name a command someone can actually type."""
 
     def test_it_names_the_whole_command_not_the_bare_flag(self, monkeypatch, tmp_path) -> None:
-        """`--online` alone reads as an option of qx, which sent a reader to `qx --online`."""
+        """`--online` alone reads as an option of qx itself."""
         creds = tmp_path / "qiskit-ibm.json"
         creds.write_text('{"default": {"channel": "ibm_quantum_platform"}}', encoding="utf-8")
         creds.chmod(0o600)  # a loose mode is reported first and would hide the wording

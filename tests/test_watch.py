@@ -1,8 +1,4 @@
-"""Proof-of-concept coverage for watch.py, the one module with no tests at all.
-
-watchfiles.watch() is a blocking generator, so it is replaced with a scripted one.
-That is enough to drive every branch of watch_exercise without real file events.
-"""
+"""watch.py, driven by a scripted stand-in for the blocking watchfiles.watch()."""
 
 from __future__ import annotations
 
@@ -83,8 +79,7 @@ class TestHardware:
         monkeypatch.setattr(watch_module, "run_exercise", fake)
         watch_module._run_and_record(load_exercises(sandbox)[0], sandbox)
 
-        # Two halves, because watch passes nothing and leans on the default. The
-        # first assertion alone would be satisfied by its own fallback.
+        # Both, because watch leans on the default; the first alone passes via its fallback.
         assert recorded.get("allow_hardware", False) is False
         assert inspect.signature(run_exercise).parameters["allow_hardware"].default is False
 
@@ -94,8 +89,7 @@ class TestHardware:
         """The panel names the backend, not the reason this mode could pick no other."""
         hardware = next(e for e in load_exercises(sandbox) if e.hardware)
         watch_module._announce(hardware, sandbox)
-        # One word: the console wraps to whatever terminal it finds, and
-        # "local simulator" splits across the break in a narrow pane.
+        # One word: "local simulator" can wrap across lines in a narrow pane.
         assert "simulator" in capsys.readouterr().out
 
     def test_a_simulator_exercise_says_nothing_extra(
@@ -130,7 +124,6 @@ class TestWatchExercise:
         watch_module.watch_exercise(exercises[0], root=sandbox, exercises=exercises)
 
         assert load_state(sandbox).is_complete("01_environment")
-        # The watcher was registered on the SECOND exercise, not the first.
         assert calls == [exercises[1].path]
 
     def test_every_exercise_complete_stops_immediately(
@@ -201,12 +194,7 @@ class TestWatchExercise:
     def test_a_pass_that_could_not_be_recorded_stays_on_the_same_exercise(
         self, sandbox: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A read-only clone runs the check happily and cannot write the result.
-
-        The watcher asks the state file what to do next, so it is handed back the
-        exercise that just passed. Advancing to it would mean announcing a move to
-        where it already is, on every save, for as long as the file stays unwritable.
-        """
+        """A read-only clone cannot record the pass, so the watcher must not re-announce it."""
         _solve(sandbox, "01_environment")
         exercises = load_exercises(sandbox)
         announced: list[str] = []

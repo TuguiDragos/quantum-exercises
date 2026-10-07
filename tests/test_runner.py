@@ -161,12 +161,7 @@ class TestHardening:
     def test_output_that_stops_exactly_at_the_limit_is_kept_whole(
         self, synthetic: Exercise, tmp_path: Path
     ) -> None:
-        """The boundary itself, where an off-by-one would either cut or overrun.
-
-        The test above overruns the cap by a factor of thousands, which any limit
-        at all satisfies. Here the child writes the cap exactly, so keeping one
-        byte too few would add the notice and keeping one too many would not.
-        """
+        """The child writes exactly the cap, so an off-by-one either way shows."""
         _write(
             synthetic,
             "import sys\n"
@@ -271,16 +266,14 @@ def _wait_until_gone(pid: int, seconds: float = 10.0) -> bool:
     return not _alive(pid)
 
 
-# The kill goes through a process group, which Windows does not have. The branch
-# for it calls taskkill instead and is exercised nowhere in this suite.
+# Windows has no process groups; its taskkill branch is not exercised here.
 posix_only = pytest.mark.skipif(os.name == "nt", reason="process groups are POSIX")
 
 
 class TestNothingIsLeftRunning:
     """The time limit lives in the parent, so anything it fails to kill runs forever.
 
-    Both cases below passed with a kill that reached only the worker: the verdict
-    is the same either way, and only the leftover process tells them apart.
+    The verdict is the same either way; only a leftover process shows the bug.
     """
 
     @posix_only
@@ -307,11 +300,7 @@ class TestNothingIsLeftRunning:
     def test_an_interrupted_run_does_not_orphan_the_worker(
         self, synthetic: Exercise, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Ctrl-C reaches this process alone: the child sits in a group of its own.
-
-        So the parent has to do the killing on its way out. Without that the worker
-        keeps running with nothing left to stop it, since the clock was the parent's.
-        """
+        """Ctrl-C reaches only this process, so the parent must kill the worker on its way out."""
         _write(synthetic, "import time\ntime.sleep(120)\n")
 
         started: list[int] = []
@@ -326,16 +315,13 @@ class TestNothingIsLeftRunning:
         waits = {"count": 0}
 
         def wait(self, timeout=None):
-            # Only the first wait, the one the time limit is enforced with. The
-            # cleanup that follows has to be left working, or this would prove
-            # nothing about what the cleanup does.
+            # Only the first wait, which enforces the time limit; cleanup must still work.
             waits["count"] += 1
             if waits["count"] == 1:
                 raise KeyboardInterrupt
             return real_wait(self, timeout=timeout)
 
-        # The class by reference, and before the name is taken over: once Popen is
-        # the spy above, runner.subprocess.Popen no longer names the class at all.
+        # Captured before Popen is replaced by the spy above.
         monkeypatch.setattr(real_popen, "wait", wait)
         monkeypatch.setattr(runner.subprocess, "Popen", spy)
 
@@ -350,11 +336,7 @@ class TestNothingIsLeftRunning:
 def test_kill_tree_still_kills_when_there_is_no_process_group(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """getpgid can fail, and the child still has to die.
-
-    The group is what takes anything the exercise spawned. Without one there is
-    nothing to signal, so the direct kill below is all that is left.
-    """
+    """Without a process group, the direct kill is all that is left."""
     import subprocess
     import sys
 
@@ -369,11 +351,9 @@ def test_kill_tree_still_kills_when_there_is_no_process_group(
 
 
 class TestHardwareIsFencedOff:
-    """A QPU job costs someone real quota, so it takes an answer to send one.
+    """A QPU job costs real quota, so it takes an answer to send one.
 
-    The child decides which backend to use, and the only lever the parent has over
-    that decision is the environment it hands down. `qx run` sets this from the
-    question it asked; every other caller takes the default, which is no.
+    The parent's only lever is the environment it hands the child; the default is no.
     """
 
     @staticmethod

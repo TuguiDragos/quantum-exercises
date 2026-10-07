@@ -1,10 +1,4 @@
-"""All terminal rendering. Nothing here computes a verdict, it only shows one.
-
-The one exception is `save_progress`, which lives here because saving and saying
-what happened when it fails are the same act, and both `qx run` and `qx watch`
-need it. Putting it in state.py would mean state.py importing this module, and
-this module already imports state.
-"""
+"""All terminal rendering. Nothing here computes a verdict, it only shows one."""
 
 from __future__ import annotations
 
@@ -24,28 +18,19 @@ from quantum_exercises.registry import Exercise
 from quantum_exercises.runner import RunResult
 from quantum_exercises.state import STATE_FILENAME, State, save, state_path
 
-# highlight=False: rich otherwise recolours numbers, strings and paths with its
-# own default theme, laying colours over the palette that nothing here chose.
-# The theme override replaces rich's built-in markdown and table styles, which
-# are written in named colours and would otherwise surface through `qx hint`.
+# highlight=False stops rich from coloring numbers, strings and paths itself.
 console = Console(highlight=False, theme=Theme(theme.RICH_OVERRIDES))
 
-# Square everywhere. A filled cell is painted corner to corner, so a rounded
-# glyph drawn over it leaves the cell's outer corner coloured outside the curve.
+# Rounded corners leave a visible notch on a filled background.
 TABLE_BOX = box.SQUARE
 
 BAR_WIDTH = 34
 
-# One glyph for the fill, one for the track. The bar used to end in a partial
-# cell from the U+258x family, which reads as a fraction of a cell but is drawn by
-# the font at its own height: next to a full block that the font insets, the last
-# cell of the bar stood taller than the rest of it. A whole cell is 1/34 of the
-# bar, and the exact figure is printed beside it, so nothing is lost by rounding.
+# Whole cells only: fonts draw partial blocks (U+258x) at a different height.
 _FULL = "█"
 _TRACK = "░"
 
-# Plain replacements for terminals whose encoding cannot carry the blocks above,
-# which is still the default on some Windows consoles.
+# For consoles that cannot encode the blocks, e.g. some Windows code pages.
 _ASCII_FULL = "#"
 _ASCII_TRACK = "."
 
@@ -57,16 +42,10 @@ STATUS_STYLE = {
 
 
 def _supports_blocks() -> bool:
-    """Can the current output encoding actually carry the block characters?
-
-    Checked per call rather than at import: the stream is swapped out under tests
-    and when output is piped. It asks about exactly the two characters the bar
-    draws; asking about a wider set sent terminals to the ASCII bar over glyphs
-    they were never going to be shown.
-    """
+    """Whether the output encoding can carry the bar characters. Checked per call."""
     encoding = getattr(console.file, "encoding", None)
     if not encoding:
-        return True  # no encoding to fail against, for example an in-memory buffer
+        return True  # e.g. an in-memory buffer
     try:
         (_FULL + _TRACK).encode(encoding)
     except (UnicodeEncodeError, LookupError):
@@ -75,12 +54,7 @@ def _supports_blocks() -> bool:
 
 
 def _effective_track(track: str) -> str:
-    """The track character actually drawn, after the ASCII fallback.
-
-    Lives here rather than inside _bar so that _bar_text strips the same character
-    _bar drew. When they disagreed, nothing was stripped and the empty half of the
-    bar was painted in the fill colour.
-    """
+    """The track character actually drawn, shared by _bar and _bar_text."""
     if track == _TRACK and not _supports_blocks():
         return _ASCII_TRACK
     return track
@@ -98,26 +72,18 @@ def _bar(fraction: float, width: int = BAR_WIDTH, track: str = " ") -> str:
 
 
 def panel(*, border: str = theme.BORDER_ACTIVE, heavy: bool = False, raised: bool = False) -> dict:
-    """Panel styling in one place, so no call site names a colour or a box."""
+    """Panel styling in one place, so no call site names a color or a box."""
     return {
         "border_style": border,
         "style": theme.RAISED if raised else theme.PANEL,
-        # Square, not rounded: a filled cell is painted corner to corner, and a
-        # rounded glyph drawn over it leaves the cell's outer corner coloured
-        # outside the curve, which reads as a notch. Square geometry matches the
-        # fill exactly. Rounded looks right only on an unfilled panel.
+        # Square, not rounded: rounded corners notch a filled background.
         "box": box.HEAVY if heavy else box.SQUARE,
         "expand": False,
     }
 
 
 def _display_path(path: Path) -> str:
-    """The shortest way to name a file the reader has to go and open.
-
-    Relative to the working directory when that is shorter, absolute otherwise.
-    `qx` is usually installed globally and run from anywhere, so a bare filename
-    tells the learner nothing about where the file actually is.
-    """
+    """The path relative to the working directory when shorter, absolute otherwise."""
     absolute = path.resolve()
     try:
         relative = absolute.relative_to(Path.cwd())
@@ -127,7 +93,7 @@ def _display_path(path: Path) -> str:
 
 
 def _bar_text(fraction: float, width: int = BAR_WIDTH, *, track: str = " ") -> Text:
-    """A bar as two spans, so the track keeps its own colour instead of the fill's."""
+    """A bar as two spans, so the track keeps its own color instead of the fill's."""
     rendered = _bar(fraction, width, track)
     used = _effective_track(track)
     filled = len(rendered.rstrip(used)) if used.strip() else len(rendered.rstrip(" "))
@@ -135,12 +101,7 @@ def _bar_text(fraction: float, width: int = BAR_WIDTH, *, track: str = " ") -> T
 
 
 def _safe(text: str) -> str:
-    """Replace characters the output stream cannot encode, rather than crashing.
-
-    Qiskit circuit drawings are box-drawing art. Printing one to a console on a
-    legacy code page raises UnicodeEncodeError from deep inside rich, which would
-    take down a run that had already succeeded.
-    """
+    """Replace characters the output stream cannot encode, e.g. circuit box art."""
     encoding = getattr(console.file, "encoding", None)
     if not encoding:
         return text
@@ -171,9 +132,7 @@ def _fmt_complex(re: float, im: float, places: int = 3) -> str:
 
 def render_counts(payload: dict[str, int], caption: str) -> Panel:
     total = sum(payload.values()) or 1
-    # Floor of 1: a dict whose counts are all zero made peak 0 and the bar below
-    # divided by it. No shipped exercise reaches that, because the count assertions
-    # fail first, but this helper takes whatever an exercise author passes it.
+    # Floor of 1 avoids dividing by zero when every count is zero.
     peak = max(1, max(payload.values(), default=1))
     body = Text()
     for outcome in sorted(payload):
@@ -218,11 +177,7 @@ def render_artifact(artifact: dict):
     meta = artifact.get("meta") or {}
 
     caption = _safe(caption)
-    # The kind and the outer type are checked below, the shape inside is not: a
-    # matrix whose rows are numbers, or a statevector of scalars, reaches the
-    # renderer and raises. That is an exercise author's mistake arriving after the
-    # learner's answer already passed, so it falls back to the text panel rather
-    # than ending a successful run in a traceback.
+    # A malformed payload falls back to text instead of crashing a passed run.
     try:
         if kind == "counts" and isinstance(payload, dict):
             return render_counts(payload, caption)
@@ -261,8 +216,7 @@ def render_run(exercise: Exercise, result: RunResult, *, root: Path) -> None:
 
     if result.passed:
         for artifact in result.artifacts:
-            # Some artifacts carry only metadata, such as which backend a run
-            # used. With no caption and no payload they would draw an empty box.
+            # Metadata-only artifacts (e.g. ran_on) would draw an empty box.
             if not artifact.get("caption") and not artifact.get("payload"):
                 continue
             console.print(render_artifact(artifact))
@@ -304,8 +258,6 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
         Panel(
             Group(*parts),
             title=heading,
-            # "not yet" is an inactive outline; anything louder gets the accent
-            # and a heavier rule, since the palette carries no error hue.
             **panel(
                 border=theme.BORDER if result.outcome == "fail" else theme.BORDER_ACTIVE,
                 heavy=result.outcome != "fail",
@@ -327,10 +279,7 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
         + Text(f"{invocation()} hint {exercise.number}", style=theme.COMMAND)
         + Text(" for a nudge, or open", style=theme.DETAIL)
     )
-    # On its own line, and soft_wrap so it survives whole. no_wrap with crop=False
-    # is not enough: rich still measures against the console width and cuts there,
-    # which silently hands the reader a path that does not exist. soft_wrap also
-    # sets overflow to ignore, which is the part that actually keeps every character.
+    # soft_wrap, not no_wrap: only soft_wrap keeps rich from cropping the path.
     console.print(
         Text(f"        {_display_path(exercise.exercise_file)}", style=theme.PATH),
         soft_wrap=True,
@@ -347,13 +296,9 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
 # --------------------------------------------------------------------------
 
 
-# Fixed widths so the per-act tables line up with each other. Repeating the act
-# name on every row would cost this much space and squeeze the titles instead.
-# The exercise column is exactly the longest slug, and the title column the
-# longest title, so nothing wraps in a standard 80-column terminal.
+# Fixed widths so the per-act tables line up and fit 80 columns.
 LIST_COLUMNS = (("#", 2), ("exercise", 20), ("title", 36), ("status", 14))
 
-# Compact forms of backends.Kind, so the status column stays narrow.
 RAN_ON_LABEL = {"hardware": "QPU", "noisy_simulator": "noisy", "simulator": "sim"}
 
 
@@ -416,12 +361,7 @@ def render_next(exercise: Exercise) -> None:
             **panel(border=theme.BORDER_ACTIVE),
         )
     )
-    # The README first. It holds the teaching, and pointing straight at the file
-    # to edit sent readers into the TODOs without the lesson that explains them.
-    #
-    # Outside the panel and soft-wrapped: a path with a box border through the middle
-    # of it cannot be copied, and one cut off at the terminal width is worse still,
-    # because nothing on screen says it was cut.
+    # Paths go outside the panel and unwrapped so they can be copied whole.
     console.print(
         Text("\n  read  ", style=theme.DETAIL)
         + Text(_display_path(exercise.readme_file), style=theme.PATH),
@@ -440,15 +380,7 @@ def render_next(exercise: Exercise) -> None:
 
 
 def save_progress(root: Path, state: State) -> bool:
-    """Write progress, or say plainly why it could not be written.
-
-    A read-only clone, a full disk or a directory owned by someone else must not
-    turn a finished exercise into a traceback: the work happened, only the
-    bookkeeping failed, and the two deserve different words.
-
-    Returns whether the write landed, so a caller that is about to claim something
-    was recorded can soften the claim instead.
-    """
+    """Write progress, or warn instead of raising. Returns whether the write landed."""
     try:
         preserved = save(root, state)
     except OSError as exc:

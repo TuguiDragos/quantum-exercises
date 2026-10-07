@@ -326,7 +326,9 @@ class TestProse:
         styles = {text.plain[span.start : span.end]: span.style for span in text.spans}
         assert styles == {"qx next": ui.theme.COMMAND, "qiskit_version": ui.theme.CODE}
 
-    @pytest.mark.parametrize("command", ["qx", "qx hint 3", "uv sync", "git status"])
+    @pytest.mark.parametrize(
+        "command", ["qx", "qx hint 3", "uv run qx", "uv run qx next", "uv sync", "git status"]
+    )
     def test_commands_are_drawn_as_commands(self, command: str) -> None:
         text = ui.prose(f"`{command}`", "plain")
         assert [span.style for span in text.spans] == [ui.theme.COMMAND]

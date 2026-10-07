@@ -422,6 +422,8 @@ def save_progress(root: Path, state: State) -> bool:
 
 
 _INLINE_CODE = _re.compile(r"`([^`\n]+)`")
+# Every form invocation() returns starts with one of these.
+_COMMANDS = {"qx", "uv", "git"}
 
 
 def prose(message: str, style: str) -> Text:
@@ -430,7 +432,7 @@ def prose(message: str, style: str) -> Text:
     for index, part in enumerate(_INLINE_CODE.split(_safe(message))):
         if index % 2 == 0:
             text.append(part)
-        elif part == invocation() or part.startswith((f"{invocation()} ", "qx ", "uv ", "git ")):
+        elif part.split(" ", 1)[0] in _COMMANDS:
             text.append(part, style=theme.COMMAND)
         else:
             text.append(part, style=_surface(theme.CODE))

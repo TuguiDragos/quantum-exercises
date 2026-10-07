@@ -25,6 +25,31 @@ from quantum_exercises.state import STATE_FILENAME, State, save, state_path
 # highlight=False stops rich from coloring numbers, strings and paths itself.
 console = Console(highlight=False, theme=Theme(theme.RICH_OVERRIDES))
 
+_FEW_COLORS = {"256", "standard", "windows"}
+
+
+def _few_colors() -> bool:
+    return console.color_system in _FEW_COLORS
+
+
+def _surface(style: str) -> str:
+    return theme.for_256_colors(style) if _few_colors() else style
+
+
+def fit_theme(target: Console) -> None:
+    """Give a console with few colors the greys its dark surfaces round to cleanly."""
+    if target.color_system in _FEW_COLORS:
+        overrides = {name: theme.for_256_colors(s) for name, s in theme.RICH_OVERRIDES.items()}
+        target.push_theme(Theme(overrides))
+
+
+fit_theme(console)
+
+
+def syntax_theme():
+    return theme.SYNTAX_THEME_256 if _few_colors() else theme.SYNTAX_THEME
+
+
 # Rounded corners leave a visible notch on a filled background.
 TABLE_BOX = box.SQUARE
 
@@ -79,7 +104,7 @@ def panel(*, border: str = theme.BORDER_ACTIVE, heavy: bool = False, raised: boo
     """Panel styling in one place, so no call site names a color or a box."""
     return {
         "border_style": border,
-        "style": theme.RAISED if raised else theme.PANEL,
+        "style": _surface(theme.RAISED if raised else theme.PANEL),
         # Square, not rounded: rounded corners notch a filled background.
         "box": box.HEAVY if heavy else box.SQUARE,
         "expand": False,
@@ -408,7 +433,7 @@ def prose(message: str, style: str) -> Text:
         elif part == invocation() or part.startswith((f"{invocation()} ", "qx ", "uv ", "git ")):
             text.append(part, style=theme.COMMAND)
         else:
-            text.append(part, style=theme.CODE)
+            text.append(part, style=_surface(theme.CODE))
     return text
 
 
@@ -434,7 +459,7 @@ class _Markdown(Markdown):
 
 
 def markdown(text: str) -> Markdown:
-    return _Markdown(text, code_theme=theme.SYNTAX_THEME)
+    return _Markdown(text, code_theme=syntax_theme())
 
 
 def success(message: str) -> None:
@@ -470,7 +495,9 @@ __all__ = [
     "render_next",
     "render_run",
     "render_statevector",
+    "fit_theme",
     "save_progress",
+    "syntax_theme",
     "success",
     "warn",
 ]

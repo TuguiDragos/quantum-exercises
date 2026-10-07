@@ -939,7 +939,7 @@ def solution(
             Syntax(
                 code,
                 "python",
-                theme=theme.SYNTAX_THEME,
+                theme=ui.syntax_theme(),
                 line_numbers=False,
             ),
             title=str(exercise.solution_file),

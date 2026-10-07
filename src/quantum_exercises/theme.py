@@ -30,6 +30,11 @@ TEXT = "#e9e9ed"  # body text on a dark ground
 MUTED = "#343856"  # dimmed dots and borders
 OUTLINE = "#3d3f60"  # inactive outlines
 
+# A 256-color terminal (Apple's Terminal before macOS 26) rounds BACKGROUND and
+# SURFACE to pure black and navy. These greys are on its ramp, so they land as is.
+BACKGROUND_256 = "#1c1c1c"
+SURFACE_256 = "#262626"
+
 # Secondary prose: TEXT blended 30% toward BACKGROUND (7.6:1 contrast). The
 # terminal's dim attribute is never used; it is unreadable on real displays.
 TEXT_DIM = "#aaaab1"
@@ -131,12 +136,26 @@ class SyntaxStyle(PygmentsStyle):
     }
 
 
+class SyntaxStyle256(SyntaxStyle):
+    background_color = BACKGROUND_256
+    line_number_background_color = BACKGROUND_256
+
+
 SYNTAX_THEME = SyntaxStyle
+SYNTAX_THEME_256 = SyntaxStyle256
+
+
+def for_256_colors(style: str) -> str:
+    """The same style, with the two dark surfaces swapped for their 256-color greys."""
+    return style.replace(BACKGROUND, BACKGROUND_256).replace(SURFACE, SURFACE_256)
+
 
 __all__ = [
     "RICH_OVERRIDES",
+    "for_256_colors",
     "ACCENT",
     "BACKGROUND",
+    "BACKGROUND_256",
     "BAR",
     "BAR_TRACK",
     "BODY",
@@ -160,7 +179,9 @@ __all__ = [
     "STATUS_TODO",
     "STRONG",
     "SURFACE",
+    "SURFACE_256",
     "SYNTAX_THEME",
+    "SYNTAX_THEME_256",
     "TEXT",
     "TEXT_DIM",
     "TITLE",

@@ -359,3 +359,38 @@ def test_hint_code_blocks_have_no_padding_rows() -> None:
     code = next(i for i, line in enumerate(lines) if "x = 1" in line)
     assert lines[code - 1].strip() == "" and lines[code - 2].strip() == "Before."
     assert lines[code + 1].strip() == "" and lines[code + 2].strip() == "After."
+
+
+class TestFewColors:
+    """A 256-color terminal rounds the two dark surfaces to black and navy."""
+
+    @staticmethod
+    def _console(system: str) -> Console:
+        return Console(file=io.StringIO(), force_terminal=True, color_system=system)
+
+    def test_truecolor_keeps_the_palette(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(ui, "console", self._console("truecolor"))
+        assert ui.panel()["style"] == ui.theme.PANEL
+        assert ui.panel(raised=True)["style"] == ui.theme.RAISED
+        assert ui.syntax_theme() is ui.theme.SYNTAX_THEME
+
+    def test_256_colors_get_the_greys(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(ui, "console", self._console("256"))
+        assert ui.panel()["style"] == f"on {ui.theme.BACKGROUND_256}"
+        assert ui.panel(raised=True)["style"] == f"on {ui.theme.SURFACE_256}"
+        assert ui.syntax_theme() is ui.theme.SYNTAX_THEME_256
+        code = ui.prose("`x`", "plain").spans[0].style
+        assert ui.theme.SURFACE_256 in code and ui.theme.SURFACE not in code
+
+    def test_the_greys_land_on_the_256_ramp_as_is(self) -> None:
+        console = self._console("256")
+        for grey, index in ((ui.theme.BACKGROUND_256, 234), (ui.theme.SURFACE_256, 235)):
+            console.print("x", style=f"on {grey}")
+            assert f"48;5;{index}m" in console.file.getvalue()
+
+    @pytest.mark.parametrize("system", ["truecolor", "256"])
+    def test_fit_theme_touches_only_consoles_with_few_colors(self, system: str) -> None:
+        console = self._console(system)
+        ui.fit_theme(console)
+        code_block = str(console.get_style("markdown.code_block"))
+        assert (ui.theme.BACKGROUND_256 in code_block) == (system == "256")

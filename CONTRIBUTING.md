@@ -362,8 +362,9 @@ the README until an unrelated pull request failed for it.
 
 ## Never in CI, never in tests
 
-Nothing may submit a job to real hardware. `ci.yml` and `verify.yml` set
-`QX_OFFLINE=1` and `tests/conftest.py` sets it for the whole session. A test that
+Nothing may submit a job to real hardware. `ci.yml`, `verify.yml` and
+`website.yml` set `QX_OFFLINE=1` and `tests/conftest.py` sets it for the whole
+session. A test that
 spends someone's free QPU quota is a bug. `rotate-notes.yml` runs no Python and
 touches nothing quantum.
 

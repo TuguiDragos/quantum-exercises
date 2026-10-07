@@ -51,3 +51,16 @@ updates:
         patterns: ["*"]
     commit-message:
       prefix: "deps"
+
+  # shiki, which colors the code on the website.
+  - package-ecosystem: "npm"
+    directory: "/website"
+    schedule:
+      interval: "cron"
+      cronjob: "23 6 1,15 * *"
+      timezone: "Etc/UTC"
+    groups:
+      website:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps"

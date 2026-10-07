@@ -205,6 +205,12 @@ class TestTheSdistCarriesTheRepository:
         PyPI renders loads them over https rather than out of the file."""
         assert "readme-assets" in self._excluded(pyproject)
 
+    def test_the_website_stays_out(self, pyproject: dict) -> None:
+        """website/ builds the project's site from this repository. Nothing that
+        builds the package reads it, and its screenshots would grow the archive
+        from half a megabyte to several."""
+        assert "website" in self._excluded(pyproject)
+
     def test_nothing_a_build_needs_is_excluded(self, pyproject: dict) -> None:
         """The sdist has to still build a wheel, which is the whole point of one."""
         needed = {"src", "exercises", "notebooks", "pyproject.toml", "README.md", "LICENSE"}

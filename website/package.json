@@ -1,0 +1,9 @@
+{
+  "name": "quantum-exercises-website",
+  "private": true,
+  "description": "Builds quantum-exercises.tuguidragos.com from this repository.",
+  "type": "module",
+  "dependencies": {
+    "shiki": "4.5.0"
+  }
+}

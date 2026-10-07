@@ -150,7 +150,8 @@ against hardware can carry job identifiers.
 
 ## Automated runs never reach hardware
 
-`ci.yml` and `verify.yml` set `QX_OFFLINE=1`, and so does the test suite.
+`ci.yml`, `verify.yml` and `website.yml` set `QX_OFFLINE=1`, and so does the
+test suite.
 Nothing automated can submit a job or spend someone's free QPU minutes.
 `rotate-notes.yml` runs no Python and never loads qiskit at all.
 

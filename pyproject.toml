@@ -40,7 +40,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/TuguiDragos/quantum-exercises"
+Homepage = "https://quantum-exercises.tuguidragos.com/"
+Source = "https://github.com/TuguiDragos/quantum-exercises"
 Issues = "https://github.com/TuguiDragos/quantum-exercises/issues"
 Blog = "https://tuguidragos.com"
 
@@ -81,13 +82,14 @@ exclude = ["**/__pycache__", "**/*.pyc", "**/.ipynb_checkpoints"]
 "exercises" = "quantum_exercises/_course/exercises"
 "notebooks" = "quantum_exercises/_course/notebooks"
 
-# The sdist carries the repository, which is what it is for, minus the one part
+# The sdist carries the repository, which is what it is for, minus the two parts
 # nothing needs from it: the screenshots are 7 MB of the archive, no build step
 # reads them, and the README that PyPI renders loads them over https rather than
-# out of the file. Excluded here and not in the wheel section, because a wheel
-# never had them.
+# out of the file; website/ builds quantum-exercises.tuguidragos.com, carries
+# its own copies of those screenshots, and no package build reads it either.
+# Excluded here and not in the wheel section, because a wheel never had them.
 [tool.hatch.build.targets.sdist]
-exclude = ["readme-assets", "**/__pycache__", "**/*.pyc", "**/.ipynb_checkpoints"]
+exclude = ["readme-assets", "website", "**/__pycache__", "**/*.pyc", "**/.ipynb_checkpoints"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

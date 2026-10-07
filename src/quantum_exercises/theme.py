@@ -46,6 +46,7 @@ DETAIL = TEXT_DIM
 FIGURE = ACCENT  # numbers, keys, identifiers
 PATH = ACCENT  # a file the reader has to go and open
 COMMAND = f"bold {TEXT}"  # something to type
+CODE = f"{ACCENT} on {SURFACE}"  # an identifier or snippet in prose
 
 PANEL = f"on {BACKGROUND}"
 RAISED = f"on {SURFACE}"
@@ -71,7 +72,7 @@ CHECK_FAIL = f"bold {ACCENT}"
 # Rich's default markdown and table styles use named colors; override them all.
 RICH_OVERRIDES = {
     "markdown.block_quote": DETAIL,
-    "markdown.code": f"{ACCENT} on {SURFACE}",
+    "markdown.code": CODE,
     "markdown.code_block": f"{TEXT} on {BACKGROUND}",
     "markdown.em": "italic",
     "markdown.emph": "italic",

@@ -317,3 +317,45 @@ def test_render_counts_with_all_zero_values() -> None:
 def test_bar_clamps_out_of_range_fractions() -> None:
     assert ui._bar(-1.0).strip() == ""
     assert ui._bar(2.0).count("█") == ui.BAR_WIDTH
+
+
+class TestProse:
+    def test_backticks_become_styles_not_characters(self) -> None:
+        text = ui.prose("Run `qx next`, then set `qiskit_version`.", "plain")
+        assert text.plain == "Run qx next, then set qiskit_version."
+        styles = {text.plain[span.start : span.end]: span.style for span in text.spans}
+        assert styles == {"qx next": ui.theme.COMMAND, "qiskit_version": ui.theme.CODE}
+
+    @pytest.mark.parametrize("command", ["qx", "qx hint 3", "uv sync", "git status"])
+    def test_commands_are_drawn_as_commands(self, command: str) -> None:
+        text = ui.prose(f"`{command}`", "plain")
+        assert [span.style for span in text.spans] == [ui.theme.COMMAND]
+
+    def test_a_lone_backtick_is_left_alone(self) -> None:
+        assert ui.prose("it's a ` mark", "plain").plain == "it's a ` mark"
+
+
+def test_wrapped_messages_keep_their_indent(monkeypatch: pytest.MonkeyPatch) -> None:
+    console = Console(file=io.StringIO(), width=30)
+    monkeypatch.setattr(ui, "console", console)
+    ui.info("one two three four five six seven eight nine ten")
+    lines = console.file.getvalue().splitlines()
+    assert len(lines) > 1
+    assert all(line.startswith("  ") and not line.startswith("   ") for line in lines)
+
+
+def test_plural() -> None:
+    assert (ui.plural(1, "hint"), ui.plural(2, "hint"), ui.plural(0, "file")) == (
+        "1 hint",
+        "2 hints",
+        "0 files",
+    )
+
+
+def test_hint_code_blocks_have_no_padding_rows() -> None:
+    console = Console(file=io.StringIO(), width=40)
+    console.print(ui.markdown("Before.\n\n```python\nx = 1\n```\n\nAfter."))
+    lines = console.file.getvalue().splitlines()
+    code = next(i for i, line in enumerate(lines) if "x = 1" in line)
+    assert lines[code - 1].strip() == "" and lines[code - 2].strip() == "Before."
+    assert lines[code + 1].strip() == "" and lines[code + 2].strip() == "After."

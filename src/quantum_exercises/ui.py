@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import math
+import re as _re
 from pathlib import Path
 
 from rich import box
 from rich.console import Console, Group
+from rich.markdown import CodeBlock, Markdown
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
+from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
@@ -237,7 +241,7 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
     }
     heading = headings.get(result.outcome, "FAILED")
 
-    parts: list = [Text(_safe(result.message), style=theme.STRONG)]
+    parts: list = [prose(result.message, theme.STRONG)]
 
     if result.line is not None:
         try:
@@ -247,12 +251,10 @@ def _render_failure(exercise: Exercise, result: RunResult, *, root: Path) -> Non
         parts.append(Text(f"\nat {where}:{result.line}", style=theme.PATH))
 
     if result.detail:
-        parts.append(Text(_safe("\n" + result.detail), style=theme.DETAIL))
+        parts.append(prose("\n" + result.detail, theme.DETAIL))
 
     if result.hint:
-        parts.append(
-            Text("\nfix  ", style=theme.HEADING) + Text(_safe(result.hint), style=theme.BODY)
-        )
+        parts.append(Text("\nfix  ", style=theme.HEADING) + prose(result.hint, theme.BODY))
 
     console.print(
         Panel(
@@ -394,20 +396,61 @@ def save_progress(root: Path, state: State) -> bool:
     return True
 
 
+_INLINE_CODE = _re.compile(r"`([^`\n]+)`")
+
+
+def prose(message: str, style: str) -> Text:
+    """Text whose `backticked` spans are drawn as code, or as a command when they are one."""
+    text = Text(style=style)
+    for index, part in enumerate(_INLINE_CODE.split(_safe(message))):
+        if index % 2 == 0:
+            text.append(part)
+        elif part == invocation() or part.startswith((f"{invocation()} ", "qx ", "uv ", "git ")):
+            text.append(part, style=theme.COMMAND)
+        else:
+            text.append(part, style=theme.CODE)
+    return text
+
+
+def indented(renderable) -> Padding:
+    """Two columns in, wrapped lines included."""
+    return Padding(renderable, (0, 0, 0, 2), expand=False)
+
+
+def plural(count: int, noun: str) -> str:
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
+class _CodeBlock(CodeBlock):
+    # rich pads code blocks with a blank row above and below, on top of the
+    # paragraph gap, which doubles the space around every snippet in a hint.
+    def __rich_console__(self, console, options):
+        code = str(self.text).rstrip()
+        yield Syntax(code, self.lexer_name, theme=self.theme, word_wrap=True, padding=(0, 1))
+
+
+class _Markdown(Markdown):
+    elements = {**Markdown.elements, "fence": _CodeBlock, "code_block": _CodeBlock}
+
+
+def markdown(text: str) -> Markdown:
+    return _Markdown(text, code_theme=theme.SYNTAX_THEME)
+
+
 def success(message: str) -> None:
-    console.print(Text(f"  {message}", style=theme.STATUS_DONE))
+    console.print(indented(prose(message, theme.STATUS_DONE)))
 
 
 def info(message: str) -> None:
-    console.print(Text(f"  {message}", style=theme.DETAIL))
+    console.print(indented(prose(message, theme.DETAIL)))
 
 
 def warn(message: str) -> None:
-    console.print(Text(f"  {message}", style=theme.DETAIL))
+    console.print(indented(prose(message, theme.DETAIL)))
 
 
 def error(message: str) -> None:
-    console.print(Text(f"  {message}", style=theme.CHECK_FAIL))
+    console.print(indented(prose(message, theme.CHECK_FAIL)))
 
 
 __all__ = [
@@ -415,7 +458,11 @@ __all__ = [
     "console",
     "panel",
     "error",
+    "indented",
     "info",
+    "markdown",
+    "plural",
+    "prose",
     "render_artifact",
     "render_counts",
     "render_list",

@@ -13,7 +13,6 @@ from typing import Annotated
 
 import typer
 from rich import box
-from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
@@ -473,11 +472,11 @@ def _report_update(
 ) -> None:
     """What happened to a course that was already there."""
     if added:
-        ui.success(f"Added {len(added)} thing(s) to {target}:")
+        ui.success(f"Added {ui.plural(len(added), 'thing')} to {target}:")
         _listed(added)
 
     if refreshed:
-        ui.success(f"Brought {len(refreshed)} file(s) in {target} up to date:")
+        ui.success(f"Brought {ui.plural(len(refreshed), 'file')} in {target} up to date:")
         _listed(refreshed)
         ui.info(f"The version you had is beside each one, with a {BACKUP_SUFFIX} suffix.")
 
@@ -551,7 +550,7 @@ def doctor(
     )
     table.add_column("", width=4)
     table.add_column("check", style=theme.FIGURE)
-    table.add_column("detail")
+    table.add_column("detail", overflow="fold")
 
     for check in checks:
         label, style = STATUS_ICON[check.status]
@@ -565,14 +564,16 @@ def doctor(
         ui.console.print()
         for check in fixes:
             ui.console.print(
-                Text(f"  {check.name}: ", style=theme.STRONG)
-                + Text(check.fix or "", style=theme.DETAIL)
+                ui.indented(
+                    Text(f"{check.name}: ", style=theme.STRONG)
+                    + ui.prose(check.fix or "", theme.DETAIL)
+                )
             )
 
     failed = [c for c in checks if c.status == "fail"]
     ui.console.print()
     if failed:
-        ui.error(f"{len(failed)} blocking problem(s). Fix those before starting.")
+        ui.error(f"{ui.plural(len(failed), 'blocking problem')}. Fix those before starting.")
         raise typer.Exit(code=1)
     ui.success(f"Environment is ready. Run `{invocation()} next` to begin.")
     ui.console.print()
@@ -750,12 +751,16 @@ def run(
         if not was_complete:
             remaining = [e for e in exercises if not state.is_complete(e.slug)]
             if remaining:
-                ui.info(
-                    f"Next up: {remaining[0].number:02d} {remaining[0].title}  "
-                    f"({invocation()} next)"
+                ui.console.print(
+                    Text("  next  ", style=theme.DETAIL)
+                    + Text(f"{remaining[0].number:02d} {remaining[0].title}", style=theme.STRONG)
+                    + Text(", with ", style=theme.DETAIL)
+                    + Text(f"{invocation()} next", style=theme.COMMAND)
+                    + "\n"
                 )
             else:
                 ui.success("That was the last one. All exercises complete.")
+                ui.console.print()
 
     raise typer.Exit(code=0 if result.passed else 1)
 
@@ -869,7 +874,7 @@ def hint(
     for index in range(visible):
         ui.console.print(
             Panel(
-                Markdown(hints[index], code_theme=theme.SYNTAX_THEME),
+                ui.markdown(hints[index]),
                 title=f"hint {index + 1} of {len(hints)}",
                 **ui.panel(border=theme.BORDER),
             )
@@ -877,7 +882,7 @@ def hint(
 
     if visible < len(hints):
         ui.info(
-            f"{len(hints) - visible} more hint(s) available: run "
+            f"{ui.plural(len(hints) - visible, 'more hint')} available: run "
             f"`{invocation()} hint {exercise.number}` again."
         )
     else:

@@ -61,12 +61,12 @@ class TestRunGuards:
             sandbox / "exercises" / "01_environment" / "exercise.py",
         )
         first = _invoke("run", "1")
-        assert "Next up" in first.stdout
+        assert "next  02 Counts is just a dictionary, with qx next" in first.stdout
 
         again = _invoke("run", "1")
         assert again.exit_code == 0
         assert "PASS" in again.stdout
-        assert "Next up" not in again.stdout
+        assert "next  " not in again.stdout
 
     def test_run_with_everything_complete_exits_zero(self, sandbox: Path) -> None:
         _solve_all(sandbox)

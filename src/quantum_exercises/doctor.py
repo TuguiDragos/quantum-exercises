@@ -136,15 +136,16 @@ def check_credentials(*, tested_online: bool = False) -> Check:
 
     `tested_online` only drops the advice to run --online.
     """
+    no_account = Check(
+        "IBM Quantum account",
+        "warn",
+        "no saved account",
+        "Optional. Every exercise runs on a local simulator without one. To use real "
+        "hardware, create an API key at https://cloud.ibm.com/iam/apikeys and run "
+        f"`{invocation()} doctor --save-account`.",
+    )
     if not CREDENTIALS_PATH.is_file():
-        return Check(
-            "IBM Quantum account",
-            "warn",
-            "no saved account",
-            "Optional. Every exercise runs on a local simulator without one. To use real "
-            "hardware, create an API key at https://cloud.ibm.com/iam/apikeys and run "
-            f"`{invocation()} doctor --save-account`.",
-        )
+        return no_account
 
     try:
         raw = json.loads(CREDENTIALS_PATH.read_text(encoding="utf-8"))
@@ -156,7 +157,11 @@ def check_credentials(*, tested_online: bool = False) -> Check:
             "Delete the file and save the account again.",
         )
 
-    if not isinstance(raw, dict) or not raw:
+    # qiskit writes `{}` itself whenever it looks for an account and finds none.
+    if raw == {}:
+        return no_account
+
+    if not isinstance(raw, dict):
         return Check(
             "IBM Quantum account",
             "fail",
@@ -257,6 +262,9 @@ def check_online() -> Check:
             service = QiskitRuntimeService()
             backends = service.backends(operational=True, simulator=False)
         except Exception as exc:  # noqa: BLE001 - any failure is reported, never fatal
+            if type(exc).__name__ == "AccountNotFoundError":
+                # The account row above already says how to save one.
+                return Check("IBM Quantum connection", "warn", "not tested: no saved account")
             return Check(
                 "IBM Quantum connection",
                 "warn",

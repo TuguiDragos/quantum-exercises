@@ -133,9 +133,22 @@ class TestCredentials:
         monkeypatch.setattr(doctor, "CREDENTIALS_PATH", path)
         assert doctor.check_credentials().status == "fail"
 
-    def test_empty_file_is_a_failure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_the_empty_file_qiskit_writes_means_no_account(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """QiskitRuntimeService() writes `{}` when it finds no account, so
+        `qx doctor --online` without one must not leave doctor failing after it."""
         path = tmp_path / "qiskit-ibm.json"
         path.write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(doctor, "CREDENTIALS_PATH", path)
+        check = doctor.check_credentials()
+        assert (check.status, check.detail) == ("warn", "no saved account")
+
+    def test_a_file_that_holds_no_mapping_is_a_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = tmp_path / "qiskit-ibm.json"
+        path.write_text("[]", encoding="utf-8")
         monkeypatch.setattr(doctor, "CREDENTIALS_PATH", path)
         assert doctor.check_credentials().status == "fail"
 
@@ -316,6 +329,25 @@ def test_check_online_survives_a_network_failure(monkeypatch) -> None:
     check = doctor.check_online()
     assert check.status == "warn"
     assert "could not reach IBM" in check.detail
+
+
+def test_check_online_without_a_saved_account_tests_nothing(monkeypatch) -> None:
+    class AccountNotFoundError(Exception):
+        pass
+
+    def missing(*args, **kwargs):
+        raise AccountNotFoundError("Unable to find account.")
+
+    module = ModuleType("qiskit_ibm_runtime")
+    module.QiskitRuntimeService = missing
+    monkeypatch.setitem(sys.modules, "qiskit_ibm_runtime", module)
+
+    check = doctor.check_online()
+    assert (check.status, check.detail, check.fix) == (
+        "warn",
+        "not tested: no saved account",
+        None,
+    )
 
 
 def test_check_python_rejects_an_old_interpreter(monkeypatch) -> None:

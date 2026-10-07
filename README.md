@@ -434,7 +434,7 @@ Before anything is sent, `qx run 14` asks IBM which QPU is free and shows you th
 answer:
 
 ```
-  least busy  ibm_marrakesh   1 job(s) ahead of you
+  least busy  ibm_marrakesh   1 job ahead of you
   all of them https://quantum.cloud.ibm.com/computers
 
   Send it now? Answering no changes nothing and costs nothing [y/N]:

@@ -839,7 +839,7 @@ def _confirm_hardware(exercise: Exercise) -> _HardwareDecision:
     ui.console.print(
         Text("  least busy  ", style=theme.DETAIL)
         + Text(queue.name, style=theme.FIGURE)
-        + Text(f"   {queue.pending} job(s) ahead of you", style=theme.BODY)
+        + Text(f"   {ui.plural(queue.pending, 'job')} ahead of you", style=theme.BODY)
     )
     ui.console.print(
         Text("  all of them ", style=theme.DETAIL) + Text(COMPUTERS_URL, style=theme.PATH)

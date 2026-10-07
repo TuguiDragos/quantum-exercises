@@ -198,11 +198,19 @@ class TestHardwareConfirmation:
         decision = cli._confirm_hardware(_hardware_exercise(sandbox))
         shown = capsys.readouterr().out
         assert "ibm_marrakesh" in shown
-        assert "6 job" in shown
+        assert "6 jobs ahead of you" in shown
         assert cli.COMPUTERS_URL in shown
         assert decision.allowed is True
         assert decision.window == cli.HARDWARE_WINDOW_SECONDS
         assert decision.window == 3 * 60 * 60, "the window has to outlast a real queue"
+
+    def test_one_job_in_the_queue_is_one_job(self, sandbox: Path, monkeypatch, capsys) -> None:
+        from quantum_exercises.backends import Queue
+
+        self._peek(monkeypatch, Queue("ibm_marrakesh", 1))
+        monkeypatch.setattr(cli.typer, "confirm", lambda *a, **k: True)
+        cli._confirm_hardware(_hardware_exercise(sandbox))
+        assert "1 job ahead of you" in capsys.readouterr().out
 
     def test_no_leaves_everything_untouched(self, sandbox: Path, monkeypatch) -> None:
         from quantum_exercises.backends import Queue

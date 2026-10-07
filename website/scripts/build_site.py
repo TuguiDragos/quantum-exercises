@@ -186,7 +186,10 @@ assert (
     "HARDWARE_WINDOW_SECONDS = 3 * 60 * 60" in cli
     and "Send it now? Answering no changes nothing and costs nothing" in cli
 )
-assert "job(s) ahead of you" in cli and "os.chmod(CREDENTIALS_PATH, 0o600)" in cli
+assert (
+    "{ui.plural(queue.pending, 'job')} ahead of you" in cli
+    and "os.chmod(CREDENTIALS_PATH, 0o600)" in cli
+)
 backends = (repo / "src/quantum_exercises/backends.py").read_text()
 assert 'FAKE_BACKEND = "FakeManilaV2"' in backends and "AerSimulator.from_backend(fake)" in backends
 check11 = (repo / "exercises/11_bell_entanglement/check.py").read_text()
@@ -800,7 +803,7 @@ page = f"""<!DOCTYPE html>
           <li><b>A plain noiseless simulator.</b></li>
         </ol>
         <div class="queue reveal" role="img" aria-label="qx run {HW} shows that the least busy QPU is ibm_marrakesh with 1 job ahead of you, links to every computer, and asks: Send it now? Answering no changes nothing and costs nothing.">
-          <pre aria-hidden="true"><span class="dim">  least busy  </span><b>ibm_marrakesh</b>   1 job(s) ahead of you
+          <pre aria-hidden="true"><span class="dim">  least busy  </span><b>ibm_marrakesh</b>   1 job ahead of you
 <span class="dim">  all of them </span><span class="link">https://quantum.cloud.ibm.com/computers</span>
 
   Send it now? Answering no changes nothing and costs nothing [y/N]:</pre>

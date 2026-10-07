@@ -108,6 +108,28 @@ app = typer.Typer(
     add_completion=False,
 )
 
+
+def _show_version(value: bool) -> None:
+    if value:
+        version()
+        raise typer.Exit()
+
+
+@app.callback()
+def _options(
+    show_version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            help="Print versions of the tool and the quantum stack it runs on.",
+            callback=_show_version,
+            is_eager=True,
+        ),
+    ] = False,
+) -> None:
+    pass
+
+
 STATUS_ICON = {
     "ok": ("ok  ", theme.CHECK_OK),
     "warn": ("warn", theme.CHECK_WARN),

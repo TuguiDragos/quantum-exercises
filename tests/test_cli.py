@@ -67,6 +67,16 @@ class TestListing:
         assert "quantum-exercises" in result.stdout
         assert "qiskit" in result.stdout
 
+    def test_version_flag_prints_what_the_version_command_does(self) -> None:
+        flag, command = _invoke("--version"), _invoke("version")
+        assert flag.exit_code == 0
+        assert flag.stdout == command.stdout
+
+    def test_version_flag_needs_no_course(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("QX_ROOT", raising=False)
+        assert _invoke("--version").exit_code == 0
+
 
 class TestRunning:
     def test_untouched_exercise_fails(self, sandbox: Path) -> None:

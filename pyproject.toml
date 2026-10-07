@@ -26,7 +26,7 @@ classifiers = [
 # uv.lock keeps everyday installs reproducible.
 dependencies = [
     "qiskit[visualization]>=2.5,<3",
-    "qiskit-ibm-runtime>=0.48,<1",
+    "qiskit-ibm-runtime>=0.50,<1",
     "qiskit-aer>=0.17,<1",
     "typer>=0.27,<1",
     "rich>=15,<16",

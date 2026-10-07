@@ -28,7 +28,7 @@ resolves to 2.2.6 and scipy to 1.15.3. A test keeps this table in step with a
 | Dependency | Range | On 3.13 | Why it is here |
 |---|---|---|---|
 | [qiskit](https://pypi.org/project/qiskit/) `[visualization]` | `>=2.5,<3` | 2.5.2 | the SDK itself. The extra adds matplotlib, pydot, Pillow, pylatexenc, seaborn and sympy, which plain `qiskit` does not install and `draw("mpl")` needs |
-| [qiskit-ibm-runtime](https://pypi.org/project/qiskit-ibm-runtime/) | `>=0.48,<1` | 0.50.0 | talks to IBM hardware, and supplies the fake backends the offline noise model is copied from |
+| [qiskit-ibm-runtime](https://pypi.org/project/qiskit-ibm-runtime/) | `>=0.50,<1` | 0.50.0 | talks to IBM hardware, and supplies the fake backends the offline noise model is copied from |
 | [qiskit-aer](https://pypi.org/project/qiskit-aer/) | `>=0.17,<1` | 0.17.2 | local simulation, including noise models taken from real devices |
 | [typer](https://pypi.org/project/typer/) | `>=0.27,<1` | 0.27.3 | the `qx` command and its subcommands |
 | [rich](https://pypi.org/project/rich/) | `>=15,<16` | 15.0.0 | histograms, matrices and panels in the terminal |

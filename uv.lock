@@ -3089,7 +3089,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.0,<3" },
     { name = "qiskit", extras = ["visualization"], specifier = ">=2.5,<3" },
     { name = "qiskit-aer", specifier = ">=0.17,<1" },
-    { name = "qiskit-ibm-runtime", specifier = ">=0.48,<1" },
+    { name = "qiskit-ibm-runtime", specifier = ">=0.50,<1" },
     { name = "rich", specifier = ">=15,<16" },
     { name = "scipy", specifier = ">=1.14" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.1" },

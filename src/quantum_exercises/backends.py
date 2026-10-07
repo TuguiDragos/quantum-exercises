@@ -178,9 +178,10 @@ def to_isa(circuit, backend, *, optimization_level: int = 1):
 def sample(circuit, selection: Selection, *, shots: int = 1024) -> dict[str, int]:
     """Run an ISA circuit on the selected backend and return counts."""
     if selection.is_hardware:
-        from qiskit_ibm_runtime import SamplerV2
+        # The client-side Sampler that replaces SamplerV2, deprecated in runtime 0.50.
+        from qiskit_ibm_runtime.executor_sampler import Sampler
 
-        result = SamplerV2(mode=selection.backend).run([circuit], shots=shots).result()
+        result = Sampler(mode=selection.backend).run([circuit], shots=shots).result()
         return single_register_counts(result[0])
 
     # A fresh qiskit_aer SamplerV2() would ignore the backend and its noise model.

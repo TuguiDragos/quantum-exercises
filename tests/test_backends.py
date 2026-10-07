@@ -6,6 +6,7 @@ The hardware branch is driven with a result shaped like a real ibm_fez Bell job
 
 from __future__ import annotations
 
+import warnings
 from types import SimpleNamespace
 
 import pytest
@@ -32,7 +33,7 @@ class FakeRuntimeJob:
 
 
 class RecordingSampler:
-    """Stands in for qiskit_ibm_runtime.SamplerV2, recording how it was used."""
+    """Stands in for the runtime's executor Sampler, recording how it was used."""
 
     calls: list[dict] = []
 
@@ -81,7 +82,7 @@ class TestSampleBranches:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         RecordingSampler.calls = []
-        monkeypatch.setattr("qiskit_ibm_runtime.SamplerV2", RecordingSampler)
+        monkeypatch.setattr("qiskit_ibm_runtime.executor_sampler.Sampler", RecordingSampler)
 
         sentinel = object()
         selection = backends.Selection(sentinel, "hardware", "ibm_fez", "test")
@@ -97,13 +98,31 @@ class TestSampleBranches:
         assert call["shots"] == 1024
         assert call["pubs"] == [circuit]
 
+    def test_the_real_hardware_sampler_runs_without_a_deprecation(self) -> None:
+        """Unstubbed, on a fake device: the worker shows every warning to the learner."""
+        from qiskit_ibm_runtime.fake_provider import FakeManilaV2
+
+        fake = FakeManilaV2()
+        circuit = QuantumCircuit(2)
+        circuit.h(0)
+        circuit.cx(0, 1)
+        circuit.measure_all()
+        selection = backends.Selection(fake, "hardware", fake.name, "test")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            counts = backends.sample(backends.to_isa(circuit, fake), selection, shots=256)
+
+        assert sum(counts.values()) == 256
+        assert set(counts) <= {"00", "01", "10", "11"}
+
     def test_simulator_branch_does_not_touch_the_runtime_sampler(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         def explode(*args, **kwargs):
             raise AssertionError("the simulator branch must not reach qiskit_ibm_runtime")
 
-        monkeypatch.setattr("qiskit_ibm_runtime.SamplerV2", explode)
+        monkeypatch.setattr("qiskit_ibm_runtime.executor_sampler.Sampler", explode)
 
         selection = backends.get_backend(prefer_hardware=False)
         circuit = QuantumCircuit(2)

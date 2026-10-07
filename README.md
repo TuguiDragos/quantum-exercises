@@ -247,6 +247,7 @@ inside them.
 | `qx solution [n]` | show the answer, recorded as solved rather than done |
 | `qx reset [n]` | restore an exercise to its starting state |
 | `qx version` | versions of the tool and the quantum stack |
+| `qx --version` | the same versions, as an option |
 
 Leave the number off and the command picks the first exercise you have not
 finished. Numbers, slugs and fragments all work, so `qx run 11`, `qx run bell`

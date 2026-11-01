@@ -529,10 +529,10 @@ metadata; GitHub turns it into a formatted citation from the sidebar.
 Everything I learn about quantum computing, written down in order, at [tuguidragos.com](https://tuguidragos.com). Five notes, picked fresh on the 1st and the 15th:
 
 <!-- NOTES:START -->
-- [I could not find a place to practise Qiskit, so I built one](https://tuguidragos.com/i-built-a-place-to-practise-qiskit/)
-- [The honest state of quantum in 2026 (NISQ, no hype)](https://tuguidragos.com/the-honest-state-of-quantum-in-2026-nisq-no-hype/)
-- [Entanglement, explained without the spooky](https://tuguidragos.com/entanglement-explained-without-the-spooky/)
-- [From counts to histogram: reading quantum results](https://tuguidragos.com/from-counts-to-histogram-reading-quantum-results/)
+- [Qiskit Global Summer School 2026: 4 labs, 473 seconds of real quantum time, 1 badge](https://tuguidragos.com/qiskit-global-summer-school-2026-quantum-excellence-badge/)
+- [Phase kickback: the trick behind quantum algorithms](https://tuguidragos.com/phase-kickback-the-trick-behind-quantum-algorithms/)
+- [Bernstein Vazirani: a whole secret in one shot](https://tuguidragos.com/bernstein-vazirani-a-whole-secret-in-one-shot/)
+- [Grover's algorithm from scratch, and why only quadratic](https://tuguidragos.com/grovers-algorithm-from-scratch-and-why-only-quadratic/)
 - [Relative phase: the invisible engine of quantum](https://tuguidragos.com/relative-phase-the-invisible-engine-of-quantum/)
 <!-- NOTES:END -->
 

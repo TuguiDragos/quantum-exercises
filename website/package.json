@@ -4,6 +4,6 @@
   "description": "Builds quantum-exercises.tuguidragos.com from this repository.",
   "type": "module",
   "dependencies": {
-    "shiki": "4.5.0"
+    "shiki": "4.6.0"
   }
 }
